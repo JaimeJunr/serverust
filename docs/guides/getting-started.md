@@ -178,7 +178,7 @@ Os campos `#[schema(min_length = ...)]` espelham as regras de `#[validate(...)]`
 
 ## 6. Próximos passos
 
-- 🚀 **Quer levar isso a AWS Lambda?** Veja o [Tutorial Lambda](./lambda-tutorial.md). O mesmo binário roda local e em Lambda, sem mudar uma linha do código de negócio.
-- 🧱 **Quer arquitetura real (DI, errors, módulos)?** Estude o exemplo [`examples/todo-api`](../../examples/todo-api/) — é uma CRUD completa que o tutorial constrói passo a passo.
-- 📚 **Quer referência completa de API?** Rode `cargo doc --workspace --no-deps --open`.
-- 🧭 **Quer entender as escolhas arquiteturais?** Leia o [Decision Log](../development/decisions.md).
+- **Quer levar isso a AWS Lambda?** Veja o [Tutorial Lambda](./lambda-tutorial.md). O mesmo binário roda local e em Lambda, sem mudar uma linha do código de negócio.
+- **Quer arquitetura real (DI, errors, módulos)?** Estude o exemplo [`examples/todo-api`](../../examples/todo-api/) — é uma CRUD completa que o tutorial constrói passo a passo.
+- **Quer referência completa de API?** Rode `cargo doc --workspace --no-deps --open`.
+- **Quer entender as escolhas arquiteturais?** Leia o [Decision Log](../development/decisions.md).

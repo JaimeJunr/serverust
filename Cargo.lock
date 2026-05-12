@@ -2297,7 +2297,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-cli"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -2306,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "axum",
  "figment",
@@ -2325,7 +2325,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-lambda"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aws_lambda_events",
  "axum",
@@ -2343,7 +2343,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2352,7 +2352,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-telemetry"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "async-trait",
  "aws-config",

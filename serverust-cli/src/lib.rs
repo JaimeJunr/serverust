@@ -48,6 +48,13 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Dev => {
             require_cargo_subcommand("watch", "cargo install cargo-watch")?;
+            // Aviso amigável: o primeiro build puxa ~150-200 crates (axum, tokio,
+            // hyper, utoipa...). Subsequentes são incrementais e rápidos.
+            if !std::path::Path::new("target").exists() {
+                eprintln!(
+                    "🦀 primeira compilação puxa muitas deps e pode levar 2-3min;\n   builds subsequentes são incrementais e bem mais rápidos.\n"
+                );
+            }
             spawn_status(commands::dev_cargo_command(), "dev")
         }
         Command::Build { release } => spawn_status(commands::build_cargo_command(release), "build"),

@@ -219,9 +219,26 @@ impl App {
     }
 
     /// Sobe um servidor HTTP local ligado em `addr` (ex.: `"127.0.0.1:3000"`).
+    ///
+    /// Imprime no stderr o endereço efetivo + URLs de documentação assim que o
+    /// listener fica pronto, para o desenvolvedor saber onde conectar:
+    ///
+    /// ```text
+    ///   🦀 serverust on http://0.0.0.0:3000
+    ///      docs:    http://0.0.0.0:3000/docs
+    ///      openapi: http://0.0.0.0:3000/openapi.json
+    /// ```
     pub async fn run_http<A: ToSocketAddrs>(self, addr: A) -> std::io::Result<()> {
         let listener = TcpListener::bind(addr).await?;
+        let local = listener.local_addr()?;
+        let docs_path = self.docs_path;
+        let openapi_path = self.openapi_path;
         let router = self.into_router();
+        eprintln!();
+        eprintln!("  🦀 serverust on http://{local}");
+        eprintln!("     docs:    http://{local}{docs_path}");
+        eprintln!("     openapi: http://{local}{openapi_path}");
+        eprintln!();
         axum::serve(listener, router).await
     }
 }

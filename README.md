@@ -6,11 +6,11 @@
 
 Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + FastAPI + NestJS.
 
-🚀 **Comece aqui**:
+🦀 **Comece aqui**:
 - [Getting Started](docs/guides/getting-started.md) — em 5 minutos, hello-world local com Swagger UI.
 - [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
 
-📚 **Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
+**Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
 
 ```bash
 cargo install serverust-cli
