@@ -36,16 +36,13 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
-# Substitua `path = "..."` por `version = "x.y"` quando publicarmos no crates.io.
-serverust-core   = { path = "../serverust-core" }
-serverust-macros = { path = "../serverust-macros" }
-serverust-lambda = { path = "../serverust-lambda" }
+serverust-core   = "0.1"
+serverust-macros = "0.1"
+serverust-lambda = "0.1"
 
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 ```
-
-> **Onde estão os crates hoje?** Enquanto o framework não é publicado, aponte os `path` para o checkout do `serverust`. Quando estiver no [crates.io](https://crates.io), troque por `version`.
 
 ## 3. Escreva o primeiro handler
 

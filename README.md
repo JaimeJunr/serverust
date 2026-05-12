@@ -1,5 +1,9 @@
 # serverust Framework
 
+[![crates.io](https://img.shields.io/crates/v/serverust-core.svg)](https://crates.io/crates/serverust-core)
+[![docs.rs](https://docs.rs/serverust-core/badge.svg)](https://docs.rs/serverust-core)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
+
 Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + FastAPI + NestJS.
 
 🚀 **Comece aqui**:
@@ -7,6 +11,10 @@ Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + Fa
 - [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
 
 📚 **Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
+
+```bash
+cargo install serverust-cli
+```
 
 ## Features
 

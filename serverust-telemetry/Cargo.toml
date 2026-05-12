@@ -49,4 +49,4 @@ dynamodb = ["dep:aws-sdk-dynamodb", "dep:aws-config"]
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
-serverust-macros = { path = "../serverust-macros" }
+serverust-macros = { path = "../serverust-macros", version = "0.1.0" }

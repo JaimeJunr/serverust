@@ -57,11 +57,9 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
-# Crates do serverust (use `path` enquanto o framework não está publicado;
-# troque por `version = "x.y"` quando estiver no crates.io).
-serverust-core   = { path = "../serverust-core" }
-serverust-macros = { path = "../serverust-macros" }
-serverust-lambda = { path = "../serverust-lambda" }
+serverust-core   = "0.1"
+serverust-macros = "0.1"
+serverust-lambda = "0.1"
 
 # Runtime e tipos auxiliares
 tokio  = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -13,7 +13,7 @@ categories.workspace = true
 description = "Runtime dual do serverust: HTTP local e AWS Lambda via lambda_http."
 
 [dependencies]
-serverust-core = { path = "../serverust-core" }
+serverust-core = { path = "../serverust-core", version = "0.1.0" }
 axum = "0.8"
 tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
 lambda_http = { version = "1.2", default-features = false, features = [
@@ -29,7 +29,7 @@ aws_lambda_events = { version = "1.2", default-features = false, features = [
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-serverust-macros = { path = "../serverust-macros" }
+serverust-macros = { path = "../serverust-macros", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 validator = { version = "0.20", features = ["derive"] }
