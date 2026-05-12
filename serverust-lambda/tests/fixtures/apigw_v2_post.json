@@ -1,0 +1,31 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /echo",
+  "rawPath": "/echo",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "application/json",
+    "content-type": "application/json",
+    "host": "example.execute-api.us-east-1.amazonaws.com"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "abc123",
+    "domainName": "example.execute-api.us-east-1.amazonaws.com",
+    "domainPrefix": "example",
+    "http": {
+      "method": "POST",
+      "path": "/echo",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "curl/8.0.0"
+    },
+    "requestId": "req-2",
+    "routeKey": "POST /echo",
+    "stage": "$default",
+    "time": "01/Jan/2024:00:00:00 +0000",
+    "timeEpoch": 1704067200000
+  },
+  "body": "{\"name\":\"world\"}",
+  "isBase64Encoded": false
+}

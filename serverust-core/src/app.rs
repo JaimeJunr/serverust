@@ -1,0 +1,190 @@
+use std::sync::Arc;
+
+use axum::Router;
+use axum::extract::Request;
+use axum::http::header;
+use axum::middleware::Next;
+use axum::response::IntoResponse;
+use axum::routing::get;
+use tokio::net::{TcpListener, ToSocketAddrs};
+use utoipa::{PartialSchema, ToSchema};
+
+use crate::config::ServerustConfig;
+use crate::container::Container;
+use crate::openapi::{OpenApiState, redoc_html, swagger_ui_html};
+use crate::pipeline::Interceptor;
+use crate::route::IntoRoute;
+
+type RouterMutator = Box<dyn FnOnce(Router<Container>) -> Router<Container> + Send + Sync>;
+
+/// Builder principal do framework. Acumula rotas e expõe `run_http` para servir localmente.
+pub struct App {
+    router: Router<Container>,
+    container: Container,
+    openapi: OpenApiState,
+    openapi_path: &'static str,
+    docs_path: &'static str,
+    redoc_path: &'static str,
+    interceptors: Vec<RouterMutator>,
+}
+
+impl App {
+    /// Cria um App vazio com defaults: `/openapi.json`, `/docs`, `/redoc`.
+    pub fn new() -> Self {
+        Self {
+            router: Router::new(),
+            container: Container::new(),
+            openapi: OpenApiState::default(),
+            openapi_path: "/openapi.json",
+            docs_path: "/docs",
+            redoc_path: "/redoc",
+            interceptors: Vec::new(),
+        }
+    }
+
+    /// Customiza `title` e `version` do documento OpenAPI gerado.
+    pub fn openapi_info(mut self, title: impl Into<String>, version: impl Into<String>) -> Self {
+        self.openapi.set_info(title, version);
+        self
+    }
+
+    /// Registra um schema `T: ToSchema` em `components.schemas` do OpenAPI.
+    pub fn register_schema<T: ToSchema + PartialSchema>(mut self) -> Self {
+        self.openapi.register_schema::<T>();
+        self
+    }
+
+    /// Customiza o path em que o Swagger UI é servido (default `/docs`).
+    pub fn docs(mut self, path: &'static str) -> Self {
+        self.docs_path = path;
+        self
+    }
+
+    /// Customiza o path em que o ReDoc é servido (default `/redoc`).
+    pub fn redoc(mut self, path: &'static str) -> Self {
+        self.redoc_path = path;
+        self
+    }
+
+    /// Registra um service com lifetime Singleton no container.
+    ///
+    /// `T` pode ser `dyn Trait`: `app.provide::<dyn MyService>(Arc::new(impl))`.
+    /// Handlers extraem o serviço via `State<Arc<dyn MyService>>`.
+    pub fn provide<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+        self.container.insert(value);
+        self
+    }
+
+    /// API de teste: substitui o provider de `T` por uma instância mock.
+    /// `override` é palavra reservada — chame como `app.r#override::<...>(...)`.
+    pub fn r#override<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+        self.container.insert(value);
+        self
+    }
+
+    /// Registra um interceptor (tower middleware) sobre as rotas do usuário.
+    ///
+    /// Aplicado em [`Self::into_router`] apenas às rotas registradas via
+    /// [`Self::route`] — as rotas de documentação (`/openapi.json`, `/docs`,
+    /// `/redoc`) ficam de fora intencionalmente, para que não dependam da
+    /// pipeline de negócio (ex.: autenticação, rate limiting).
+    pub fn interceptor<I: Interceptor>(mut self, interceptor: I) -> Self {
+        let interceptor = std::sync::Arc::new(interceptor);
+        let mutator: RouterMutator = Box::new(move |router: Router<Container>| {
+            let interceptor = interceptor.clone();
+            let layer = axum::middleware::from_fn(move |req: Request, next: Next| {
+                let interceptor = interceptor.clone();
+                async move { interceptor.intercept(req, next).await }
+            });
+            router.layer(layer)
+        });
+        self.interceptors.push(mutator);
+        self
+    }
+
+    /// Injeta uma [`ServerustConfig`] tipada no container. Handlers podem extraí-la via
+    /// `State<Arc<ServerustConfig>>`.
+    pub fn config(self, cfg: ServerustConfig) -> Self {
+        self.provide::<ServerustConfig>(Arc::new(cfg))
+    }
+
+    /// Registra um handler anotado por `#[get]`, `#[post]`, etc.
+    pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
+        let route = handler.into_route();
+        self.openapi
+            .push_operation(route.path, route.method, route.operation);
+        self.router = self.router.route(route.path, route.method_router);
+        self
+    }
+
+    /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e `/redoc`.
+    pub fn into_router(self) -> Router {
+        let doc = self.openapi.build();
+        let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
+        let swagger_html = swagger_ui_html(self.openapi_path);
+        let redoc_page = redoc_html(self.openapi_path);
+
+        // Aplica interceptors sobre as rotas do usuário antes de juntar com as
+        // rotas de documentação — isto garante que /openapi.json, /docs e
+        // /redoc NÃO sejam envolvidos pela pipeline de middleware do usuário.
+        let mut user_router = self.router;
+        for mutator in self.interceptors {
+            user_router = mutator(user_router);
+        }
+
+        user_router
+            .route(
+                self.openapi_path,
+                get(move || {
+                    let json = json.clone();
+                    async move {
+                        (
+                            [(header::CONTENT_TYPE, "application/json")],
+                            json,
+                        )
+                            .into_response()
+                    }
+                }),
+            )
+            .route(
+                self.docs_path,
+                get(move || {
+                    let html = swagger_html.clone();
+                    async move {
+                        (
+                            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                            html,
+                        )
+                            .into_response()
+                    }
+                }),
+            )
+            .route(
+                self.redoc_path,
+                get(move || {
+                    let html = redoc_page.clone();
+                    async move {
+                        (
+                            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+                            html,
+                        )
+                            .into_response()
+                    }
+                }),
+            )
+            .with_state(self.container)
+    }
+
+    /// Sobe um servidor HTTP local ligado em `addr` (ex.: `"127.0.0.1:3000"`).
+    pub async fn run_http<A: ToSocketAddrs>(self, addr: A) -> std::io::Result<()> {
+        let listener = TcpListener::bind(addr).await?;
+        let router = self.into_router();
+        axum::serve(listener, router).await
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}

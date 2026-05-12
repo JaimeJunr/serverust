@@ -1,0 +1,49 @@
+{
+  "resource": "/hello",
+  "path": "/hello",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "application/json",
+    "Host": "example.execute-api.us-east-1.amazonaws.com"
+  },
+  "multiValueHeaders": {
+    "Accept": ["application/json"],
+    "Host": ["example.execute-api.us-east-1.amazonaws.com"]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "abc123",
+    "resourcePath": "/hello",
+    "httpMethod": "GET",
+    "extendedRequestId": "xyz",
+    "requestTime": "01/Jan/2024:00:00:00 +0000",
+    "path": "/hello",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "$default",
+    "domainPrefix": "example",
+    "requestTimeEpoch": 1704067200000,
+    "requestId": "req-1",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "accountId": null,
+      "cognitoIdentityId": null,
+      "caller": null,
+      "sourceIp": "127.0.0.1",
+      "principalOrgId": null,
+      "accessKey": null,
+      "cognitoAuthenticationType": null,
+      "cognitoAuthenticationProvider": null,
+      "userArn": null,
+      "userAgent": "curl/8.0.0",
+      "user": null
+    },
+    "domainName": "example.execute-api.us-east-1.amazonaws.com",
+    "apiId": "abc123"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

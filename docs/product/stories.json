@@ -1,0 +1,218 @@
+{
+  "project": "RustAPI Framework",
+  "branchName": "ralph/serverust-framework-mvp",
+  "description": "Framework Rust opinativo para APIs HTTP e AWS Lambda, inspirado em Axum + FastAPI + NestJS. MVP entrega roteamento declarativo, validação automática, OpenAPI/Swagger via utoipa, erros padronizados, DI híbrido (Arc<dyn>) via builders, Guards/Pipes/Interceptors, runtime dual (Lambda + HTTP local), telemetria Powertools nativa (logger JSON + tracing + metrics EMF), CLI em Rust com clap (new/generate/dev/build/deploy/info), escape hatch para axum::Router. MSRV Rust 1.85+ (Edition 2024).",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Cargo workspace e crates base",
+      "description": "As a maintainer, I want a Cargo workspace com os crates serverust-core, serverust-macros, serverust-cli, serverust-lambda e serverust-telemetry so that o framework tenha estrutura modular desde o início.",
+      "acceptanceCriteria": [
+        "Cargo workspace na raiz com 5 membros (core, macros, cli, lambda, telemetry)",
+        "serverust-macros tem proc-macro = true no Cargo.toml",
+        "edition = '2024' e rust-version = '1.85' em todos os crates",
+        "cargo build --workspace compila sem erros",
+        "cargo test --workspace executa sem falhas (mesmo que sem testes ainda)",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "difficulty": "low",
+      "profile": "general",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "App builder e roteamento declarativo via macros",
+      "description": "As a developer, I want declarar endpoints com #[get(\"/path\")], #[post], #[put], #[patch], #[delete] e compor a aplicação via App::new().route(...).run().await so that eu obtenha roteamento e dispatch automaticamente.",
+      "acceptanceCriteria": [
+        "Macros #[get], #[post], #[put], #[patch], #[delete] no serverust-macros",
+        "Função anotada com #[post(\"/users\")] é registrada via App::route()",
+        "Extractors Path<T>, Query<T>, Json<T>, State<T> funcionam tipados",
+        "App::new().route(handler).run_http(addr).await sobe servidor local",
+        "Testes de integração validam GET, POST e Path params",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Validação automática com #[derive(Validate)] e erros padronizados",
+      "description": "As a developer, I want que payloads de entrada sejam validados antes do handler e que falhas retornem HTTP 422 com JSON consistente so that eu não precise escrever código de validação manual.",
+      "acceptanceCriteria": [
+        "#[derive(Validate)] integra a crate validator e roda antes do handler",
+        "Falha de validação retorna HTTP 422 com payload { error: 'validation_error', fields: { campo: [mensagens] } }",
+        "#[derive(ApiError)] com #[status(N)] e #[message(\"...\")] mapeia variantes para HTTP responses",
+        "Handler retornando Result<T, E: ApiError> converte erro automaticamente via ?",
+        "Testes cobrem happy path, falha de validação e ApiError customizado",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "OpenAPI automático com utoipa + Swagger UI",
+      "description": "As a developer, I want que o framework gere /openapi.json, /docs (Swagger UI) e /redoc automaticamente a partir dos tipos so that a documentação fique sempre sincronizada com o código.",
+      "acceptanceCriteria": [
+        "utoipa integrado; macros de rota emitem ToSchema/Path entries",
+        "App expõe /openapi.json com OpenAPI 3.1 derivado dos handlers",
+        "/docs serve Swagger UI funcional",
+        "/redoc serve ReDoc",
+        "Schemas de DTOs com #[derive(Validate)] aparecem com required/constraints corretos",
+        "App::new().openapi_info(title, version).docs(\"/docs\") permite customização",
+        "Teste verifica que /openapi.json contém os endpoints declarados",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Dependency Injection híbrido via builder",
+      "description": "As a architect, I want declarar services com #[injectable] e injetá-los em handlers via State<Arc<dyn Trait>> usando builder explícito so that código grande mantenha testabilidade sem reflection runtime.",
+      "acceptanceCriteria": [
+        "#[injectable] registra um service no container do App",
+        "Default: lifetime Singleton com Arc<dyn Trait>",
+        "Opt-in static dispatch via #[injectable(static)] usando generics",
+        "API de teste permite substituir provider por mock: App::new().override::<MyService>(mock)",
+        "Resolução de dependências em compile-time (sem reflection)",
+        "Testes cobrem injeção, override em teste e ciclo de vida Singleton",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Guards, Pipes e Interceptors",
+      "description": "As a developer, I want declarar Guards (autorização), Pipes (transformação) e Interceptors (cross-cutting) por rota ou módulo so that eu separe responsabilidades de forma idiomática.",
+      "acceptanceCriteria": [
+        "Trait Guard, Pipe<T> e Interceptor definidos em serverust-core",
+        "Macro #[guard(AuthGuard)] aplica verificação antes do handler",
+        "Pipes transformam input antes de chegar ao handler (ex: ParseUuidPipe)",
+        "Interceptors envolvem execução (ex: timing, transformação de resposta)",
+        "Falha em Guard retorna HTTP 401/403 sem chamar handler",
+        "Ordem de execução: Guards → Pipes → Handler → Interceptors",
+        "Testes cobrem cada um dos três tipos isoladamente e em composição",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Runtime dual: Lambda + HTTP local com detecção automática",
+      "description": "As a developer, I want que o mesmo binário rode em AWS Lambda e localmente sem mudar código so that o ciclo de desenvolvimento seja rápido e o deploy seja trivial.",
+      "acceptanceCriteria": [
+        "App::new().run().await detecta AWS_LAMBDA_RUNTIME_API e escolhe runtime",
+        "serverust-lambda integra lambda_http e aws_lambda_events",
+        "APIs explícitas: run_http(addr) e run_lambda()",
+        "Compatível com API Gateway REST v1, HTTP v2 e Lambda Function URLs",
+        "Teste de unit cobre branch de detecção",
+        "Teste de integração com lambda_http::Request → axum router",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Telemetria Powertools nativa (logger + tracing + metrics)",
+      "description": "As a SRE, I want logs estruturados JSON, tracing distribuído e métricas EMF nativos so that Lambdas em produção sejam observáveis sem código extra.",
+      "acceptanceCriteria": [
+        "serverust-telemetry expõe init() que configura tracing-subscriber JSON estruturado",
+        "Correlation ID extraído de X-Amzn-Trace-Id ou gerado automaticamente",
+        "Tracing via tracing + OpenTelemetry compatível com AWS X-Ray",
+        "Macro #[metric(name, unit)] emite EMF (Embedded Metric Format)",
+        "Trait IdempotencyStore exposta no MVP (impl DynamoDB default, sem macro #[idempotent])",
+        "Testes cobrem logger output JSON, propagação de correlation id e emissão EMF",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "CLI Rust com clap: new, generate, dev, build, deploy, info, openapi",
+      "description": "As a developer, I want comandos serverust new/generate/dev/build/deploy/info/openapi com paridade conceitual ao @nestjs/cli so that scaffolding e dev loop sejam rápidos.",
+      "acceptanceCriteria": [
+        "serverust-cli usa clap para parsear comandos",
+        "serverust new <name> cria projeto com src/, modules/, shared/, Cargo.toml e serverust.toml",
+        "serverust generate <resource|module|controller|service|pipe|guard|interceptor|filter> <name> gera arquivos",
+        "serverust dev sobe servidor local com hot-reload via cargo-watch",
+        "serverust build [--release] roda cargo build",
+        "serverust deploy lambda [--arch arm64|x86_64] usa cargo lambda",
+        "serverust info imprime versões e features ativas",
+        "serverust openapi --out openapi.json exporta spec sem subir servidor",
+        "Testes cobrem parse de comandos e geração de scaffolding em diretório temporário",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "difficulty": "high",
+      "profile": "specialist",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Configuração via serverust.toml + figment",
+      "description": "As a developer, I want configurar server/lambda/telemetria/openapi via serverust.toml com override por env e profiles so that a aplicação seja flexível por ambiente.",
+      "acceptanceCriteria": [
+        "serverust.toml na raiz com seções [server], [lambda], [telemetry], [openapi]",
+        "Carregamento via figment com merge de arquivo + env vars",
+        "Profiles por ambiente (dev, staging, prod)",
+        "Override por variáveis de ambiente prefixadas (SERVERUST_*)",
+        "App::new().config(...) injeta config tipada nos handlers",
+        "Testes cobrem load de arquivo, override por env e profile switching",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "difficulty": "medium",
+      "profile": "general",
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Exemplo funds-api end-to-end e benchmark de hello-world",
+      "description": "As a maintainer, I want um exemplo funds-api completo e benchmark de hello-world em Lambda so that o framework valide as métricas de cold start e tamanho de binário.",
+      "acceptanceCriteria": [
+        "examples/funds-api/ com CRUD funcional usando macros de rota, validação, OpenAPI e DI",
+        "examples/funds-api/ compila com cargo build sem ajustes",
+        "examples/hello-world/ minimalista para benchmark",
+        "Script de bench mede cold start em Lambda ARM64 128MB (alvo < 50ms)",
+        "Script de bench mede tamanho do binário stripped (alvo < 10MB)",
+        "Documentação no README explica como rodar exemplos local e em Lambda",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "difficulty": "medium",
+      "profile": "general",
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

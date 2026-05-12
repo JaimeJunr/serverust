@@ -1,0 +1,15 @@
+[package]
+name = "hello-world"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[[bin]]
+name = "hello-world"
+path = "src/main.rs"
+
+[dependencies]
+serverust-core = { path = "../../serverust-core" }
+serverust-macros = { path = "../../serverust-macros" }
+serverust-lambda = { path = "../../serverust-lambda" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

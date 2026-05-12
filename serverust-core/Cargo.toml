@@ -1,0 +1,32 @@
+[package]
+name = "serverust-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Core do framework serverust: App builder, roteamento, validação, DI, OpenAPI, config."
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
+http = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower = "0.5"
+validator = { version = "0.20", features = ["derive"] }
+utoipa = { version = "5", features = ["macros"] }
+uuid = { version = "1", features = ["v4"] }
+figment = { version = "0.10", features = ["toml", "env"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+serverust-macros = { path = "../serverust-macros" }
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"

@@ -1,0 +1,28 @@
+[package]
+name = "todo-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[[bin]]
+name = "todo-api"
+path = "src/main.rs"
+
+[lib]
+name = "todo_api"
+path = "src/lib.rs"
+
+[dependencies]
+serverust-core = { path = "../../serverust-core" }
+serverust-macros = { path = "../../serverust-macros" }
+serverust-lambda = { path = "../../serverust-lambda" }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+validator = { version = "0.20", features = ["derive"] }
+utoipa = { version = "5", features = ["macros"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

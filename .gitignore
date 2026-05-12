@@ -1,0 +1,28 @@
+# Rust
+/target/
+Cargo.lock.bak
+**/*.rs.bk
+*.pdb
+
+# Lambda artifacts
+/target/lambda/
+
+# Claude Code / agent local state
+.claude/
+sync-prompts.sh
+
+# Ralph workspace (artefatos copiados para docs/; fonte viva fica local)
+.ralph/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key

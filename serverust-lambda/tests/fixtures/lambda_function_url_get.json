@@ -1,0 +1,32 @@
+{
+  "version": "2.0",
+  "routeKey": "$default",
+  "rawPath": "/hello",
+  "rawQueryString": "name=lambda",
+  "headers": {
+    "accept": "application/json",
+    "host": "abc123.lambda-url.us-east-1.on.aws"
+  },
+  "queryStringParameters": {
+    "name": "lambda"
+  },
+  "requestContext": {
+    "accountId": "anonymous",
+    "apiId": "abc123",
+    "domainName": "abc123.lambda-url.us-east-1.on.aws",
+    "domainPrefix": "abc123",
+    "http": {
+      "method": "GET",
+      "path": "/hello",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "curl/8.0.0"
+    },
+    "requestId": "req-3",
+    "routeKey": "$default",
+    "stage": "$default",
+    "time": "01/Jan/2024:00:00:00 +0000",
+    "timeEpoch": 1704067200000
+  },
+  "isBase64Encoded": false
+}
