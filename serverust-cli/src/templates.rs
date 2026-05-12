@@ -13,11 +13,12 @@ pub fn project_cargo_toml(name: &str) -> String {
 name = "{name}"
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.85"
 
 [dependencies]
-serverust-core = {{ path = "../serverust-core" }}
-serverust-lambda = {{ path = "../serverust-lambda" }}
-serverust-macros = {{ path = "../serverust-macros" }}
+serverust-core = "0.1"
+serverust-lambda = "0.1"
+serverust-macros = "0.1"
 tokio = {{ version = "1", features = ["macros", "rt-multi-thread"] }}
 serde = {{ version = "1", features = ["derive"] }}
 "#
@@ -62,11 +63,18 @@ port = 8080
 pub fn project_main_rs() -> String {
     r#"use serverust_core::App;
 use serverust_lambda::AppRuntime;
+use serverust_macros::get;
+
+#[get("/")]
+async fn hello() -> &'static str {
+    "Hello, serverust!"
+}
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let app = App::new();
-    app.run().await?;
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Local: HTTP em 0.0.0.0:3000. Lambda: detecta automaticamente.
+    // Acesse http://localhost:3000/docs para o Swagger UI gerado.
+    App::new().route(hello).run().await?;
     Ok(())
 }
 "#
