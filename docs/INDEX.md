@@ -1,10 +1,15 @@
-# Documentação do RustAPI Framework
+# Documentação do serverust Framework
 
 Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.md) na raiz para visão geral e quick-start; este índice mapeia a documentação aprofundada.
 
+## Guias (para quem está usando o framework)
+
+- [**guides/getting-started.md**](guides/getting-started.md) — Em 5 minutos: do zero a uma API HTTP rodando local com Swagger UI.
+- [**guides/lambda-tutorial.md**](guides/lambda-tutorial.md) — Tutorial completo: construir uma API de tarefas (CRUD com validação, OpenAPI, DI), rodar local e fazer **deploy em AWS Lambda**. Tempo: 30-45 min.
+
 ## Produto
 
-- [**produt/prd.md**](product/prd.md) — Product Requirements Document completo. 11 user stories, 11 requisitos funcionais, success metrics, Decision Log.
+- [**product/prd.md**](product/prd.md) — Product Requirements Document completo. 11 user stories, 11 requisitos funcionais, success metrics, Decision Log.
 - [**product/stories.json**](product/stories.json) — User stories estruturadas (JSON usado pelo Ralph loop). Útil para integração com ferramentas.
 
 ## Arquitetura
@@ -22,10 +27,11 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 ## Como navegar
 
-- **Começando do zero?** Leia [README.md](../README.md) → [architecture/overview.md](architecture/overview.md).
-- **Implementando uma feature nova?** Consulte [development/decisions.md](development/decisions.md) (padrões a seguir) → seções específicas de [development/ralph-progress.md](development/ralph-progress.md) (exemplos do que funcionou).
+- **Usando o framework pela primeira vez?** [guides/getting-started.md](guides/getting-started.md) → [guides/lambda-tutorial.md](guides/lambda-tutorial.md).
+- **Quer entender a arquitetura?** [architecture/overview.md](architecture/overview.md) → diagramas em [architecture/diagrams/](architecture/diagrams/).
+- **Contribuindo com código?** [development/decisions.md](development/decisions.md) (padrões fechados) → [development/ralph-progress.md](development/ralph-progress.md) (exemplos do que funcionou).
 - **Entendendo o "porquê"?** [product/prd.md](product/prd.md), especialmente seções 6 (Design Considerations) e 7 (Technical Considerations).
-- **Editando diagramas?** Abra os arquivos `.excalidraw` em [excalidraw.com](https://excalidraw.com) ou no app desktop. Os PNGs são gerados pela skill `excalidraw-diagram` (re-renderizar após edição).
+- **Referência completa de API?** `cargo doc --workspace --no-deps --open`.
 
 ## Sobre estes artefatos
 

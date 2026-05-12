@@ -1,8 +1,12 @@
 # serverust Framework
 
-Framework Rust opinativo para APIs HTTP e AWS Lambda, inspirado em Axum + FastAPI + NestJS.
+Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + FastAPI + NestJS.
 
-📚 **Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md) — PRD, arquitetura, diagramas, decisões e progresso.
+🚀 **Comece aqui**:
+- [Getting Started](docs/guides/getting-started.md) — em 5 minutos, hello-world local com Swagger UI.
+- [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
+
+📚 **Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
 
 ## Features
 
