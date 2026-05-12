@@ -46,10 +46,17 @@ pub fn run(cli: Cli) -> Result<()> {
             println!("✓ {kind:?} '{name}' generated");
             Ok(())
         }
-        Command::Dev => spawn_status(commands::dev_cargo_command(), "dev"),
+        Command::Dev => {
+            require_cargo_subcommand("watch", "cargo install cargo-watch")?;
+            spawn_status(commands::dev_cargo_command(), "dev")
+        }
         Command::Build { release } => spawn_status(commands::build_cargo_command(release), "build"),
         Command::Deploy { target } => match target {
             DeployTarget::Lambda { arch } => {
+                require_cargo_subcommand(
+                    "lambda",
+                    "cargo install cargo-lambda  # ou https://www.cargo-lambda.info/guide/installation.html",
+                )?;
                 spawn_status(commands::deploy_lambda_cargo_command(arch), "deploy lambda")
             }
         },
@@ -59,6 +66,27 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Openapi { out } => spawn_status(commands::openapi_export_command(&out), "openapi"),
     }
+}
+
+/// Confirma que `cargo-<subcommand>` está disponível no PATH antes de chamar.
+///
+/// Em vez de deixar o cargo cuspir o erro padrão (`error: no such command: ...`),
+/// emitimos uma mensagem com o comando exato de instalação. Reduz fricção para
+/// quem está descobrindo o framework e ainda não conhece o ecossistema.
+fn require_cargo_subcommand(subcommand: &str, install_hint: &str) -> Result<()> {
+    let binary = format!("cargo-{subcommand}");
+    let installed = std::process::Command::new(&binary)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+    if installed {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "`cargo {subcommand}` não está disponível (necessário para este comando).\n\
+         Instale com:\n    {install_hint}"
+    );
 }
 
 fn spawn_status(mut cmd: std::process::Command, label: &str) -> Result<()> {

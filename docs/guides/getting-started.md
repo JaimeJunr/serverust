@@ -12,6 +12,10 @@ Em 5 minutos você sai do zero a uma API HTTP do serverust rodando local com Swa
   rustup update stable
   rustc --version    # confirme >= 1.85
   ```
+- **(Para `serverust dev` com hot-reload)** [`cargo-watch`](https://github.com/watchexec/cargo-watch):
+  ```bash
+  cargo install cargo-watch
+  ```
 - **(Opcional para Lambda)** [`cargo-lambda`](https://www.cargo-lambda.info/guide/installation.html):
   ```bash
   cargo install cargo-lambda
