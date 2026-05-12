@@ -4,11 +4,29 @@ use http::StatusCode;
 use serde_json::{Map, Value, json};
 use validator::ValidationErrors;
 
-/// Trait implementada pelo `#[derive(ApiError)]`.
+/// Trait implementada por enums de erro de domínio. Normalmente não é
+/// implementada manualmente — use `#[derive(ApiError)]` do crate
+/// `serverust-macros`, que lê `#[status(N)]` e `#[message("...")]` por variante
+/// e emite simultaneamente `impl ApiError` + `impl IntoResponse`.
 ///
-/// Permite mapear variantes de erro para status HTTP + mensagem padronizada.
-/// A derive emite, junto com este impl, um `IntoResponse` para que `?` em
-/// handlers `Result<T, E: ApiError>` converta a falha em resposta.
+/// Resultado prático: você pode usar `?` em handlers `Result<T, MyError>` e a
+/// falha vira resposta JSON padronizada (`{"error":"<message>"}` com o status
+/// declarado).
+///
+/// ```ignore
+/// use serverust_macros::ApiError;
+///
+/// #[derive(Debug, ApiError)]
+/// pub enum TaskError {
+///     #[status(404)]
+///     #[message("Task não encontrada")]
+///     NotFound,
+///
+///     #[status(409)]
+///     #[message("Título já existe")]
+///     DuplicateTitle,
+/// }
+/// ```
 pub trait ApiError {
     fn status(&self) -> u16;
     fn message(&self) -> String;

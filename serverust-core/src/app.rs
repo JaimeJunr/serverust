@@ -17,7 +17,50 @@ use crate::route::IntoRoute;
 
 type RouterMutator = Box<dyn FnOnce(Router<Container>) -> Router<Container> + Send + Sync>;
 
-/// Builder principal do framework. Acumula rotas e expõe `run_http` para servir localmente.
+/// Builder principal do framework.
+///
+/// Acumula rotas, services de DI, configuração de OpenAPI e middleware
+/// (interceptors). Use [`run_http`](Self::run_http) para servir local, ou a
+/// trait `AppRuntime` (do crate `serverust-lambda`) para o método `.run()`
+/// que detecta automaticamente entre Lambda e HTTP local.
+///
+/// # Exemplo
+///
+/// ```no_run
+/// use std::sync::Arc;
+/// use serverust_core::App;
+/// use serverust_macros::{get, injectable};
+///
+/// #[injectable]
+/// struct Greeter;
+///
+/// impl Greeter {
+///     fn hi(&self) -> String { "hello".into() }
+/// }
+///
+/// #[get("/")]
+/// async fn root(
+///     axum::extract::State(g): axum::extract::State<Arc<Greeter>>,
+/// ) -> String {
+///     g.hi()
+/// }
+///
+/// #[tokio::main]
+/// async fn main() -> std::io::Result<()> {
+///     App::new()
+///         .openapi_info("My API", "0.1.0")
+///         .provide::<Greeter>(Arc::new(Greeter))
+///         .route(root)
+///         .run_http("127.0.0.1:3000")
+///         .await
+/// }
+/// ```
+///
+/// # Rotas de documentação
+///
+/// [`into_router`](Self::into_router) injeta automaticamente três rotas:
+/// `/openapi.json` (OpenAPI 3.1), `/docs` (Swagger UI) e `/redoc` (ReDoc).
+/// Customize os paths via [`docs`](Self::docs) e [`redoc`](Self::redoc).
 pub struct App {
     router: Router<Container>,
     container: Container,

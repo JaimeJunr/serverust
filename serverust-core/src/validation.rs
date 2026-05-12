@@ -8,8 +8,41 @@ use crate::error::validation_error_response;
 /// Extractor JSON com validação automática.
 ///
 /// Deserializa o body como `T` e, se a validação via `validator::Validate`
-/// falhar, devolve HTTP 422 com payload padronizado antes mesmo do handler
-/// ser invocado.
+/// falhar, devolve HTTP 422 com payload padronizado **antes** do handler ser
+/// invocado:
+///
+/// ```json
+/// { "error": "validation_error", "fields": { "title": ["length"] } }
+/// ```
+///
+/// `T` precisa derivar `Deserialize` **e** `Validate`. Se você não tem regras
+/// de validação, o derive `Validate` continua sendo no-op:
+///
+/// ```ignore
+/// use serde::Deserialize;
+/// use validator::Validate;
+/// use serverust_core::extract::Json;
+/// use serverust_macros::post;
+///
+/// #[derive(Deserialize, Validate)]
+/// struct CreateTask {
+///     #[validate(length(min = 1, max = 200))]
+///     title: String,
+/// }
+///
+/// #[post("/tasks")]
+/// async fn create(Json(task): Json<CreateTask>) -> &'static str {
+///     // `task.title` já passou pela validação aqui
+///     "created"
+/// }
+/// ```
+///
+/// `Json<T>` também implementa [`IntoResponse`] para `T: Serialize`, então o
+/// mesmo tipo serve para entrada e saída do handler.
+///
+/// **Posicionamento na assinatura**: como `Json<T>` consome o body, ele tem
+/// que ser o **último parâmetro** do handler. Extractors como `Path`, `Query`,
+/// `State` (que só leem partes do request) vêm antes.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Json<T>(pub T);
 

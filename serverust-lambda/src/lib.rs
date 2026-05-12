@@ -76,9 +76,23 @@ pub async fn run(app: App) -> Result<(), LambdaError> {
 
 /// Extensão que permite chamar `.run()` e `.run_lambda()` em [`App`] via dot-chain.
 ///
-/// ```ignore
+/// A função [`run`](Self::run) detecta automaticamente o ambiente: em AWS
+/// Lambda (`AWS_LAMBDA_RUNTIME_API` presente), invoca `lambda_http::run`; em
+/// outros casos, sobe servidor HTTP local em `0.0.0.0:3000`.
+///
+/// ```no_run
+/// use serverust_core::App;
 /// use serverust_lambda::AppRuntime;
-/// serverust_core::App::new().run().await?;
+/// use serverust_macros::get;
+///
+/// #[get("/")]
+/// async fn hello() -> &'static str { "hello" }
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+///     App::new().route(hello).run().await?;
+///     Ok(())
+/// }
 /// ```
 pub trait AppRuntime {
     /// Detecta o ambiente e despacha entre Lambda e HTTP local.

@@ -1,3 +1,24 @@
+//! CLI do framework **serverust**, com paridade conceitual ao `@nestjs/cli`.
+//!
+//! O binário `serverust` provê comandos para scaffolding e workflow de
+//! desenvolvimento/deploy:
+//!
+//! ```text
+//! serverust new <name>                       # cria um projeto novo
+//! serverust generate <kind> <name>           # scaffolding (resource, module, ...)
+//! serverust dev                              # cargo watch -x run
+//! serverust build [--release]                # cargo build
+//! serverust deploy lambda [--arch arm64|x86_64]
+//! serverust info                             # versões e features
+//! serverust openapi --out openapi.json       # exporta spec sem subir servidor
+//! ```
+//!
+//! Este crate expõe também a lib (`serverust_cli`) com módulos
+//! [`cli`] (definições clap), [`commands`] (construção testável de
+//! `std::process::Command`), [`scaffold`] (IO em base dir parametrizada) e
+//! [`templates`] (strings de scaffolding). A separação permite testar parse +
+//! geração de arquivos em tempdir sem spawn de processos reais.
+
 pub mod cli;
 pub mod commands;
 pub mod scaffold;

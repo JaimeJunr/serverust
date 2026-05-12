@@ -1,10 +1,49 @@
-//! Macros de roteamento do serverust.
+//! Macros declarativas do framework **serverust**.
 //!
-//! Cada macro (`#[get]`, `#[post]`, `#[put]`, `#[patch]`, `#[delete]`) transforma
+//! # Macros de rota
+//!
+//! `#[get("/path")]`, `#[post]`, `#[put]`, `#[patch]`, `#[delete]` transformam
 //! a função anotada em uma struct unit com o mesmo nome, implementando
-//! `serverust_core::IntoRoute`. O handler original permanece, mas como item
-//! aninhado dentro de `into_route`, de modo que o nome público passa a ser a
-//! struct registrável via `App::route(handler)`.
+//! `serverust_core::IntoRoute`. A struct é registrada via
+//! `App::route(handler)`. A macro emite também uma `utoipa::openapi::Operation`
+//! com `operation_id = nome da fn`, alimentando o `/openapi.json` automático.
+//!
+//! ```ignore
+//! use serverust_macros::{get, post};
+//!
+//! #[get("/health")]
+//! async fn health() -> &'static str { "ok" }
+//!
+//! #[post("/users")]
+//! async fn create_user() -> &'static str { "created" }
+//! ```
+//!
+//! # Derive macros
+//!
+//! - `#[derive(ApiError)]` — emite `impl ApiError + IntoResponse` lendo
+//!   `#[status(N)]` e `#[message("...")]` por variante. Use com handlers
+//!   `Result<T, MyError>` e converta erro em HTTP automaticamente via `?`.
+//!
+//! ```ignore
+//! use serverust_macros::ApiError;
+//!
+//! #[derive(Debug, ApiError)]
+//! enum UserError {
+//!     #[status(404)] #[message("user not found")] NotFound,
+//!     #[status(409)] #[message("email exists")]   EmailExists,
+//! }
+//! ```
+//!
+//! # Atributos de pipeline
+//!
+//! - `#[guard(MyGuard)]` — coloca **acima** de `#[get/post/...]`; injeta
+//!   `GuardCheck<MyGuard>` no início da assinatura. Múltiplos `#[guard]` são
+//!   empilháveis.
+//! - `#[injectable]` — marker em struct/enum para sinalizar que o tipo é uma
+//!   dependência. Aceita `#[injectable(static)]` como hint de static dispatch.
+//!   O registro real é feito via `App::provide`.
+//! - `#[metric(name = "...", unit = "Milliseconds")]` — cronometra a função
+//!   (sync ou async) e emite uma métrica EMF via `serverust_telemetry::emit_emf`.
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;

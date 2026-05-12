@@ -1,13 +1,45 @@
-//! Telemetria nativa do RustAPI: logger JSON estruturado, propagação de
+//! Telemetria nativa do **serverust**: logger JSON estruturado, propagação de
 //! correlation id compatível com AWS X-Ray, métricas em formato EMF e trait
 //! de idempotência.
 //!
-//! O ponto de entrada típico é [`init`], chamado uma vez no boot. As demais
-//! peças (middleware de correlation id, helpers EMF e [`IdempotencyStore`])
-//! são opcionais e podem ser combinadas conforme a necessidade.
+//! Reimplementa em Rust os pilares do AWS Lambda Powertools (que não tem
+//! versão oficial Rust). Foi desenhado para funcionar tanto em Lambda quanto
+//! em servidor HTTP local sem mudança de código.
 //!
-//! Integrações pesadas (OpenTelemetry/X-Ray e DynamoDB) ficam atrás das
-//! features `otel` e `dynamodb` para manter o binário default enxuto.
+//! # Quick start
+//!
+//! Chame [`init`] uma vez no boot e pronto — logs JSON estruturados e tracing
+//! pré-configurados:
+//!
+//! ```no_run
+//! use serverust_telemetry::logger;
+//!
+//! fn main() {
+//!     logger::init();
+//!     tracing::info!(user_id = 42, "request received");
+//! }
+//! ```
+//!
+//! Para propagar correlation id em handlers axum:
+//!
+//! ```ignore
+//! use serverust_telemetry::correlation::correlation_id_middleware;
+//!
+//! let router = axum::Router::new()
+//!     .route("/", axum::routing::get(|| async { "ok" }))
+//!     .layer(axum::middleware::from_fn(correlation_id_middleware));
+//! ```
+//!
+//! # Features opcionais
+//!
+//! - `otel` — adiciona `otel::init_xray` (OpenTelemetry SDK + propagador
+//!   AWS X-Ray). Útil quando o tracing precisa cruzar múltiplos serviços.
+//! - `dynamodb` — habilita `idempotency::DynamoDbIdempotencyStore`.
+//!   Sem essa feature, [`IdempotencyStore`] continua disponível como trait
+//!   (você implementa onde quiser — Redis, Postgres, memory) e
+//!   [`InMemoryIdempotencyStore`] fica disponível para testes/dev.
+//!
+//! Sem essas features, o binário Lambda continua enxuto (< 5 MB stripped).
 
 pub mod correlation;
 pub mod emf;

@@ -76,7 +76,7 @@ pub fn generate_xray_compatible_trace_id() -> String {
 /// propaga via `X-Correlation-Id` no response e abre um span tracing.
 ///
 /// Aplique via `axum::middleware::from_fn(correlation_id_middleware)` ou
-/// chame o helper [`correlation_id_layer`].
+/// chame o helper [`correlation_id_layer!`](crate::correlation_id_layer).
 pub async fn correlation_id_middleware(mut req: Request, next: Next) -> Response {
     let id = extract_or_generate_correlation_id(req.headers());
     if let Ok(value) = id.parse() {
