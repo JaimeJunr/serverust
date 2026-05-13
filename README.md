@@ -9,6 +9,7 @@ Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + Fa
 🦀 **Comece aqui**:
 - [Getting Started](docs/guides/getting-started.md) — em 5 minutos, hello-world local com Swagger UI.
 - [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
+- [Compatibilidade IaC](docs/guides/iac-compatibility.md) — validação oficial para Serverless Framework, SST e Terraform.
 
 **Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
 

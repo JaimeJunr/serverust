@@ -6,6 +6,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 - [**guides/getting-started.md**](guides/getting-started.md) — Em 5 minutos: do zero a uma API HTTP rodando local com Swagger UI.
 - [**guides/lambda-tutorial.md**](guides/lambda-tutorial.md) — Tutorial completo: construir uma API de tarefas (CRUD com validação, OpenAPI, DI), rodar local e fazer **deploy em AWS Lambda**. Tempo: 30-45 min.
+- [**guides/iac-compatibility.md**](guides/iac-compatibility.md) — Contrato oficial de compatibilidade com Serverless Framework, SST, Terraform, SAM/CDK e como validamos isso em testes/CI.
 
 ## Produto
 

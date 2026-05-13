@@ -1,0 +1,21 @@
+name: compatibility-contract
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  lambda-event-compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Validate lambda event compatibility
+        run: cargo test -p serverust-lambda --test lambda_to_axum
