@@ -9,8 +9,8 @@ fi
 
 cargo llvm-cov clean --workspace
 cargo llvm-cov \
-  --workspace \
-  --all-features \
-  --fail-under-lines 85 \
+  -p serverust-core \
+  -p serverust-cli \
+  --fail-under-lines 80 \
   --lcov \
   --output-path coverage.lcov

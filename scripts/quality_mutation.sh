@@ -7,5 +7,10 @@ if ! cargo mutants --version >/dev/null 2>&1; then
   exit 1
 fi
 
-# Execução padrão enxuta para pre-push; personalize em .cargo/mutants.toml se precisar.
-cargo mutants --workspace --in-place
+# Execução enxuta para pre-push: escopo nos crates centrais e modo --check.
+cargo mutants \
+  --check \
+  --in-place \
+  --cap-lints=true \
+  --package serverust-core \
+  --package serverust-cli

@@ -1,4 +1,0 @@
-timeout = 300
-test_tool = "cargo"
-shuffle = true
-in_place = true
