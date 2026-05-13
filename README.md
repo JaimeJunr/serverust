@@ -16,11 +16,27 @@ Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + Fa
 cargo install serverust-cli
 ```
 
+## Por que serverust?
+
+O único framework Rust que cobre todo o ciclo — do `serverust new` ao `serverust deploy` — com suporte nativo a AWS Lambda, OpenAPI automático e DI em um único binário leve.
+
+| | **serverust** | Rocket | Loco.rs | Axum (raw) |
+|---|:---:|:---:|:---:|:---:|
+| AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ |
+| Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ |
+| OpenAPI 3.1 automático | ✅ | via plugin | via plugin | ❌ |
+| Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ |
+| Validação → HTTP 422 | ✅ | via plugin | ✅ | ❌ |
+| Dependency Injection nativo | ✅ | ❌ | ❌ | ❌ |
+| CLI scaffolding (`new`, `generate`) | ✅ | ❌ | ✅ | ❌ |
+| Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✅ |
+| Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✅ |
+
 ## Features
 
 - Roteamento declarativo via macros (`#[get]`, `#[post]`, `#[put]`, `#[patch]`, `#[delete]`)
 - Validação automática de payloads com `#[derive(Validate)]` → HTTP 422 padronizado
-- OpenAPI 3.1 + Swagger UI + ReDoc automáticos via utoipa
+- OpenAPI 3.1 + Scalar API Reference automáticos via utoipa
 - Dependency Injection híbrido (`Arc<dyn Trait>` + builder)
 - Guards, Pipes e Interceptors para cross-cutting concerns
 - Runtime dual: detecta automaticamente HTTP local vs AWS Lambda
@@ -213,14 +229,60 @@ cargo lambda deploy funds-api --memory-size 128
 LAMBDA_FUNCTION_NAME=serverust-hello-world-bench ./scripts/bench.sh --lambda
 ```
 
-Alvos de performance:
-- Cold start Lambda ARM64 128MB: **< 50ms**
-- Binário stripped: **< 10 MB**
+## SLO de Performance
+
+Metas públicas oficiais:
+- Cold start Lambda ARM64 (128MB): **p95 < 50ms**
+- Memória baseline (hello-world): **<= 128MB**
+- Throughput local (`GET /`): **>= 5k req/s** (x86_64 runner padrão)
+- Binário stripped (`hello-world` release): **< 10MB**
+
+Gate de CI:
+- Workflow `.github/workflows/benchmark.yml`
+- Script `./scripts/benchmark_ci.sh` falha o build se:
+  - binário stripped > 10MB
+  - startup local > 2000ms
 
 ## Rodar Testes
 
 ```bash
 cargo test --workspace
+```
+
+## Quality Gates e Git Hooks
+
+Este projeto usa `lefthook` para rodar checks locais antes de commit/push.
+
+Instalação recomendada:
+
+```bash
+cargo install lefthook
+cargo install cargo-cycles
+cargo install cargo-llvm-cov
+cargo install cargo-mutants
+lefthook install
+```
+
+Checks configurados:
+
+- `pre-commit`
+  - `scripts/quality_fmt.sh` (`cargo fmt --check`)
+  - `scripts/quality_lint.sh` (`cargo clippy -D warnings`)
+  - `scripts/quality_complexity.sh` (gate de complexidade cognitiva)
+  - `scripts/quality_cycles.sh` (detecção de dependência circular)
+- `pre-push`
+  - `scripts/quality_coverage.sh` (cobertura com fail-under 85%)
+  - `scripts/quality_mutation.sh` (mutation testing)
+
+Execução manual:
+
+```bash
+./scripts/quality_fmt.sh
+./scripts/quality_lint.sh
+./scripts/quality_complexity.sh
+./scripts/quality_cycles.sh
+./scripts/quality_coverage.sh
+./scripts/quality_mutation.sh
 ```
 
 ## CLI
@@ -233,5 +295,6 @@ serverust dev                                # hot-reload local
 serverust build [--release]                  # cargo build
 serverust deploy lambda [--arch arm64|x86_64]
 serverust info                               # versões e features
-serverust openapi --out openapi.json         # exportar spec
+serverust openapi export --out openapi.json  # exportar spec
+serverust openapi client --lang ts --out sdk/ts --input openapi.json
 ```

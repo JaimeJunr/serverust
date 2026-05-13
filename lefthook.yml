@@ -1,0 +1,19 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      run: ./scripts/quality_fmt.sh
+    lint:
+      run: ./scripts/quality_lint.sh
+    complexity:
+      run: ./scripts/quality_complexity.sh
+    cycles:
+      run: ./scripts/quality_cycles.sh
+
+pre-push:
+  parallel: false
+  commands:
+    coverage:
+      run: ./scripts/quality_coverage.sh
+    mutation:
+      run: ./scripts/quality_mutation.sh
