@@ -16,11 +16,12 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
-serverust-core = "0.1"
+serverust-core   = "0.1"
 serverust-lambda = "0.1"
 serverust-macros = "0.1"
-tokio = {{ version = "1", features = ["macros", "rt-multi-thread"] }}
-serde = {{ version = "1", features = ["derive"] }}
+tokio  = {{ version = "1", features = ["macros", "rt-multi-thread"] }}
+serde  = {{ version = "1", features = ["derive"] }}
+utoipa = {{ version = "5", features = ["macros"] }}
 "#
     )
 }
@@ -61,20 +62,34 @@ port = 8080
 }
 
 pub fn project_main_rs() -> String {
-    r#"use serverust_core::App;
+    r#"use serde::Serialize;
+use serverust_core::{App, extract::Json};
 use serverust_lambda::AppRuntime;
 use serverust_macros::get;
+use utoipa::ToSchema;
 
-#[get("/")]
-async fn hello() -> &'static str {
-    "Hello, serverust!"
+#[derive(Serialize, ToSchema)]
+struct HelloResponse {
+    message: String,
+}
+
+#[get("/", response = HelloResponse)]
+async fn hello() -> Json<HelloResponse> {
+    Json(HelloResponse {
+        message: "Hello, serverust!".into(),
+    })
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Local: HTTP em 0.0.0.0:3000. Lambda: detecta automaticamente.
-    // Acesse http://localhost:3000/docs para o Swagger UI gerado.
-    App::new().route(hello).run().await?;
+    // Acesse http://localhost:3000/docs para a referência interativa Scalar.
+    App::new()
+        .openapi_info("My API", "0.1.0")
+        .register_schema::<HelloResponse>()
+        .route(hello)
+        .run()
+        .await?;
     Ok(())
 }
 "#
@@ -147,17 +162,37 @@ pub struct Create{{TYPE}}Dto {
     )
 }
 
-pub fn module_mod_rs(name: &str) -> String {
-    format!(
+pub fn module_mod_rs(name: &str, with_tests: bool) -> String {
+    let mut out = format!(
         "#[path = \"{name}.controller.rs\"]\npub mod controller;\n\
          #[path = \"{name}.service.rs\"]\npub mod service;\n"
+    );
+    if with_tests {
+        out.push_str(&format!(
+            "#[cfg(test)]\n#[path = \"{name}.tests.rs\"]\nmod tests;\n"
+        ));
+    }
+    out
+}
+
+pub fn resource_mod_rs(name: &str, with_tests: bool) -> String {
+    format!(
+        "{base}#[path = \"{name}.dto.rs\"]\npub mod dto;\n",
+        base = module_mod_rs(name, with_tests),
     )
 }
 
-pub fn resource_mod_rs(name: &str) -> String {
-    format!(
-        "{base}#[path = \"{name}.dto.rs\"]\npub mod dto;\n",
-        base = module_mod_rs(name),
+pub fn module_test(name: &str) -> String {
+    let type_name = pascal_case(name);
+    template_with_name_type(
+        r#"#[test]
+fn {{NAME}}_crud_module_smoke() {
+    let _service = super::service::{{TYPE}}Service::new();
+    assert!(super::controller::show_{{NAME}} as usize > 0);
+}
+"#,
+        name,
+        &type_name,
     )
 }
 

@@ -1,11 +1,11 @@
 use axum::body::Body;
 use http::{Method, Request, StatusCode};
 use http_body_util::BodyExt;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use serverust_core::App;
 use serverust_core::extract::{Json, Path};
 use serverust_macros::{get, post};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tower::ServiceExt;
 use utoipa::ToSchema;
 use validator::Validate;
@@ -29,6 +29,18 @@ struct CreateUser {
 
 #[post("/users")]
 async fn create_user(Json(body): Json<CreateUser>) -> Json<CreateUser> {
+    Json(body)
+}
+
+#[post(
+    "/auth/login",
+    response = CreateUser,
+    tag = "auth",
+    operation_id = "loginUser",
+    request_example = r#"{"name":"jaime"}"#,
+    response_example = r#"{"name":"jaime"}"#
+)]
+async fn login(Json(body): Json<CreateUser>) -> Json<CreateUser> {
     Json(body)
 }
 
@@ -162,7 +174,10 @@ async fn swagger_ui_is_served_at_docs() {
     assert!(ct.starts_with("text/html"), "content-type was {ct}");
 
     let body = body_string(resp).await;
-    assert!(body.contains("swagger"), "body should mention swagger");
+    assert!(
+        body.to_lowercase().contains("scalar") || body.to_lowercase().contains("api-reference"),
+        "body should mention scalar/api-reference"
+    );
     assert!(
         body.contains("/openapi.json"),
         "swagger should point to /openapi.json"
@@ -218,4 +233,34 @@ async fn docs_path_can_be_customized() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn operation_supports_tag_operation_id_examples_and_default_errors() {
+    let router = App::new().route(login).into_router();
+    let resp = router
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/openapi.json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let json = body_json(resp).await;
+    let op = &json["paths"]["/auth/login"]["post"];
+    assert_eq!(op["operationId"], Value::String("loginUser".into()));
+    assert_eq!(op["tags"], Value::Array(vec![Value::String("auth".into())]));
+    assert!(
+        op["description"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("Request example")
+    );
+    assert!(op["responses"].get("401").is_some());
+    assert!(op["responses"].get("403").is_some());
+    assert!(op["responses"].get("422").is_some());
+    assert!(op["responses"].get("500").is_some());
 }

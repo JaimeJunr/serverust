@@ -23,6 +23,9 @@ pub enum Command {
         kind: GenerateKind,
         /// Nome em snake/kebab case (`users`, `auth`, etc.).
         name: String,
+        /// No tipo `module`, gera esqueleto CRUD (DTO + testes de módulo).
+        #[arg(long)]
+        crud: bool,
     },
     /// Sobe servidor local com hot-reload via `cargo watch`.
     Dev,
@@ -39,9 +42,32 @@ pub enum Command {
     },
     /// Imprime informações sobre a CLI e o ambiente.
     Info,
-    /// Exporta o spec OpenAPI gerado pelo binário do projeto.
+    /// Valida setup local e requisitos mínimos de telemetria/configuração.
+    Doctor,
+    /// Operações de OpenAPI: export da spec e geração de client SDK.
     Openapi {
+        #[command(subcommand)]
+        command: OpenapiCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum OpenapiCommand {
+    /// Exporta o spec OpenAPI gerado pelo binário do projeto.
+    Export {
         /// Caminho do arquivo de saída (ex.: openapi.json).
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Gera client SDK a partir do OpenAPI (TS/Kotlin).
+    Client {
+        /// Linguagem alvo do SDK.
+        #[arg(long, value_enum)]
+        lang: OpenapiClientLang,
+        /// Arquivo OpenAPI de entrada.
+        #[arg(long, default_value = "openapi.json")]
+        input: PathBuf,
+        /// Diretório de saída do client.
         #[arg(long)]
         out: PathBuf,
     },
@@ -75,4 +101,12 @@ pub enum GenerateKind {
     Guard,
     Interceptor,
     Filter,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum OpenapiClientLang {
+    #[value(name = "ts", alias = "typescript")]
+    Ts,
+    #[value(name = "kotlin")]
+    Kotlin,
 }

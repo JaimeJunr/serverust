@@ -1,10 +1,10 @@
 use axum::body::Body;
 use http::{Method, Request, StatusCode};
 use http_body_util::BodyExt;
+use serde::{Deserialize, Serialize};
 use serverust_core::App;
 use serverust_core::extract::{Json, Path, Query};
 use serverust_macros::{get, post};
-use serde::{Deserialize, Serialize};
 use tower::ServiceExt;
 use validator::Validate;
 

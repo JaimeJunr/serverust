@@ -59,7 +59,7 @@ type RouterMutator = Box<dyn FnOnce(Router<Container>) -> Router<Container> + Se
 /// # Rotas de documentação
 ///
 /// [`into_router`](Self::into_router) injeta automaticamente três rotas:
-/// `/openapi.json` (OpenAPI 3.1), `/docs` (Swagger UI) e `/redoc` (ReDoc).
+/// `/openapi.json` (OpenAPI 3.1), `/docs` (Scalar API Reference) e `/redoc` (ReDoc).
 /// Customize os paths via [`docs`](Self::docs) e [`redoc`](Self::redoc).
 pub struct App {
     router: Router<Container>,
@@ -97,7 +97,7 @@ impl App {
         self
     }
 
-    /// Customiza o path em que o Swagger UI é servido (default `/docs`).
+    /// Customiza o path em que o Scalar API Reference é servido (default `/docs`).
     pub fn docs(mut self, path: &'static str) -> Self {
         self.docs_path = path;
         self

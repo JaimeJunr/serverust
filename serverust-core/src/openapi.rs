@@ -90,27 +90,22 @@ impl OpenApiState {
     }
 }
 
-/// HTML embutido que carrega Swagger UI via CDN apontando para `spec_url`.
+/// HTML embutido que carrega Scalar API Reference via CDN apontando para `spec_url`.
 pub(crate) fn swagger_ui_html(spec_url: &str) -> String {
     format!(
         r##"<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>API Docs</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+    <title>API Reference</title>
   </head>
   <body>
-    <div id="swagger-ui"></div>
-    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script>
-      window.onload = function () {{
-        window.ui = SwaggerUIBundle({{
-          url: "{spec_url}",
-          dom_id: "#swagger-ui",
-        }});
-      }};
-    </script>
+    <script
+      id="api-reference"
+      data-url="{spec_url}"
+      data-configuration='{{"theme":"default","layout":"modern"}}'
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
   </body>
 </html>"##
     )

@@ -11,6 +11,8 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 - [**product/prd.md**](product/prd.md) — Product Requirements Document completo. 11 user stories, 11 requisitos funcionais, success metrics, Decision Log.
 - [**product/stories.json**](product/stories.json) — User stories estruturadas (JSON usado pelo Ralph loop). Útil para integração com ferramentas.
+- [**product/competitors/rocket.md**](product/competitors/rocket.md) — Análise de Rocket v0.5.1: pontos fortes, gaps vs serverust e quando cada um faz sentido.
+- [**product/competitors/loco.md**](product/competitors/loco.md) — Análise de Loco.rs v0.16.3: pontos fortes, gaps vs serverust e quando cada um faz sentido.
 
 ## Arquitetura
 

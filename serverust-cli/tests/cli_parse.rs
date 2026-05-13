@@ -1,5 +1,7 @@
 use clap::Parser;
-use serverust_cli::cli::{Arch, Cli, Command, DeployTarget, GenerateKind};
+use serverust_cli::cli::{
+    Arch, Cli, Command, DeployTarget, GenerateKind, OpenapiClientLang, OpenapiCommand,
+};
 
 #[test]
 fn parses_new_command() {
@@ -26,9 +28,10 @@ fn parses_generate_each_kind() {
         let cli = Cli::try_parse_from(["serverust", "generate", raw, "users"])
             .unwrap_or_else(|_| panic!("parse generate {raw}"));
         match cli.command {
-            Command::Generate { kind, name } => {
+            Command::Generate { kind, name, crud } => {
                 assert_eq!(kind, expected, "kind for {raw}");
                 assert_eq!(name, "users");
+                assert!(!crud);
             }
             other => panic!("expected Generate, got {other:?}"),
         }
@@ -82,10 +85,61 @@ fn parses_info() {
 }
 
 #[test]
-fn parses_openapi_with_out() {
-    let cli = Cli::try_parse_from(["serverust", "openapi", "--out", "openapi.json"]).expect("parse");
+fn parses_doctor() {
+    let cli = Cli::try_parse_from(["serverust", "doctor"]).expect("parse");
+    assert!(matches!(cli.command, Command::Doctor));
+}
+
+#[test]
+fn parses_generate_module_crud() {
+    let cli =
+        Cli::try_parse_from(["serverust", "generate", "module", "users", "--crud"]).expect("parse");
     match cli.command {
-        Command::Openapi { out } => assert_eq!(out.as_os_str(), "openapi.json"),
+        Command::Generate { kind, name, crud } => {
+            assert_eq!(kind, GenerateKind::Module);
+            assert_eq!(name, "users");
+            assert!(crud);
+        }
+        other => panic!("expected Generate, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_openapi_with_out() {
+    let cli = Cli::try_parse_from(["serverust", "openapi", "export", "--out", "openapi.json"])
+        .expect("parse");
+    match cli.command {
+        Command::Openapi { command } => match command {
+            OpenapiCommand::Export { out } => assert_eq!(out.as_os_str(), "openapi.json"),
+            other => panic!("expected Export, got {other:?}"),
+        },
+        other => panic!("expected Openapi, got {other:?}"),
+    }
+}
+
+#[test]
+fn parses_openapi_client() {
+    let cli = Cli::try_parse_from([
+        "serverust",
+        "openapi",
+        "client",
+        "--lang",
+        "ts",
+        "--input",
+        "openapi.json",
+        "--out",
+        "sdk/ts",
+    ])
+    .expect("parse");
+    match cli.command {
+        Command::Openapi { command } => match command {
+            OpenapiCommand::Client { lang, input, out } => {
+                assert_eq!(lang, OpenapiClientLang::Ts);
+                assert_eq!(input.as_os_str(), "openapi.json");
+                assert_eq!(out.as_os_str(), "sdk/ts");
+            }
+            other => panic!("expected Client, got {other:?}"),
+        },
         other => panic!("expected Openapi, got {other:?}"),
     }
 }

@@ -48,17 +48,87 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::quote;
+use syn::parse::{Parse, ParseStream};
 use syn::{
     Data, DeriveInput, Expr, ExprLit, Fields, Ident, Item, ItemFn, Lit, LitInt, LitStr, Meta,
     Token, Type, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned,
 };
 
+/// Atributo da macro de rota: caminho obrigatório + `response = Type` opcional.
+///
+/// Exemplos:
+/// - `#[get("/")]`
+/// - `#[get("/users", response = UserResponse)]`
+struct RouteAttr {
+    path: LitStr,
+    response_ty: Option<Type>,
+    tag: Option<LitStr>,
+    operation_id: Option<LitStr>,
+    request_example: Option<LitStr>,
+    response_example: Option<LitStr>,
+}
+
+impl Parse for RouteAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let path: LitStr = input.parse()?;
+        let mut response_ty = None;
+        let mut tag = None;
+        let mut operation_id = None;
+        let mut request_example = None;
+        let mut response_example = None;
+
+        while input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            let key: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+            match key.to_string().as_str() {
+                "response" => response_ty = Some(input.parse::<Type>()?),
+                "tag" => tag = Some(input.parse::<LitStr>()?),
+                "operation_id" => operation_id = Some(input.parse::<LitStr>()?),
+                "request_example" => request_example = Some(input.parse::<LitStr>()?),
+                "response_example" => response_example = Some(input.parse::<LitStr>()?),
+                _ => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        "atributo inválido. Use: response, tag, operation_id, request_example, response_example",
+                    ));
+                }
+            }
+        }
+        Ok(RouteAttr {
+            path,
+            response_ty,
+            tag,
+            operation_id,
+            request_example,
+            response_example,
+        })
+    }
+}
+
+/// Extrai o último ident de um caminho de tipo (`Foo`, `module::Foo`, `Vec<Foo>`).
+fn type_ident_str(ty: &Type) -> String {
+    if let Type::Path(tp) = ty {
+        if let Some(seg) = tp.path.segments.last() {
+            return seg.ident.to_string();
+        }
+    }
+    String::new()
+}
+
 fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream {
-    let path = parse_macro_input!(attr as LitStr);
+    let route_attr = parse_macro_input!(attr as RouteAttr);
     let func = parse_macro_input!(item as ItemFn);
 
     let vis = func.vis.clone();
     let fn_name = func.sig.ident.clone();
+    let path = route_attr.path;
+    let tag = route_attr.tag;
+    let request_example = route_attr.request_example;
+    let response_example = route_attr.response_example;
+    let operation_id = route_attr
+        .operation_id
+        .unwrap_or_else(|| LitStr::new(&fn_name.to_string(), Span::call_site()));
     let fn_name_str = fn_name.to_string();
     let method_ident = Ident::new(method, Span::call_site());
     let http_method_variant = Ident::new(
@@ -73,6 +143,49 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
         Span::call_site(),
     );
 
+    let response_description = if let Some(example) = response_example {
+        quote! { format!("OK. Example: {}", #example) }
+    } else {
+        quote! { "OK".to_string() }
+    };
+
+    let response_expr = if let Some(ty) = &route_attr.response_ty {
+        let schema_name = type_ident_str(ty);
+        quote! {
+            ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new()
+                .description(#response_description)
+                .content(
+                    "application/json",
+                    ::serverust_core::__private::utoipa::openapi::ContentBuilder::new()
+                        .schema(Some(
+                            ::serverust_core::__private::utoipa::openapi::schema::Ref::from_schema_name(
+                                #schema_name
+                            )
+                        ))
+                        .build(),
+                )
+                .build()
+        }
+    } else {
+        quote! {
+            ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new()
+                .description(#response_description)
+                .build()
+        }
+    };
+
+    let description_expr = if let Some(example) = request_example {
+        quote! { Some(format!("Request example: {}", #example)) }
+    } else {
+        quote! { None::<String> }
+    };
+
+    let tag_expr = if let Some(tag) = tag {
+        quote! { .tag(#tag) }
+    } else {
+        quote! {}
+    };
+
     let expanded = quote! {
         #[allow(non_camel_case_types)]
         #vis struct #fn_name;
@@ -82,13 +195,15 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
                 #func
 
                 let operation = ::serverust_core::__private::utoipa::openapi::path::OperationBuilder::new()
-                    .operation_id(Some(#fn_name_str))
-                    .response(
-                        "200",
-                        ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new()
-                            .description("OK")
-                            .build(),
-                    )
+                    .operation_id(Some(#operation_id))
+                    .summary(Some(#fn_name_str))
+                    .description(#description_expr)
+                    #tag_expr
+                    .response("200", #response_expr)
+                    .response("401", ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new().description("Unauthorized").build())
+                    .response("403", ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new().description("Forbidden").build())
+                    .response("422", ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new().description("Validation Error").build())
+                    .response("500", ::serverust_core::__private::utoipa::openapi::ResponseBuilder::new().description("Internal Server Error").build())
                     .build();
 
                 ::serverust_core::Route::new(

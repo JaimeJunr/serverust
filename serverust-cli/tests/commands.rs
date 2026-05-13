@@ -1,4 +1,4 @@
-use serverust_cli::cli::Arch;
+use serverust_cli::cli::{Arch, OpenapiClientLang};
 use serverust_cli::commands;
 
 #[test]
@@ -64,8 +64,43 @@ fn openapi_export_command_passes_out_path() {
 }
 
 #[test]
+fn openapi_client_command_maps_lang_and_paths() {
+    let cmd = commands::openapi_client_command(
+        OpenapiClientLang::Ts,
+        std::path::Path::new("openapi.json"),
+        std::path::Path::new("sdk/ts"),
+    );
+    let program = cmd.get_program().to_string_lossy().to_string();
+    let args: Vec<String> = cmd
+        .get_args()
+        .map(|a| a.to_string_lossy().to_string())
+        .collect();
+    assert_eq!(program, "openapi-generator-cli");
+    assert!(args.contains(&"generate".to_string()));
+    assert!(args.contains(&"typescript-fetch".to_string()));
+    assert!(args.contains(&"openapi.json".to_string()));
+    assert!(args.contains(&"sdk/ts".to_string()));
+}
+
+#[test]
 fn info_text_mentions_versions() {
     let s = commands::info_text();
     assert!(s.contains("serverust-cli"));
     assert!(s.contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[test]
+fn doctor_report_mentions_core_files() {
+    let dir = tempfile::tempdir().expect("tmp");
+    std::fs::write(dir.path().join("Cargo.toml"), "[package]\nname=\"x\"\n").expect("cargo");
+    std::fs::write(
+        dir.path().join("serverust.toml"),
+        "[default.server]\nport=3000\n[default.telemetry]\nformat=\"json\"\n[default.openapi]\ntitle=\"x\"\n",
+    )
+    .expect("cfg");
+    let report = commands::doctor_report(dir.path());
+    assert!(report.contains("Cargo.toml"));
+    assert!(report.contains("serverust.toml"));
+    assert!(report.contains("[default.telemetry]"));
+    assert!(report.contains("[default.openapi]"));
 }

@@ -1,5 +1,5 @@
 use serverust_core::config::{
-    LambdaConfig, OpenApiConfig, ServerustConfig, ServerConfig, TelemetryConfig,
+    LambdaConfig, OpenApiConfig, ServerConfig, ServerustConfig, TelemetryConfig,
 };
 use std::fs;
 use std::sync::Mutex;

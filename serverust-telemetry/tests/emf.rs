@@ -1,8 +1,8 @@
 //! Emissão EMF: testa que `emit_emf_to` produz JSON com a estrutura
 //! `_aws.CloudWatchMetrics` e que a macro `#[metric]` encapsula a chamada.
 
-use serverust_telemetry::emit_emf_to;
 use serde_json::Value;
+use serverust_telemetry::emit_emf_to;
 
 #[test]
 fn emit_emf_produces_cloudwatch_format() {

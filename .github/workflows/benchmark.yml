@@ -1,0 +1,21 @@
+name: benchmark-gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Benchmark gate
+        run: ./scripts/benchmark_ci.sh

@@ -10,7 +10,8 @@
 //! serverust build [--release]                # cargo build
 //! serverust deploy lambda [--arch arm64|x86_64]
 //! serverust info                             # versões e features
-//! serverust openapi --out openapi.json       # exporta spec sem subir servidor
+//! serverust openapi export --out openapi.json
+//! serverust openapi client --lang ts --out sdk/ts
 //! ```
 //!
 //! Este crate expõe também a lib (`serverust_cli`) com módulos
@@ -26,7 +27,7 @@ pub mod templates;
 
 use anyhow::Result;
 
-use crate::cli::{Cli, Command, DeployTarget};
+use crate::cli::{Cli, Command, DeployTarget, OpenapiCommand};
 
 /// Executa um comando da CLI já parseado.
 ///
@@ -40,21 +41,14 @@ pub fn run(cli: Cli) -> Result<()> {
             println!("✓ project created at {}/{}", cwd.display(), name);
             Ok(())
         }
-        Command::Generate { kind, name } => {
+        Command::Generate { kind, name, crud } => {
             let cwd = std::env::current_dir()?;
-            scaffold::generate(&cwd, kind, &name)?;
+            scaffold::generate(&cwd, kind, &name, crud)?;
             println!("✓ {kind:?} '{name}' generated");
             Ok(())
         }
         Command::Dev => {
             require_cargo_subcommand("watch", "cargo install cargo-watch")?;
-            // Aviso amigável: o primeiro build puxa ~150-200 crates (axum, tokio,
-            // hyper, utoipa...). Subsequentes são incrementais e rápidos.
-            if !std::path::Path::new("target").exists() {
-                eprintln!(
-                    "🦀 primeira compilação puxa muitas deps e pode levar 2-3min;\n   builds subsequentes são incrementais e bem mais rápidos.\n"
-                );
-            }
             spawn_status(commands::dev_cargo_command(), "dev")
         }
         Command::Build { release } => spawn_status(commands::build_cargo_command(release), "build"),
@@ -71,7 +65,20 @@ pub fn run(cli: Cli) -> Result<()> {
             println!("{}", commands::info_text());
             Ok(())
         }
-        Command::Openapi { out } => spawn_status(commands::openapi_export_command(&out), "openapi"),
+        Command::Doctor => {
+            let cwd = std::env::current_dir()?;
+            println!("{}", commands::doctor_report(&cwd));
+            Ok(())
+        }
+        Command::Openapi { command } => match command {
+            OpenapiCommand::Export { out } => {
+                spawn_status(commands::openapi_export_command(&out), "openapi export")
+            }
+            OpenapiCommand::Client { lang, input, out } => spawn_status(
+                commands::openapi_client_command(lang, &input, &out),
+                "openapi client",
+            ),
+        },
     }
 }
 

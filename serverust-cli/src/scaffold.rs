@@ -45,10 +45,10 @@ pub fn new_project(base: &Path, name: &str) -> Result<()> {
 
 /// Gera scaffolding para um artefato (`controller`, `service`, etc.) em
 /// `base/src/...`.
-pub fn generate(base: &Path, kind: GenerateKind, name: &str) -> Result<()> {
+pub fn generate(base: &Path, kind: GenerateKind, name: &str, crud: bool) -> Result<()> {
     match kind {
         GenerateKind::Resource => generate_resource(base, name),
-        GenerateKind::Module => generate_module(base, name, false),
+        GenerateKind::Module => generate_module(base, name, crud, crud),
         GenerateKind::Controller => generate_single_module_file(
             base,
             name,
@@ -88,15 +88,15 @@ pub fn generate(base: &Path, kind: GenerateKind, name: &str) -> Result<()> {
     }
 }
 
-fn generate_module(base: &Path, name: &str, with_dto: bool) -> Result<()> {
+fn generate_module(base: &Path, name: &str, with_dto: bool, with_tests: bool) -> Result<()> {
     let dir = base.join("src/modules").join(name);
     fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
     write_file(
         &dir.join("mod.rs"),
         &if with_dto {
-            templates::resource_mod_rs(name)
+            templates::resource_mod_rs(name, with_tests)
         } else {
-            templates::module_mod_rs(name)
+            templates::module_mod_rs(name, with_tests)
         },
     )?;
     write_file(
@@ -110,11 +110,17 @@ fn generate_module(base: &Path, name: &str, with_dto: bool) -> Result<()> {
     if with_dto {
         write_file(&dir.join(format!("{name}.dto.rs")), &templates::dto(name))?;
     }
+    if with_tests {
+        write_file(
+            &dir.join(format!("{name}.tests.rs")),
+            &templates::module_test(name),
+        )?;
+    }
     Ok(())
 }
 
 fn generate_resource(base: &Path, name: &str) -> Result<()> {
-    generate_module(base, name, true)
+    generate_module(base, name, true, false)
 }
 
 fn generate_single_module_file(

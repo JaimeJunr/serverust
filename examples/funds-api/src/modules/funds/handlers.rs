@@ -3,9 +3,9 @@ use std::sync::Arc;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
+use serde_json::json;
 use serverust_core::extract::Json;
 use serverust_macros::{delete, get, post, put};
-use serde_json::json;
 
 use super::model::CreateFundDto;
 use super::service::FundsService;
