@@ -2514,6 +2514,7 @@ dependencies = [
  "serde_json",
  "serverust-core",
  "serverust-events",
+ "serverust-telemetry",
  "syn",
  "tokio",
  "trybuild",

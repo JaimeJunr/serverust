@@ -535,6 +535,89 @@ pub fn derive_api_error(input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+// --- #[dynamo_table(...)] -----------------------------------------------------
+
+/// Atributo da macro `#[dynamo_table(name, pk = "...", sk = "...")]`.
+struct DynamoTableAttr {
+    name: LitStr,
+    pk: LitStr,
+    sk: Option<LitStr>,
+}
+
+impl Parse for DynamoTableAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let name: LitStr = input.parse()?;
+        let mut pk: Option<LitStr> = None;
+        let mut sk: Option<LitStr> = None;
+        while input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            let key: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+            match key.to_string().as_str() {
+                "pk" => pk = Some(input.parse::<LitStr>()?),
+                "sk" => sk = Some(input.parse::<LitStr>()?),
+                other => {
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!("chave desconhecida `{other}` em #[dynamo_table] (use pk, sk)"),
+                    ));
+                }
+            }
+        }
+        let pk = pk.ok_or_else(|| {
+            syn::Error::new(name.span(), "#[dynamo_table] requer `pk = \"<campo>\"`")
+        })?;
+        Ok(DynamoTableAttr { name, pk, sk })
+    }
+}
+
+/// Macro de atributo `#[dynamo_table("TableName", pk = "field", sk = "field"?)]`.
+///
+/// Aplica-se sobre uma struct e emite `impl serverust_telemetry::dynamo::DynamoTable`
+/// expondo `TABLE_NAME`, `PK_FIELD` e `SK_FIELD`. A struct original é re-emitida
+/// inalterada — o usuário deve declarar `#[derive(Serialize, Deserialize)]`
+/// separadamente (a serialização é usada para extrair os valores dos campos).
+///
+/// Exemplo:
+/// ```ignore
+/// #[dynamo_table("Wallets", pk = "user_id")]
+/// #[derive(serde::Serialize, serde::Deserialize)]
+/// struct Wallet { user_id: String, balance: u64 }
+/// ```
+#[proc_macro_attribute]
+pub fn dynamo_table(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attrs = parse_macro_input!(attr as DynamoTableAttr);
+    let item_parsed = parse_macro_input!(item as Item);
+    let ident = match &item_parsed {
+        Item::Struct(s) => s.ident.clone(),
+        other => {
+            return syn::Error::new(
+                other.span(),
+                "#[dynamo_table] só pode ser aplicado em struct",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+    let table = attrs.name;
+    let pk = attrs.pk;
+    let sk_expr = match attrs.sk {
+        Some(s) => quote! { ::core::option::Option::Some(#s) },
+        None => quote! { ::core::option::Option::None },
+    };
+
+    let expanded = quote! {
+        #item_parsed
+
+        impl ::serverust_telemetry::dynamo::DynamoTable for #ident {
+            const TABLE_NAME: &'static str = #table;
+            const PK_FIELD: &'static str = #pk;
+            const SK_FIELD: ::core::option::Option<&'static str> = #sk_expr;
+        }
+    };
+    expanded.into()
+}
+
 // --- #[kafka_consumer(...)] ---------------------------------------------------
 
 /// Atributo da macro de consumer Kafka.
