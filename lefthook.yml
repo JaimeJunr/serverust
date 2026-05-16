@@ -19,3 +19,5 @@ pre-push:
       run: ./scripts/quality_coverage.sh
     mutation:
       run: ./scripts/quality_mutation.sh
+    kpi:
+      run: ./scripts/quality_kpi_gate.sh

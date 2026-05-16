@@ -95,6 +95,10 @@ LEFTHOOK_KPI=1 git push       # gate de KPI: binário e cold start vs history.js
 
 Rodar manualmente: `scripts/quality_kpi_gate.sh`
 
+**Override de emergência**: `LEFTHOOK_KPI_SKIP=1 LEFTHOOK_KPI=1 git push`
+Quando usado, a justificativa **deve** constar na mensagem do commit (ex: `reason: regressão aceitável — aguardando nova release de rdkafka`).
+Sem justificativa no commit, o PR não será aprovado.
+
 ---
 
 ## Antes de Mergear (Checklist)
