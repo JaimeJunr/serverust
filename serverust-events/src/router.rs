@@ -29,15 +29,35 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage};
+use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage, HandlerFuture};
 use crate::extract::HandlerFn;
 use crate::retry::RetryPolicy;
 
+/// Função de publicação injetada no factory de subscriptions com publisher.
+///
+/// Recebe `(topic, payload_bytes)` e devolve uma `HandlerFuture` — resolvida
+/// no momento do `attach`, quando o broker concreto está disponível.
+type Publisher = Arc<dyn Fn(String, Vec<u8>) -> HandlerFuture + Send + Sync>;
+
+/// Factory que, dado o tópico de publish e a função `Publisher`, produz o
+/// `BoxedHandler` final. Usado por [`EventRouter::subscribe_publish`] para
+/// adiar a captura do broker até o `attach`.
+type PublishingFactory = Box<dyn FnOnce(String, Publisher) -> BoxedHandler + Send>;
+
+pub(crate) enum SubHandler {
+    Plain(BoxedHandler),
+    Publishing {
+        factory: PublishingFactory,
+        publish_topic: String,
+    },
+}
+
 pub(crate) struct Subscription {
     pub(crate) topic: String,
-    pub(crate) handler: BoxedHandler,
+    pub(crate) handler: SubHandler,
     pub(crate) retry: Option<RetryPolicy>,
     pub(crate) dlq: Option<String>,
 }
@@ -120,7 +140,61 @@ impl EventRouter {
 
         self.subscriptions.push(Subscription {
             topic: topic.to_string(),
-            handler: wrapped,
+            handler: SubHandler::Plain(wrapped),
+            retry: None,
+            dlq: None,
+        });
+        self
+    }
+
+    /// Registra um handler tipado que devolve `U` e publica o valor de retorno
+    /// em `publish_topic` após sucesso.
+    ///
+    /// `T` é desserializado do payload de entrada; `U` é serializado em JSON e
+    /// publicado no tópico configurado. Se o handler retornar `Err(_)`, nada é
+    /// publicado e o erro propaga (passando pelo wrapper de retry/DLQ, se houver).
+    ///
+    /// Esta é a primitiva consumida pela macro `#[publisher(topic = "...")]`
+    /// empilhada sobre `#[subscriber(...)]`.
+    pub fn subscribe_publish<T, U, H, Fut>(
+        mut self,
+        sub_topic: &str,
+        publish_topic: &str,
+        handler: H,
+    ) -> Self
+    where
+        T: DeserializeOwned + Send + 'static,
+        U: Serialize + Send + 'static,
+        H: Fn(T) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<U, BrokerError>> + Send + 'static,
+    {
+        let handler = Arc::new(handler);
+        let factory: PublishingFactory = Box::new(
+            move |pub_topic: String, publisher: Publisher| -> BoxedHandler {
+                Arc::new(move |msg: BrokerMessage| {
+                    let handler = handler.clone();
+                    let publisher = publisher.clone();
+                    let pub_topic = pub_topic.clone();
+                    Box::pin(async move {
+                        let event: T = serde_json::from_slice(&msg.payload).map_err(|e| {
+                            BrokerError::Subscribe(format!("payload decode error: {e}"))
+                        })?;
+                        let value = handler(event).await?;
+                        let payload = serde_json::to_vec(&value).map_err(|e| {
+                            BrokerError::Publish(format!("publish encode error: {e}"))
+                        })?;
+                        publisher(pub_topic, payload).await
+                    })
+                })
+            },
+        );
+
+        self.subscriptions.push(Subscription {
+            topic: sub_topic.to_string(),
+            handler: SubHandler::Publishing {
+                factory,
+                publish_topic: publish_topic.to_string(),
+            },
             retry: None,
             dlq: None,
         });
@@ -158,7 +232,7 @@ impl EventRouter {
 
         self.subscriptions.push(Subscription {
             topic: topic.to_string(),
-            handler: wrapped,
+            handler: SubHandler::Plain(wrapped),
             retry: None,
             dlq: None,
         });
@@ -194,6 +268,14 @@ impl EventRouter {
     where
         B: Broker + ?Sized + 'static,
     {
+        let publisher: Publisher = {
+            let broker = broker.clone();
+            Arc::new(move |topic: String, payload: Vec<u8>| -> HandlerFuture {
+                let broker = broker.clone();
+                Box::pin(async move { broker.publish(&topic, &payload).await })
+            })
+        };
+
         for sub in self.subscriptions {
             // Calcula o DLQ efetivo: `with_dlq` tem precedência sobre `dead_letter` na policy.
             let effective_dlq = sub.dlq.clone().or_else(|| {
@@ -202,10 +284,18 @@ impl EventRouter {
                     .and_then(|r| r.dlq_topic().map(str::to_string))
             });
 
+            let base_handler: BoxedHandler = match sub.handler {
+                SubHandler::Plain(h) => h,
+                SubHandler::Publishing {
+                    factory,
+                    publish_topic,
+                } => factory(publish_topic, publisher.clone()),
+            };
+
             let handler = if sub.retry.is_some() || effective_dlq.is_some() {
-                wrap_with_retry(sub.handler, sub.retry, effective_dlq, broker.clone())
+                wrap_with_retry(base_handler, sub.retry, effective_dlq, broker.clone())
             } else {
-                sub.handler
+                base_handler
             };
             broker.subscribe(&sub.topic, handler).await?;
         }
@@ -222,6 +312,15 @@ impl EventRouter {
     /// Retorna a [`RetryPolicy`] associada à última inscrição, se houver.
     pub fn last_retry(&self) -> Option<&RetryPolicy> {
         self.subscriptions.last().and_then(|s| s.retry.as_ref())
+    }
+
+    /// Retorna o tópico de publish da última inscrição, se configurado via
+    /// [`EventRouter::subscribe_publish`].
+    pub fn last_publish_topic(&self) -> Option<&str> {
+        self.subscriptions.last().and_then(|s| match &s.handler {
+            SubHandler::Publishing { publish_topic, .. } => Some(publish_topic.as_str()),
+            SubHandler::Plain(_) => None,
+        })
     }
 
     /// Retorna o tópico DLQ efetivo da última inscrição (via `with_dlq` ou `dead_letter`).

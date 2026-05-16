@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InMemoryBroker` em `serverust-events/src/broker/in_memory.rs` (feature `in-memory`) — entrega síncrona em memória para testes sem broker físico (US-2)
 - `EventRouter` builder programático em `serverust-events/src/router.rs`: `subscribe::<T, _>(topic, handler)` com decodificação JSON, `with_retry(RetryPolicy)`, `with_dlq(topic)`, `attach(&broker)` aceitando qualquer `impl Broker` (US-3)
 - `RetryPolicy` (variants `Immediate` / `Exponential`) em `serverust-events/src/retry.rs` — tipo público consumido pelo `EventRouter::with_retry`; aplicação runtime fica em US-5
+- `EventRouter::subscribe_publish::<T, U, _, _>(sub_topic, pub_topic, handler)` em `serverust-events/src/router.rs` — registra handler que serializa `Ok(U)` e publica em `pub_topic` (US-6)
+- Macros `#[subscriber(topic = "...")]` e `#[publisher(topic = "...")]` empilháveis em `serverust-macros/src/lib.rs` — emitem código baseado no builder `EventRouter::subscribe` / `subscribe_publish`, sem registro runtime (US-6)
 
 ### Changed
 - Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes
