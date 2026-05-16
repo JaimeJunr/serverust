@@ -10,12 +10,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-16
+
 ### Added
-- Event system roadmap (US-001–US-009): EventHandler trait, Kafka extractor, macro `#[kafka_consumer]`, KafkaProducer opt-in feature, DynamoRepo pattern
-- CLAUDE.md and ADRs in MADR format under `docs/development/decisions/`
-- `docs/development/for-ai-agents.md` machine-readable guide
-- `docs/product/metrics/history.json` versioned KPI history
-- Quality gates: `scripts/quality_kpi_gate.sh`, `scripts/quality_changelog.sh`
+- Trait `EventHandler<E>` em `serverust-core` paralela ao Router HTTP (US-001)
+- Dispatcher multi-trigger em `serverust-lambda` detectando HTTP vs Event automaticamente (US-002)
+- Nova crate `serverust-events` com extractor `KafkaRecord<T>` (US-003)
+- Macro `#[kafka_consumer(topic, group)]` em `serverust-macros` (US-004)
+- `KafkaProducer` injetável atrás de feature `kafka-producer` opt-in (US-005)
+- `DynamoRepo<T>` repository pattern + macro `#[dynamo_table]` (US-006)
+- Exemplo `examples/kafka-wallet` end-to-end Kafka→Dynamo→Kafka (US-007)
+- Baseline competitivo `examples/baselines/axum-raw-kafka` (US-009)
+- `CHANGELOG.md` versionado (Keep a Changelog 1.1.0) + gate `quality_changelog.sh` (US-013)
+- `CLAUDE.md` na raiz + 5 ADRs MADR em `docs/development/decisions/` (US-015)
+- `docs/development/for-ai-agents.md` — guia máquina-legível (US-017)
+- `docs/product/metrics/history.json` + schema + scripts `metrics_append.sh`/`metrics_regression_check.sh` (US-014)
+- Gate `scripts/quality_kpi_gate.sh` no pre-push (US-016)
+- Análise competitiva de `actix-web` em `docs/product/competitors/actix.md` (US-018)
+- Entrada v0.2.0 em `release-competitive-log.md` com números reais + baseline (US-010)
+- Tabelas competitivas em README + `rocket.md`/`loco.md`/`actix.md` (US-011)
+- `docs/development/release-checklist.md` + issue template GitHub com itens `required:true` (US-012)
+
+### Changed
+- Renomeado `AGENTS.md` → `CLAUDE.md` (projeto usa Claude Code, não Codex)
+- Tabela comparativa do README inclui colunas Rocket / Loco / actix-web
+
+### Preserved (não-regressão)
+- `examples/hello-world` mantém SLOs históricos (< 10 MB stripped, < 2000 ms cold start) (US-008)
+- Pitch HTTP-first intacto: tudo event-driven em crate opt-in `serverust-events`
 
 ## [0.1.2] - 2026-05-16
 
