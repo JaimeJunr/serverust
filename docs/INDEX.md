@@ -27,6 +27,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
 - [**development/ralph-progress.md**](development/ralph-progress.md) — Log de execução do Ralph Loop. Codebase Patterns no topo + relato detalhado de cada user story (US-001 a US-011) com aprendizados.
+- [**development/release-checklist.md**](development/release-checklist.md) — Checklist obrigatório de release, incluindo atualização do comparativo Rocket/Loco e dados reais do serverust.
 
 ## Como navegar
 

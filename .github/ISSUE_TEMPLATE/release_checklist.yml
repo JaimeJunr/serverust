@@ -1,0 +1,47 @@
+name: Release Checklist
+description: Checklist obrigatória para publicar nova versão do serverust
+title: "release: vX.Y.Z"
+labels: ["release"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Preencha todos os itens antes de publicar.
+
+  - type: checkboxes
+    id: quality
+    attributes:
+      label: Quality Gates
+      options:
+        - label: "fmt/lint/complexidade/ciclos executados"
+        - label: "cobertura e mutação executadas"
+
+  - type: checkboxes
+    id: runtime
+    attributes:
+      label: Compatibilidade Runtime
+      options:
+        - label: "`cargo test -p serverust-lambda --test lambda_to_axum` passou"
+        - label: "Guia `docs/guides/iac-compatibility.md` revisado"
+
+  - type: checkboxes
+    id: competition
+    attributes:
+      label: Comparativo Competitivo (Obrigatório)
+      description: Atualizar a cada release.
+      options:
+        - label: "Rocket e Loco atualizados com versão/data/fonte"
+        - label: "Dados reais do serverust atualizados em `docs/product/competitors/release-competitive-log.md`"
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências da release
+      description: Cole aqui os números reais coletados (binário, testes, cobertura/mutação).
+      placeholder: |
+        - stripped_size_bytes=...
+        - lambda_to_axum: 3/3
+        - coverage gate: pass
+        - mutation gate: pass
+    validations:
+      required: true

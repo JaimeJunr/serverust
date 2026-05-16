@@ -7,6 +7,11 @@ Cargo.lock.bak
 # Lambda artifacts
 /target/lambda/
 
+# Quality artifacts (coverage, mutation testing)
+coverage.lcov
+/mutants.out/
+/mutants.out.old/
+
 # Claude Code / agent local state
 .claude/
 sync-prompts.sh
