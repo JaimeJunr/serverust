@@ -12,6 +12,18 @@ keywords.workspace = true
 categories.workspace = true
 description = "Suporte event-driven opt-in para serverust: extractors tipados para Kafka, SQS, EventBridge."
 
+[features]
+default = []
+# Habilita o KafkaProducer (rdkafka + librdkafka C). Off por default — apps
+# que apenas consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
+kafka-producer = [
+    "dep:rdkafka",
+    "dep:aws-msk-iam-sasl-signer",
+    "dep:aws-config",
+    "dep:aws-types",
+    "dep:tokio",
+]
+
 [dependencies]
 aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
 serde = { version = "1", features = ["derive"] }
@@ -19,5 +31,13 @@ serde_json = "1"
 base64 = "0.22"
 thiserror = "1"
 
+# Opt-in via feature kafka-producer
+rdkafka = { version = "0.35", default-features = false, features = ["cmake-build", "tokio"], optional = true }
+aws-msk-iam-sasl-signer = { version = "1.0", optional = true }
+aws-config = { version = "1", optional = true, default-features = false, features = ["rt-tokio"] }
+aws-types = { version = "1", optional = true }
+tokio = { version = "1", optional = true, features = ["rt", "sync", "macros"] }
+
 [dev-dependencies]
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
