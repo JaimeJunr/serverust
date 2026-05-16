@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://serverust.dev/metrics/schema.json",
+  "title": "ServerustMetricsEntry",
+  "description": "KPI snapshot por release do serverust",
+  "type": "object",
+  "required": ["version", "date"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Versão semântica do release (ex: 0.1.0)",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "date": {
+      "type": "string",
+      "description": "Data do release (ISO 8601)",
+      "format": "date"
+    },
+    "cold_start_p95_ms": {
+      "type": ["number", "null"],
+      "description": "Cold start p95 em ms no Lambda ARM64 128 MB (meta: < 50 ms)",
+      "minimum": 0
+    },
+    "stripped_bytes": {
+      "type": ["integer", "null"],
+      "description": "Tamanho do binário stripped em bytes (meta: < 10 MB = 10485760)",
+      "minimum": 0
+    },
+    "loc_handler": {
+      "type": ["integer", "null"],
+      "description": "Linhas de código num handler típico de referência (hello-world/src/main.rs)",
+      "minimum": 0
+    },
+    "quality_gates": {
+      "type": ["object", "null"],
+      "description": "Status dos quality gates no momento do release",
+      "properties": {
+        "fmt": { "type": "boolean" },
+        "lint": { "type": "boolean" },
+        "complexity": { "type": "boolean" },
+        "coverage_pct": { "type": ["number", "null"] },
+        "mutation_score_pct": { "type": ["number", "null"] }
+      }
+    },
+    "competitor_refs": {
+      "type": ["array", "null"],
+      "description": "Referências competitivas medidas no mesmo release",
+      "items": {
+        "type": "object",
+        "required": ["framework", "version"],
+        "properties": {
+          "framework": { "type": "string" },
+          "version": { "type": "string" },
+          "cold_start_p95_ms": { "type": ["number", "null"] },
+          "stripped_bytes": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Observações sobre esta entrada"
+    }
+  },
+  "additionalProperties": false
+}
