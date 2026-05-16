@@ -1,0 +1,28 @@
+# Baseline competitivo stand-alone: não faz parte do workspace serverust.
+[workspace]
+
+[package]
+name = "axum-raw-kafka"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+description = "Baseline vanilla: lambda_runtime + aws-sdk-dynamodb + rdkafka sem framework."
+
+[[bin]]
+name = "axum-raw-kafka"
+path = "src/main.rs"
+
+[dependencies]
+lambda_runtime = "1.2"
+aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
+aws-sdk-dynamodb = "1"
+aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
+rdkafka = { version = "0.35", default-features = false, features = ["cmake-build", "tokio"] }
+# Pina rdkafka-sys à versão usada no workspace (2.3.0 não exige curl.h em cmake-build).
+rdkafka-sys = { version = "=4.8.0", default-features = false, features = ["cmake-build"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+thiserror = "1"
