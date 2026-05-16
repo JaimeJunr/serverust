@@ -23,3 +23,5 @@ pre-push:
       run: ./scripts/quality_mutation.sh
     kpi:
       run: ./scripts/quality_kpi_gate.sh
+    metrics_required:
+      run: ./scripts/quality_metrics_required.sh

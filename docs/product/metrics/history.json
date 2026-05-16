@@ -46,5 +46,21 @@
     },
     "competitor_refs": null,
     "notes": "Patch de manutenção. Métricas de binary size e cold start não coletadas (release sem tag git — ver CHANGELOG)."
+  },
+  {
+    "version": "0.2.0",
+    "date": "2026-05-16",
+    "cold_start_p95_ms": 15,
+    "stripped_bytes": 3549712,
+    "loc_handler": 13,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Coletado automaticamente por metrics_append.sh"
   }
 ]

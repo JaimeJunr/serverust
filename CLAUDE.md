@@ -16,6 +16,7 @@ Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR ap
 | `serverust-core` sem deps de eventos/Kafka | zero | `cargo tree -p serverust-core \| grep -E "kafka\|rdkafka\|event"` |
 | `hello-world` sem deps de Kafka/DynamoDB | zero | `cargo tree -p hello-world \| grep -v -e kafka -e dynamo` |
 | Typecheck do workspace | verde | `cargo check --workspace` |
+| Métricas da versão corrente preenchidas | `stripped_bytes` + `cold_start_p95_ms` não-null em `history.json` | `scripts/quality_metrics_required.sh` (gate obrigatório no pre-push) |
 
 **Regressão detectada?** Crie uma ADR em `docs/development/decisions/` justificando antes de mergear.
 

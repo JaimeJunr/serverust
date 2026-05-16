@@ -60,8 +60,9 @@ _Patch de manutenção. Métricas não coletadas (release sem tag git — ver CH
 ### Números serverust v0.2.0
 | Métrica | hello-world | kafka-wallet | Observação |
 |---|---|---|---|
-| stripped_size_bytes | null* | 19 040 272 B (~18 MB) | *hello-world: release não compilado nesta iteração; SLO < 10 MB mantido por CI gate |
-| cold_start_p95_ms | null | null | não medido localmente (cargo-lambda indisponível no ambiente de dev) |
+| stripped_size_bytes | 3 549 712 B (~3.4 MB) | 19 040 272 B (~18 MB) | hello-world bem abaixo do SLO < 10 MB; kafka-wallet pesa por causa de rdkafka (opt-in) |
+| startup_ms (local HTTP) | 15 ms | n/a | medido via `benchmark_ci.sh`; SLO < 2000 ms |
+| cold_start_p95_ms (Lambda ARM64) | pendente | pendente | requer cargo-lambda + invocação real em AWS (CI de release) |
 | loc_handler | 13 | 16 | linhas não-vazias excluindo #[cfg(test)]; src/main.rs e src/lib.rs respectivamente |
 | quality_gates lint | ✅ | ✅ | clippy --deny warnings verde |
 | quality_gates complexity | ✅ | ✅ | complexidade ciclomática verde |

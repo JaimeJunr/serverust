@@ -45,6 +45,8 @@ body:
           required: true
         - label: "`scripts/metrics_regression_check.sh` verde"
           required: true
+        - label: "`scripts/quality_metrics_required.sh` verde — versão tem `stripped_bytes` e `cold_start_p95_ms` não-null em `history.json`"
+          required: true
 
   - type: checkboxes
     id: event_sources
