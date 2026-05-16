@@ -36,6 +36,10 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 - **Entendendo o "porquê"?** [product/prd.md](product/prd.md), especialmente seções 6 (Design Considerations) e 7 (Technical Considerations).
 - **Referência completa de API?** `cargo doc --workspace --no-deps --open`.
 
+## Histórico de versões
+
+- [**../CHANGELOG.md**](../CHANGELOG.md) — Histórico completo de mudanças por versão (Keep a Changelog 1.1.0).
+
 ## Sobre estes artefatos
 
 Os documentos em `docs/` são o **snapshot publicável** do MVP do framework. Foram gerados a partir do PRD original via Ralph Loop e estão consolidados aqui para a comunidade.

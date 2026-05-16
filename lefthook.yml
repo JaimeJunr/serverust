@@ -13,6 +13,8 @@ pre-commit:
 pre-push:
   parallel: false
   commands:
+    changelog:
+      run: ./scripts/quality_changelog.sh
     coverage:
       run: ./scripts/quality_coverage.sh
     mutation:

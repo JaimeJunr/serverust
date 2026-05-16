@@ -11,7 +11,7 @@ Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + Fa
 - [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
 - [Compatibilidade IaC](docs/guides/iac-compatibility.md) — validação oficial para Serverless Framework, SST e Terraform.
 
-**Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
+**Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md) · **Histórico de versões**: [`CHANGELOG.md`](CHANGELOG.md).
 
 ```bash
 cargo install serverust-cli
