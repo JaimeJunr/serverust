@@ -4,26 +4,27 @@
 //! API alvo (PRD §6):
 //!
 //! ```ignore
+//! use std::sync::Arc;
 //! use std::time::Duration;
 //! use serverust_events::broker::Broker;
 //! use serverust_events::router::EventRouter;
 //! use serverust_events::retry::RetryPolicy;
 //!
 //! # async fn handle_order(_e: ()) -> Result<(), serverust_events::broker::BrokerError> { Ok(()) }
-//! # async fn example(broker: impl Broker) -> Result<(), serverust_events::broker::BrokerError> {
+//! # async fn example(broker: impl Broker + 'static) -> Result<(), serverust_events::broker::BrokerError> {
+//! let broker = Arc::new(broker);
 //! EventRouter::new()
 //!     .subscribe::<(), _, _>("orders.created", handle_order)
 //!     .with_retry(RetryPolicy::exponential(3, Duration::from_secs(1)))
 //!     .with_dlq("orders.dlq")
-//!     .attach(&broker)
+//!     .attach(broker)
 //!     .await
 //! # }
 //! ```
 //!
 //! O builder grava as inscrições; a entrega real depende do `Broker`
-//! injetado em [`EventRouter::attach`]. A lógica de retry e a publicação
-//! efetiva no DLQ chegam em US-5 — por ora, os campos `retry` e `dlq`
-//! ficam disponíveis para inspeção e são consumidos em iterações futuras.
+//! injetado em [`EventRouter::attach`]. Subscriptions com `retry`/`dlq`
+//! configurados têm o handler envolvido em wrapper de retry automático.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -34,18 +35,52 @@ use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage};
 use crate::extract::HandlerFn;
 use crate::retry::RetryPolicy;
 
-/// Inscrição registrada no router: tópico, handler boxado e configuração
-/// opcional de retry/DLQ.
-///
-/// `retry` e `dlq` ainda não são consumidos em runtime — a aplicação
-/// chega em US-5. Mantidos `pub(crate)` para uso futuro.
 pub(crate) struct Subscription {
     pub(crate) topic: String,
     pub(crate) handler: BoxedHandler,
-    #[allow(dead_code)]
     pub(crate) retry: Option<RetryPolicy>,
-    #[allow(dead_code)]
     pub(crate) dlq: Option<String>,
+}
+
+/// Envolve `handler` com loop de retry e publicação em DLQ após esgotamento.
+fn wrap_with_retry<B>(
+    handler: BoxedHandler,
+    retry: Option<RetryPolicy>,
+    dlq: Option<String>,
+    broker: Arc<B>,
+) -> BoxedHandler
+where
+    B: Broker + ?Sized + 'static,
+{
+    Arc::new(move |msg: BrokerMessage| {
+        let handler = handler.clone();
+        let retry = retry.clone();
+        let dlq = dlq.clone();
+        let broker = broker.clone();
+        Box::pin(async move {
+            let max_attempts = retry.as_ref().map(|r| r.max_attempts()).unwrap_or(1).max(1);
+            let mut last_err: Option<BrokerError> = None;
+
+            for attempt in 0..max_attempts {
+                if attempt > 0 {
+                    if let Some(RetryPolicy::Exponential { base_delay, .. }) = &retry {
+                        let delay = *base_delay * 2u32.pow(attempt - 1);
+                        tokio::time::sleep(delay).await;
+                    }
+                }
+                match handler(msg.clone()).await {
+                    Ok(()) => return Ok(()),
+                    Err(e) => last_err = Some(e),
+                }
+            }
+
+            // Todas as tentativas falharam — publicar no DLQ se configurado.
+            if let Some(dlq_topic) = &dlq {
+                let _ = broker.publish(dlq_topic, &msg.payload).await;
+            }
+            Err(last_err.unwrap_or_else(|| BrokerError::Subscribe("sem tentativas".to_string())))
+        })
+    })
 }
 
 /// Router event-driven. Acumula inscrições e aplica todas a um broker
@@ -150,14 +185,29 @@ impl EventRouter {
 
     /// Registra todas as inscrições no `broker` fornecido.
     ///
-    /// Aceita qualquer `impl Broker`, incluindo trait objects
-    /// (`&dyn Broker`, `Arc<dyn Broker>` via `as_ref`).
-    pub async fn attach<B>(self, broker: &B) -> Result<(), BrokerError>
+    /// Subscriptions com `retry` ou `dlq` configurados têm o handler
+    /// automaticamente envolvido no loop de retry (com backoff exponencial
+    /// quando aplicável) e publicação no DLQ após esgotamento.
+    ///
+    /// Aceita `Arc<ConcreteType>` e `Arc<dyn Broker>`.
+    pub async fn attach<B>(self, broker: Arc<B>) -> Result<(), BrokerError>
     where
-        B: Broker + ?Sized,
+        B: Broker + ?Sized + 'static,
     {
         for sub in self.subscriptions {
-            broker.subscribe(&sub.topic, sub.handler).await?;
+            // Calcula o DLQ efetivo: `with_dlq` tem precedência sobre `dead_letter` na policy.
+            let effective_dlq = sub.dlq.clone().or_else(|| {
+                sub.retry
+                    .as_ref()
+                    .and_then(|r| r.dlq_topic().map(str::to_string))
+            });
+
+            let handler = if sub.retry.is_some() || effective_dlq.is_some() {
+                wrap_with_retry(sub.handler, sub.retry, effective_dlq, broker.clone())
+            } else {
+                sub.handler
+            };
+            broker.subscribe(&sub.topic, handler).await?;
         }
         Ok(())
     }
@@ -174,8 +224,12 @@ impl EventRouter {
         self.subscriptions.last().and_then(|s| s.retry.as_ref())
     }
 
-    /// Retorna o tópico DLQ associado à última inscrição, se houver.
+    /// Retorna o tópico DLQ efetivo da última inscrição (via `with_dlq` ou `dead_letter`).
     pub fn last_dlq(&self) -> Option<&str> {
-        self.subscriptions.last().and_then(|s| s.dlq.as_deref())
+        self.subscriptions.last().and_then(|s| {
+            s.dlq
+                .as_deref()
+                .or_else(|| s.retry.as_ref().and_then(|r| r.dlq_topic()))
+        })
     }
 }

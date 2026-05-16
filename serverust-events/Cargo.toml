@@ -23,7 +23,9 @@ kafka = [
     "dep:aws-msk-iam-sasl-signer",
     "dep:aws-config",
     "dep:aws-types",
-    "dep:tokio",
+    "tokio/rt",
+    "tokio/sync",
+    "tokio/macros",
 ]
 # Mantido por compatibilidade com v0.1.x. `kafka` é o novo umbrella.
 kafka-producer = ["kafka"]
@@ -35,6 +37,9 @@ serde_json = "1"
 base64 = "0.22"
 thiserror = "1"
 async-trait = "0.1"
+# tokio/time sempre disponível — necessário para sleep no backoff exponencial.
+# Features de runtime (rt, sync, macros) ativas apenas com feature `kafka`.
+tokio = { version = "1", features = ["time"] }
 
 # Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
@@ -44,7 +49,6 @@ rdkafka = { version = "0.35", default-features = false, features = ["cmake-build
 aws-msk-iam-sasl-signer = { version = "1.0", optional = true }
 aws-config = { version = "1", optional = true, default-features = false, features = ["rt-tokio"] }
 aws-types = { version = "1", optional = true }
-tokio = { version = "1", optional = true, features = ["rt", "sync", "macros"] }
 
 [dev-dependencies]
 serde_json = "1"

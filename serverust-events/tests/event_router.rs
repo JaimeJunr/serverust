@@ -104,6 +104,7 @@ fn with_retry_aplica_policy_a_ultima_inscricao() {
         RetryPolicy::Exponential {
             max_attempts,
             base_delay,
+            ..
         } => {
             assert_eq!(*max_attempts, 3);
             assert_eq!(*base_delay, Duration::from_secs(1));
@@ -116,7 +117,7 @@ fn with_retry_aplica_policy_a_ultima_inscricao() {
 fn retry_policy_immediate_construtor_funciona() {
     let policy = RetryPolicy::immediate(5);
     match policy {
-        RetryPolicy::Immediate { max_attempts } => assert_eq!(max_attempts, 5),
+        RetryPolicy::Immediate { max_attempts, .. } => assert_eq!(max_attempts, 5),
         other => panic!("esperava Immediate, recebeu {other:?}"),
     }
 }
@@ -163,12 +164,12 @@ fn with_retry_e_with_dlq_compostos_em_pipeline_fluente() {
 
 #[tokio::test]
 async fn attach_aceita_qualquer_impl_broker() {
-    let broker = DummyBroker::default();
+    let broker = Arc::new(DummyBroker::default());
     let router = EventRouter::new()
         .subscribe::<OrderCreated, _, _>("orders.created", handle_order)
         .subscribe::<OrderCreated, _, _>("orders.updated", handle_order);
 
-    router.attach(&broker).await.unwrap();
+    router.attach(broker.clone()).await.unwrap();
 
     let subscribed = broker.subscribed.lock().unwrap().clone();
     assert_eq!(subscribed, vec!["orders.created", "orders.updated"]);
@@ -179,7 +180,7 @@ async fn attach_aceita_broker_via_trait_object() {
     let broker: Arc<dyn Broker> = Arc::new(DummyBroker::default());
     let router = EventRouter::new().subscribe::<OrderCreated, _, _>("orders.created", handle_order);
 
-    router.attach(broker.as_ref()).await.unwrap();
+    router.attach(broker).await.unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +198,7 @@ mod with_in_memory {
         let received: Arc<Mutex<Vec<OrderCreated>>> = Arc::new(Mutex::new(Vec::new()));
         let sink = received.clone();
 
-        let broker = InMemoryBroker::new();
+        let broker = Arc::new(InMemoryBroker::new());
         EventRouter::new()
             .subscribe::<OrderCreated, _, _>("orders.created", move |event: OrderCreated| {
                 let sink = sink.clone();
@@ -206,7 +207,7 @@ mod with_in_memory {
                     Ok(())
                 }
             })
-            .attach(&broker)
+            .attach(broker.clone())
             .await
             .unwrap();
 
@@ -219,10 +220,10 @@ mod with_in_memory {
 
     #[tokio::test]
     async fn payload_invalido_propaga_broker_error_subscribe() {
-        let broker = InMemoryBroker::new();
+        let broker = Arc::new(InMemoryBroker::new());
         EventRouter::new()
             .subscribe::<OrderCreated, _, _>("orders.created", handle_order)
-            .attach(&broker)
+            .attach(broker.clone())
             .await
             .unwrap();
 

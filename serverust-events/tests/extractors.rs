@@ -32,7 +32,7 @@ struct TestEvent {
 
 #[tokio::test]
 async fn test_state_extractor_injects_shared_state() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
     let counter = Arc::new(AtomicU32::new(0));
     let counter_clone = counter.clone();
 
@@ -45,7 +45,7 @@ async fn test_state_extractor_injects_shared_state() {
                 Ok(())
             }
         })
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -59,7 +59,7 @@ async fn test_state_extractor_injects_shared_state() {
 
 #[tokio::test]
 async fn test_state_extractor_missing_returns_error() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
 
     // Sem with_state — extractor deve retornar BrokerError
     EventRouter::new()
@@ -67,7 +67,7 @@ async fn test_state_extractor_missing_returns_error() {
             "no-state-topic",
             |_event: TestEvent, _s: State<u32>| async { Ok(()) },
         )
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -81,7 +81,7 @@ async fn test_state_extractor_missing_returns_error() {
 
 #[tokio::test]
 async fn test_kafka_headers_extractor_empty() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
     let called = Arc::new(AtomicU32::new(0));
     let called_clone = called.clone();
 
@@ -97,7 +97,7 @@ async fn test_kafka_headers_extractor_empty() {
                 }
             },
         )
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -115,7 +115,7 @@ async fn test_kafka_headers_extractor_empty() {
 
 #[tokio::test]
 async fn test_event_ctx_extractor_exposes_topic() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
     let called = Arc::new(AtomicU32::new(0));
     let called_clone = called.clone();
 
@@ -131,7 +131,7 @@ async fn test_event_ctx_extractor_exposes_topic() {
                 Ok(())
             }
         })
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -146,7 +146,7 @@ async fn test_event_ctx_extractor_exposes_topic() {
 
 #[tokio::test]
 async fn test_event_deserialization() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
     let received = Arc::new(AtomicU32::new(0));
     let received_clone = received.clone();
 
@@ -158,7 +158,7 @@ async fn test_event_deserialization() {
                 Ok(())
             }
         })
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -172,11 +172,11 @@ async fn test_event_deserialization() {
 
 #[tokio::test]
 async fn test_event_deserialization_invalid_payload_returns_error() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
 
     EventRouter::new()
         .subscribe_with("bad-topic", |_event: TestEvent| async { Ok(()) })
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -190,7 +190,7 @@ async fn test_event_deserialization_invalid_payload_returns_error() {
 
 #[tokio::test]
 async fn test_all_extractors_combined() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
     let called = Arc::new(AtomicU32::new(0));
     let called_clone = called.clone();
 
@@ -210,7 +210,7 @@ async fn test_all_extractors_combined() {
                 }
             },
         )
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 
@@ -228,7 +228,7 @@ async fn test_all_extractors_combined() {
 
 #[tokio::test]
 async fn test_state_type_mismatch_returns_error() {
-    let broker = InMemoryBroker::default();
+    let broker = Arc::new(InMemoryBroker::default());
 
     EventRouter::new()
         .with_state(42u32)
@@ -237,7 +237,7 @@ async fn test_state_type_mismatch_returns_error() {
             "mismatch-topic",
             |_event: TestEvent, _s: State<String>| async { Ok(()) },
         )
-        .attach(&broker)
+        .attach(broker.clone())
         .await
         .unwrap();
 

@@ -94,3 +94,16 @@ pub trait Broker: Send + Sync {
     /// Publica `payload` no `topic`.
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), BrokerError>;
 }
+
+/// Permite usar `Arc<B>` diretamente como `Broker`, facilitando compartilhamento
+/// entre handlers e o loop de retry/DLQ.
+#[async_trait]
+impl<B: Broker> Broker for Arc<B> {
+    async fn subscribe(&self, topic: &str, handler: BoxedHandler) -> Result<(), BrokerError> {
+        (**self).subscribe(topic, handler).await
+    }
+
+    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), BrokerError> {
+        (**self).publish(topic, payload).await
+    }
+}
