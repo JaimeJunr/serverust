@@ -189,6 +189,11 @@ impl App {
         self
     }
 
+    /// Retorna `true` se pelo menos um event handler foi registrado (qualquer tipo `E`).
+    pub fn has_event_handlers(&self) -> bool {
+        !self.event_registries.is_empty()
+    }
+
     /// Constrói um [`EventDispatcher<E>`] com todos os handlers registrados
     /// para o tipo `E` e uma cópia do [`Container`] compartilhado.
     pub fn into_event_dispatcher<E: Send + 'static>(mut self) -> EventDispatcher<E> {

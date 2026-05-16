@@ -7,17 +7,23 @@
 use std::net::SocketAddr;
 
 use lambda_http::Error as LambdaError;
+use lambda_runtime::LambdaEvent;
+use serde::Deserialize;
 use serverust_core::App;
+use serverust_core::events::{EventDispatcher, EventError};
 use tokio::net::ToSocketAddrs;
 
 pub use aws_lambda_events;
 pub use lambda_http;
+pub use lambda_runtime;
 
 /// Tipo de runtime escolhido pela detecção de ambiente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Runtime {
-    /// AWS Lambda detectado (`AWS_LAMBDA_RUNTIME_API` presente).
+    /// AWS Lambda HTTP trigger detectado (`AWS_LAMBDA_RUNTIME_API` presente sem event handlers).
     Lambda,
+    /// AWS Lambda event trigger (Kafka, SQS, EventBridge etc.) detectado.
+    LambdaEvent,
     /// Execução local em servidor HTTP.
     Http,
 }
@@ -34,8 +40,17 @@ pub fn detect_runtime(env_value: Option<&str>) -> Runtime {
     }
 }
 
-fn current_runtime() -> Runtime {
-    detect_runtime(std::env::var("AWS_LAMBDA_RUNTIME_API").ok().as_deref())
+fn current_runtime_for_app(app: &App) -> Runtime {
+    let in_lambda = std::env::var("AWS_LAMBDA_RUNTIME_API")
+        .ok()
+        .as_deref()
+        .map(|v| !v.is_empty())
+        .unwrap_or(false);
+    match (in_lambda, app.has_event_handlers()) {
+        (true, true) => Runtime::LambdaEvent,
+        (true, false) => Runtime::Lambda,
+        _ => Runtime::Http,
+    }
 }
 
 /// Sobe a App no runtime Lambda (consumindo eventos do API Gateway / Function URL).
@@ -60,13 +75,70 @@ pub async fn run_http<A: ToSocketAddrs>(app: App, addr: A) -> std::io::Result<()
     app.run_http(addr).await
 }
 
-/// Dispatcher: escolhe entre Lambda e HTTP local conforme o ambiente.
+/// Executa um único evento Lambda já recebido usando o [`EventDispatcher`] fornecido.
+///
+/// Útil em testes de integração onde se quer exercitar o handler sem subir o runtime real.
+/// Em produção, use [`run_event_lambda`] que sobe o loop completo do `lambda_runtime`.
+pub async fn run_event_lambda_handler<E>(
+    dispatcher: EventDispatcher<E>,
+    event: LambdaEvent<E>,
+) -> Result<(), EventError>
+where
+    E: Send + Clone + 'static,
+{
+    dispatcher.dispatch_event(event.payload).await
+}
+
+/// Sobe a App no runtime de eventos Lambda (Kafka, SQS, EventBridge etc.) usando
+/// `lambda_runtime::run` (não `lambda_http`).
+///
+/// O tipo `E` determina como o payload Lambda é desserializado. Registre
+/// handlers via [`App::event::<E, _>(handler)`] antes de chamar esta função.
+///
+/// ```no_run
+/// use aws_lambda_events::event::kafka::KafkaEvent;
+/// use serverust_core::App;
+/// use serverust_lambda::run_event_lambda;
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+///     run_event_lambda::<KafkaEvent>(App::new()).await?;
+///     Ok(())
+/// }
+/// ```
+pub async fn run_event_lambda<E>(app: App) -> Result<(), LambdaError>
+where
+    E: for<'de> Deserialize<'de> + Send + Clone + 'static,
+{
+    use std::sync::Arc;
+    let dispatcher = Arc::new(app.into_event_dispatcher::<E>());
+    lambda_runtime::run(lambda_runtime::service_fn(move |event: LambdaEvent<E>| {
+        let dispatcher = Arc::clone(&dispatcher);
+        async move {
+            dispatcher
+                .dispatch_event(event.payload)
+                .await
+                .map_err(|e| LambdaError::from(e.0))
+        }
+    }))
+    .await
+}
+
+/// Dispatcher: escolhe entre Lambda HTTP, Lambda Event e HTTP local conforme o ambiente.
+///
+/// - `Runtime::Lambda`: usa `lambda_http::run` (API Gateway, ALB, Function URL).
+/// - `Runtime::LambdaEvent`: App tem handlers de evento — use [`run_event_lambda`] diretamente
+///   (esta função não consegue inferir o tipo `E` do payload automaticamente).
+/// - `Runtime::Http`: sobe servidor HTTP local em `0.0.0.0:3000`.
 ///
 /// Em modo HTTP local, utiliza o endereço default `0.0.0.0:3000`. Quem precisar
 /// customizar deve chamar [`run_http`] diretamente.
 pub async fn run(app: App) -> Result<(), LambdaError> {
-    match current_runtime() {
+    match current_runtime_for_app(&app) {
         Runtime::Lambda => run_lambda(app).await,
+        Runtime::LambdaEvent => Err(LambdaError::from(
+            "App has event handlers registered. Use run_event_lambda::<E>(app) to specify the event type.",
+        )),
         Runtime::Http => {
             let addr: SocketAddr = "0.0.0.0:3000".parse().expect("addr literal sempre parseia");
             run_http(app, addr).await.map_err(LambdaError::from)
@@ -95,18 +167,31 @@ pub async fn run(app: App) -> Result<(), LambdaError> {
 /// }
 /// ```
 pub trait AppRuntime {
-    /// Detecta o ambiente e despacha entre Lambda e HTTP local.
+    /// Detecta o ambiente e despacha entre Lambda HTTP e HTTP local.
+    /// Para event handlers Lambda, use [`run_event_lambda`] diretamente.
     fn run(self) -> impl std::future::Future<Output = Result<(), LambdaError>>;
-    /// Força runtime Lambda (`lambda_http::run`) independentemente do ambiente.
+    /// Força runtime Lambda HTTP (`lambda_http::run`) independentemente do ambiente.
     fn run_lambda(self) -> impl std::future::Future<Output = Result<(), LambdaError>>;
+    /// Sobe no runtime de eventos Lambda (Kafka, SQS etc.) com tipo de evento `E`.
+    fn run_event_lambda<E>(self) -> impl std::future::Future<Output = Result<(), LambdaError>>
+    where
+        E: for<'de> Deserialize<'de> + Send + Clone + 'static;
 }
 
 impl AppRuntime for App {
     fn run(self) -> impl std::future::Future<Output = Result<(), LambdaError>> {
         run(self)
     }
+
     fn run_lambda(self) -> impl std::future::Future<Output = Result<(), LambdaError>> {
         run_lambda(self)
+    }
+
+    fn run_event_lambda<E>(self) -> impl std::future::Future<Output = Result<(), LambdaError>>
+    where
+        E: for<'de> Deserialize<'de> + Send + Clone + 'static,
+    {
+        run_event_lambda::<E>(self)
     }
 }
 

@@ -21,10 +21,14 @@ lambda_http = { version = "1.2", default-features = false, features = [
     "apigw_http",
     "alb",
 ] }
+lambda_runtime = "1.2"
 aws_lambda_events = { version = "1.2", default-features = false, features = [
     "apigw",
     "alb",
+    "kafka",
 ] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

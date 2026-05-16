@@ -46,3 +46,32 @@ Definida em [`development/decisions.md`](../development/decisions.md) (decisão 
 - **Config**: figment.
 - **Erros**: thiserror.
 - **CLI**: clap (derive).
+
+## Multi-trigger Dispatcher
+
+A partir de v0.2.0, o serverust suporta event sources não-HTTP (Kafka, SQS, EventBridge, S3) com a mesma DI e pipeline do roteador HTTP.
+
+### Como funciona
+
+```
+App::new()
+  .provide::<dyn MyService>(Arc::new(impl))   ← Container compartilhado
+  .event::<KafkaEvent, _>(handler)             ← EventHandler<E> registrado
+  .run_event_lambda::<KafkaEvent>()            ← lambda_runtime::run (não lambda_http)
+```
+
+1. `App::event<E, H>(handler)` registra handlers tipados por tipo de evento `E`.
+2. `App::into_event_dispatcher<E>()` constrói um `EventDispatcher<E>` que compartilha o mesmo `Container`.
+3. `run_event_lambda<E>(app)` sobe `lambda_runtime::run` com um `service_fn` que desserializa `LambdaEvent<E>` e despacha para todos os handlers em sequência.
+4. O tipo `E` pode ser qualquer `serde::Deserialize + Clone + Send` — `KafkaEvent`, `SqsEvent`, `S3Event`, ou um tipo customizado.
+
+### Detecção automática
+
+`current_runtime_for_app(&app)` retorna:
+- `Runtime::Lambda` → sem handlers de evento, usa `lambda_http`.
+- `Runtime::LambdaEvent` → há handlers de evento, usar `run_event_lambda::<E>()` explicitamente.
+- `Runtime::Http` → sem `AWS_LAMBDA_RUNTIME_API`, sobe HTTP local.
+
+### Garantia de invariante
+
+`serverust-core` não depende de Kafka/eventos — a abstração `EventHandler<E>` usa apenas `serde` e `std`. Os adaptadores concretos ficam em `serverust-events` (feature opt-in).
