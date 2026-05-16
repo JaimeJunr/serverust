@@ -25,7 +25,6 @@ lambda_runtime = "1.2"
 aws_lambda_events = { version = "1.2", default-features = false, features = [
     "apigw",
     "alb",
-    "kafka",
 ] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -34,6 +33,7 @@ serde_json = "1"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 serverust-macros = { path = "../serverust-macros", version = "0.2.0" }
+aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 validator = { version = "0.20", features = ["derive"] }

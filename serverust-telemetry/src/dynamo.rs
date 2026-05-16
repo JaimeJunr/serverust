@@ -168,8 +168,15 @@ mod repo {
             Ok(())
         }
 
-        /// `DeleteItem` por partition key.
+        /// `DeleteItem` por partition key. Falha em runtime se a tabela tem
+        /// sort key — use [`delete_with_sk`](Self::delete_with_sk) nesse caso.
         pub async fn delete(&self, pk: impl Into<serde_json::Value>) -> Result<(), RepoError> {
+            if T::SK_FIELD.is_some() {
+                return Err(RepoError::Conversion(format!(
+                    "tabela {} tem sort key; use delete_with_sk",
+                    T::TABLE_NAME
+                )));
+            }
             let mut key = HashMap::new();
             key.insert(T::PK_FIELD.to_string(), json_to_attr(&pk.into()));
             self.client
@@ -181,8 +188,30 @@ mod repo {
             Ok(())
         }
 
-        /// `Query` por partition key, retornando todos os itens.
-        /// Útil em tabelas com sort key onde várias linhas compartilham a mesma pk.
+        /// `DeleteItem` por (pk, sk).
+        pub async fn delete_with_sk(
+            &self,
+            pk: impl Into<serde_json::Value>,
+            sk: impl Into<serde_json::Value>,
+        ) -> Result<(), RepoError> {
+            let sk_field = T::SK_FIELD.ok_or_else(|| {
+                RepoError::Conversion(format!("tabela {} não tem sort key", T::TABLE_NAME))
+            })?;
+            let mut key = HashMap::new();
+            key.insert(T::PK_FIELD.to_string(), json_to_attr(&pk.into()));
+            key.insert(sk_field.to_string(), json_to_attr(&sk.into()));
+            self.client
+                .delete_item()
+                .table_name(T::TABLE_NAME)
+                .set_key(Some(key))
+                .send()
+                .await?;
+            Ok(())
+        }
+
+        /// `Query` por partition key, retornando todos os itens. Segue
+        /// `LastEvaluatedKey` até exaurir todas as páginas — DynamoDB devolve
+        /// 1 MB por página, então datasets grandes geram múltiplas chamadas.
         pub async fn query_by_pk(
             &self,
             pk: impl Into<serde_json::Value>,
@@ -192,17 +221,30 @@ mod repo {
             expr_values.insert(":pk".to_string(), pk_attr);
             let mut expr_names = HashMap::new();
             expr_names.insert("#pk".to_string(), T::PK_FIELD.to_string());
-            let out = self
-                .client
-                .query()
-                .table_name(T::TABLE_NAME)
-                .key_condition_expression("#pk = :pk")
-                .set_expression_attribute_names(Some(expr_names))
-                .set_expression_attribute_values(Some(expr_values))
-                .send()
-                .await?;
-            let items = out.items.unwrap_or_default();
-            items.into_iter().map(from_item).collect()
+
+            let mut all: Vec<T> = Vec::new();
+            let mut exclusive_start: Option<HashMap<String, AttributeValue>> = None;
+            loop {
+                let out = self
+                    .client
+                    .query()
+                    .table_name(T::TABLE_NAME)
+                    .key_condition_expression("#pk = :pk")
+                    .set_expression_attribute_names(Some(expr_names.clone()))
+                    .set_expression_attribute_values(Some(expr_values.clone()))
+                    .set_exclusive_start_key(exclusive_start.clone())
+                    .send()
+                    .await?;
+                let items = out.items.unwrap_or_default();
+                for item in items {
+                    all.push(from_item(item)?);
+                }
+                match out.last_evaluated_key {
+                    Some(k) if !k.is_empty() => exclusive_start = Some(k),
+                    _ => break,
+                }
+            }
+            Ok(all)
         }
     }
 
@@ -278,7 +320,12 @@ mod repo {
                 };
                 serde_json::Value::String(base64_encode(blob.as_ref()))
             }
-            AttributeValue::Bs(_) => serde_json::Value::Array(vec![]),
+            AttributeValue::Bs(items) => serde_json::Value::Array(
+                items
+                    .iter()
+                    .map(|b| serde_json::Value::String(base64_encode(b.as_ref())))
+                    .collect(),
+            ),
             _ => serde_json::Value::Null,
         }
     }

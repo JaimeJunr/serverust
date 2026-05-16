@@ -759,9 +759,12 @@ fn state_arc_inner(ty: &Type) -> Option<Type> {
 #[proc_macro_attribute]
 pub fn kafka_consumer(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = parse_macro_input!(attr as KafkaConsumerAttr);
-    let func = parse_macro_input!(item as ItemFn);
+    let mut func = parse_macro_input!(item as ItemFn);
 
     let vis = func.vis.clone();
+    // O `#func` é re-emitido como item local dentro de `fn handle(...)`. Itens
+    // aninhados em corpos de função não aceitam `pub`/`pub(crate)` — remover.
+    func.vis = syn::Visibility::Inherited;
     let fn_name = func.sig.ident.clone();
     let topic_lit = &attrs.topic;
     let group_lit = &attrs.group;

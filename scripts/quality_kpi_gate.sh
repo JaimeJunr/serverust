@@ -80,7 +80,7 @@ fi
 # --- 2. Medir cold start local ---
 echo ""
 echo "==> Medindo cold start local..."
-PORT=3099
+PORT=3000
 
 "$BIN_PATH" >/tmp/kpi_gate_stdout.log 2>/tmp/kpi_gate_stderr.log &
 APP_PID=$!
