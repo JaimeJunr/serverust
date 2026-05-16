@@ -14,15 +14,17 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 
 [features]
 default = []
-# Habilita o KafkaProducer (rdkafka + librdkafka C). Off por default — apps
-# que apenas consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
-kafka-producer = [
+# Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
+# só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
+kafka = [
     "dep:rdkafka",
     "dep:aws-msk-iam-sasl-signer",
     "dep:aws-config",
     "dep:aws-types",
     "dep:tokio",
 ]
+# Mantido por compatibilidade com v0.1.x. `kafka` é o novo umbrella.
+kafka-producer = ["kafka"]
 
 [dependencies]
 aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
@@ -30,8 +32,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 thiserror = "1"
+async-trait = "0.1"
 
-# Opt-in via feature kafka-producer
+# Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
 # librdkafka. NÃO habilitar `sasl` — ela puxa libsasl2-dev (Cyrus) e quebra
 # build local; OAUTHBEARER para MSK IAM não depende de Cyrus SASL.

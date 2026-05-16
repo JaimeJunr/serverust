@@ -2502,6 +2502,7 @@ dependencies = [
 name = "serverust-events"
 version = "0.2.0"
 dependencies = [
+ "async-trait",
  "aws-config",
  "aws-msk-iam-sasl-signer",
  "aws-types",

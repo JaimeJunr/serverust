@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Trait `Broker` (`subscribe` + `publish` assíncronos) e tipos `BrokerMessage`, `BrokerError`, `BoxedHandler` em `serverust-events/src/broker/mod.rs` (US-1 do workspace `serverust-events`)
+- `KafkaBroker` (rust-rdkafka) atrás da nova feature `kafka` — pavimenta o EventRouter (US-3) sem acoplar `serverust-core` ao Kafka
+
+### Changed
+- Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

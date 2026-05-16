@@ -1,10 +1,14 @@
 //! Suporte event-driven opt-in para serverust.
 //!
-//! Fornece extractors tipados para event sources AWS:
+//! Fornece extractors tipados para event sources AWS e a abstração
+//! [`broker::Broker`] sobre transportes event-driven:
+//!
 //! - [`kafka::KafkaRecord<T>`] — decodifica Base64 + JSON de registros MSK/self-managed Kafka.
-//! - [`producer::KafkaProducer`] (feature `kafka-producer`) — publica em
-//!   tópicos Kafka/MSK com IAM SASL opcional.
+//! - [`broker::Broker`] — trait genérica `publish` / `subscribe`.
+//! - [`broker::kafka::KafkaBroker`] (feature `kafka`) — implementação Kafka via `rust-rdkafka`.
+//! - [`producer::KafkaProducer`] (feature `kafka-producer`) — producer singleton legado, mantido para v0.1.x.
 
+pub mod broker;
 pub mod kafka;
 
 #[cfg(feature = "kafka-producer")]
