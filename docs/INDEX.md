@@ -26,7 +26,12 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 ## Desenvolvimento
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
+- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines).
 - [**development/ralph-progress.md**](development/ralph-progress.md) — Log de execução do Ralph Loop. Codebase Patterns no topo + relato detalhado de cada user story (US-001 a US-011) com aprendizados.
+
+## Guia para Contribuidores e AI Agents
+
+- [**../AGENTS.md**](../AGENTS.md) — Invariantes públicos, processo de release, quality gates, checklist de merge.
 
 ## Como navegar
 
