@@ -10,6 +10,8 @@
 
 pub mod broker;
 pub mod kafka;
+pub mod retry;
+pub mod router;
 
 #[cfg(feature = "kafka-producer")]
 pub mod producer;

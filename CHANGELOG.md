@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Trait `Broker` (`subscribe` + `publish` assíncronos) e tipos `BrokerMessage`, `BrokerError`, `BoxedHandler` em `serverust-events/src/broker/mod.rs` (US-1 do workspace `serverust-events`)
 - `KafkaBroker` (rust-rdkafka) atrás da nova feature `kafka` — pavimenta o EventRouter (US-3) sem acoplar `serverust-core` ao Kafka
+- `InMemoryBroker` em `serverust-events/src/broker/in_memory.rs` (feature `in-memory`) — entrega síncrona em memória para testes sem broker físico (US-2)
+- `EventRouter` builder programático em `serverust-events/src/router.rs`: `subscribe::<T, _>(topic, handler)` com decodificação JSON, `with_retry(RetryPolicy)`, `with_dlq(topic)`, `attach(&broker)` aceitando qualquer `impl Broker` (US-3)
+- `RetryPolicy` (variants `Immediate` / `Exponential`) em `serverust-events/src/retry.rs` — tipo público consumido pelo `EventRouter::with_retry`; aplicação runtime fica em US-5
 
 ### Changed
 - Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes
