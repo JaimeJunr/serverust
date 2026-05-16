@@ -9,6 +9,7 @@ members = [
     "examples/hello-world",
     "examples/funds-api",
     "examples/todo-api",
+    "examples/kafka-wallet",
 ]
 resolver = "2"
 

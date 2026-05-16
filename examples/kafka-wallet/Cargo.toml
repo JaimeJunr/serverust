@@ -1,0 +1,30 @@
+[package]
+name = "kafka-wallet"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[[bin]]
+name = "kafka-wallet"
+path = "src/main.rs"
+
+[lib]
+name = "kafka_wallet"
+path = "src/lib.rs"
+
+[dependencies]
+serverust-core = { path = "../../serverust-core" }
+serverust-macros = { path = "../../serverust-macros" }
+serverust-lambda = { path = "../../serverust-lambda" }
+serverust-events = { path = "../../serverust-events", features = ["kafka-producer"] }
+serverust-telemetry = { path = "../../serverust-telemetry", features = ["dynamodb"] }
+aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
+aws-sdk-dynamodb = "1"
+aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.22"
