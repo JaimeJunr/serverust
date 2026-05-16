@@ -14,6 +14,8 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 
 [features]
 default = []
+# Habilita InMemoryBroker para testes sem broker físico.
+in-memory = []
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
 # só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
 kafka = [

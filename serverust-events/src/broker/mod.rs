@@ -8,7 +8,7 @@
 //! Implementações concretas vivem em submódulos atrás de feature flags:
 //!
 //! - [`kafka::KafkaBroker`] (feature `kafka`) — usa `rust-rdkafka`.
-//! - `in_memory::InMemoryBroker` (planejado, US-2) — usa canais em memória.
+//! - [`in_memory::InMemoryBroker`] (feature `in-memory`) — entrega em memória, sem infraestrutura.
 //!
 //! A trait é deliberadamente independente de Kafka — `serverust-core` não
 //! precisa importar este módulo nem suas implementações concretas.
@@ -20,6 +20,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use thiserror::Error;
+
+#[cfg(feature = "in-memory")]
+pub mod in_memory;
 
 #[cfg(feature = "kafka")]
 pub mod kafka;
