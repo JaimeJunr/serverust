@@ -1,0 +1,19 @@
+{
+  "eventSource": "aws:kafka",
+  "eventSourceArn": "arn:aws:kafka:us-east-1:123456789012:cluster/MyCluster/abcd1234",
+  "bootstrapServers": "b-1.mycluster.kafka.us-east-1.amazonaws.com:9092",
+  "records": {
+    "wallet.credits-0": [
+      {
+        "topic": "wallet.credits",
+        "partition": 0,
+        "offset": 100,
+        "timestamp": 1678000000000,
+        "timestampType": "CREATE_TIME",
+        "key": "dXNlci0x",
+        "value": "eyJ1c2VyX2lkIjoidXNlci0xIiwiYW1vdW50IjoxMDAsIm9wZXJhdGlvbiI6ImNyZWRpdCJ9",
+        "headers": []
+      }
+    ]
+  }
+}

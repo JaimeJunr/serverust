@@ -42,6 +42,7 @@
 //! Sem essas features, o binário Lambda continua enxuto (< 5 MB stripped).
 
 pub mod correlation;
+pub mod dynamo;
 pub mod emf;
 pub mod idempotency;
 pub mod logger;

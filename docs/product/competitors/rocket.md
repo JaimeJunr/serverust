@@ -43,6 +43,12 @@ Rocket é uma escolha sólida para quem quer um framework web Rust opinativo com
 | Cold start < 50 ms (Lambda ARM64) | ✅ | ✗ não aplicável |
 | Binário stripped < 10 MB | ✅ | ✗ não otimizado |
 
+## Kafka & Event Sources
+
+Rocket não suporta Kafka event source. É um framework HTTP-only por design. Não há issues ou PRs no tracker oficial propondo suporte a Kafka, SQS ou outros event sources ([github.com/rwf2/Rocket/issues](https://github.com/rwf2/Rocket/issues)). Para Lambda + Kafka, o desenvolvedor precisa abandonar Rocket e usar lambda_runtime diretamente.
+
+---
+
 **Ponto crítico**: o maior gap é o suporte a serverless. `rocket_lamb`, o único adapter disponível, foi publicado em 2019 e está desatualizado — não recebe manutenção. Para AWS Lambda, usar Rocket em produção hoje exige soluções improvisadas.
 
 **Segundo gap**: tudo que faz Rocket parecido com serverust (OpenAPI, validação, DI) vem de plugins de terceiros, não mantidos pela equipe core. Isso significa versões defasadas, APIs inconsistentes e risco de abandono.

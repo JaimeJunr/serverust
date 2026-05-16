@@ -26,7 +26,12 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 ## Desenvolvimento
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
+- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines).
 - [**development/ralph-progress.md**](development/ralph-progress.md) — Log de execução do Ralph Loop. Codebase Patterns no topo + relato detalhado de cada user story (US-001 a US-011) com aprendizados.
+
+## Guia para Contribuidores e AI Agents
+
+- [**../CLAUDE.md**](../CLAUDE.md) — Invariantes públicos, processo de release, quality gates, checklist de merge.
 
 ## Como navegar
 
@@ -35,6 +40,10 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 - **Contribuindo com código?** [development/decisions.md](development/decisions.md) (padrões fechados) → [development/ralph-progress.md](development/ralph-progress.md) (exemplos do que funcionou).
 - **Entendendo o "porquê"?** [product/prd.md](product/prd.md), especialmente seções 6 (Design Considerations) e 7 (Technical Considerations).
 - **Referência completa de API?** `cargo doc --workspace --no-deps --open`.
+
+## Histórico de versões
+
+- [**../CHANGELOG.md**](../CHANGELOG.md) — Histórico completo de mudanças por versão (Keep a Changelog 1.1.0).
 
 ## Sobre estes artefatos
 

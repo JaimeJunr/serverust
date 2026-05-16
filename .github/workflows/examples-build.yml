@@ -1,0 +1,27 @@
+name: examples-build
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  kafka-wallet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install librdkafka build deps
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev
+
+      - name: Build kafka-wallet
+        run: cargo build -p kafka-wallet
+
+      - name: Test kafka-wallet DTO contracts
+        run: cargo test -p kafka-wallet --test dto

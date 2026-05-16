@@ -1,0 +1,50 @@
+[
+  {
+    "version": "0.1.0",
+    "date": "2024-06-01",
+    "cold_start_p95_ms": null,
+    "stripped_bytes": null,
+    "loc_handler": 28,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Release inicial. cold_start e stripped_bytes não medidos formalmente; benchmark_ci.sh não existia ainda."
+  },
+  {
+    "version": "0.1.1",
+    "date": "2024-10-01",
+    "cold_start_p95_ms": null,
+    "stripped_bytes": null,
+    "loc_handler": 28,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Patch de manutenção. Métricas de binary size e cold start não coletadas (release sem tag git — ver CHANGELOG)."
+  },
+  {
+    "version": "0.1.2",
+    "date": "2025-05-01",
+    "cold_start_p95_ms": null,
+    "stripped_bytes": null,
+    "loc_handler": 28,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Patch de manutenção. Métricas de binary size e cold start não coletadas (release sem tag git — ver CHANGELOG)."
+  }
+]

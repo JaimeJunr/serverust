@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "routeKey": "GET /",
+  "rawPath": "/",
+  "rawQueryString": "",
+  "headers": {
+    "accept": "*/*",
+    "host": "localhost"
+  },
+  "requestContext": {
+    "accountId": "123456789012",
+    "apiId": "local",
+    "domainName": "localhost",
+    "domainPrefix": "local",
+    "http": {
+      "method": "GET",
+      "path": "/",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "kpi-gate"
+    },
+    "requestId": "local-kpi-gate",
+    "routeKey": "GET /",
+    "stage": "$default",
+    "time": "01/Jan/2024:00:00:00 +0000",
+    "timeEpoch": 1704067200000
+  },
+  "isBase64Encoded": false
+}

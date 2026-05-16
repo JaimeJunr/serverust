@@ -4,6 +4,8 @@
 [![docs.rs](https://docs.rs/serverust-core/badge.svg)](https://docs.rs/serverust-core)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 
+> **Maintainers e AI agents:** leia [`CLAUDE.md`](CLAUDE.md) antes de fazer qualquer mudança.
+
 Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + FastAPI + NestJS.
 
 🦀 **Comece aqui**:
@@ -11,7 +13,7 @@ Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + Fa
 - [Tutorial Lambda](docs/guides/lambda-tutorial.md) — passo-a-passo do zero ao deploy em AWS Lambda.
 - [Compatibilidade IaC](docs/guides/iac-compatibility.md) — validação oficial para Serverless Framework, SST e Terraform.
 
-**Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md).
+**Documentação completa**: [`docs/INDEX.md`](docs/INDEX.md) · **Histórico de versões**: [`CHANGELOG.md`](CHANGELOG.md).
 
 ```bash
 cargo install serverust-cli
@@ -21,17 +23,18 @@ cargo install serverust-cli
 
 O único framework Rust que cobre todo o ciclo — do `serverust new` ao `serverust deploy` — com suporte nativo a AWS Lambda, OpenAPI automático e DI em um único binário leve.
 
-| | **serverust** | Rocket | Loco.rs | Axum (raw) |
-|---|:---:|:---:|:---:|:---:|
-| AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ |
-| Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ |
-| OpenAPI 3.1 automático | ✅ | via plugin | via plugin | ❌ |
-| Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ |
-| Validação → HTTP 422 | ✅ | via plugin | ✅ | ❌ |
-| Dependency Injection nativo | ✅ | ❌ | ❌ | ❌ |
-| CLI scaffolding (`new`, `generate`) | ✅ | ❌ | ✅ | ❌ |
-| Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✅ |
-| Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✅ |
+| | **serverust** | Rocket | Loco.rs | actix-web | Axum (raw) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Kafka event source nativo (opt-in) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| OpenAPI 3.1 automático | ✅ | via plugin | via plugin | via plugin | ❌ |
+| Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Validação → HTTP 422 | ✅ | via plugin | ✅ | via plugin | ❌ |
+| Dependency Injection nativo | ✅ | ❌ | ❌ | ❌ | ❌ |
+| CLI scaffolding (`new`, `generate`) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✗ | ✅ |
+| Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✗ | ✅ |
 
 ## Features
 

@@ -1,0 +1,32 @@
+{
+  "eventSource": "aws:kafka",
+  "eventSourceArn": "arn:aws:kafka:us-east-1:123456789012:cluster/MyCluster/abcd1234",
+  "bootstrapServers": "b-1.mycluster.kafka.us-east-1.amazonaws.com:9092,b-2.mycluster.kafka.us-east-1.amazonaws.com:9092",
+  "records": {
+    "wallet.credits-0": [
+      {
+        "topic": "wallet.credits",
+        "partition": 0,
+        "offset": 100,
+        "timestamp": 1678000000000,
+        "timestampType": "CREATE_TIME",
+        "key": "dXNlci0x",
+        "value": "eyJhbW91bnQiOiAxMDAsICJjdXJyZW5jeSI6ICJVU0QifQ==",
+        "headers": [
+          { "correlationId": [99, 111, 114, 114, 49] },
+          { "source": [97, 112, 105] }
+        ]
+      },
+      {
+        "topic": "wallet.credits",
+        "partition": 0,
+        "offset": 101,
+        "timestamp": 1678000001000,
+        "timestampType": "CREATE_TIME",
+        "key": null,
+        "value": "eyJhbW91bnQiOiAyNTAsICJjdXJyZW5jeSI6ICJFVVIifQ==",
+        "headers": []
+      }
+    ]
+  }
+}

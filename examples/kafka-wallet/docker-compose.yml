@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.4
+    container_name: kafka-wallet-redpanda
+    command:
+      - redpanda
+      - start
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://localhost:9092
+      - --smp=1
+      - --memory=512M
+      - --reserve-memory=0M
+      - --overprovisioned
+    ports:
+      - "9092:9092"
+
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.2
+    container_name: kafka-wallet-dynamodb
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+    ports:
+      - "8000:8000"

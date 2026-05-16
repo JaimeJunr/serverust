@@ -1,3 +1,5 @@
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::Router;
@@ -11,6 +13,7 @@ use utoipa::{PartialSchema, ToSchema};
 
 use crate::config::ServerustConfig;
 use crate::container::Container;
+use crate::events::{EventDispatcher, EventHandler, EventHandlerRegistry};
 use crate::openapi::{OpenApiState, redoc_html, swagger_ui_html};
 use crate::pipeline::Interceptor;
 use crate::route::IntoRoute;
@@ -69,6 +72,8 @@ pub struct App {
     docs_path: &'static str,
     redoc_path: &'static str,
     interceptors: Vec<RouterMutator>,
+    // TypeId::of::<EventHandlerRegistry<E>>() → Box<EventHandlerRegistry<E>>
+    event_registries: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl App {
@@ -82,6 +87,7 @@ impl App {
             docs_path: "/docs",
             redoc_path: "/redoc",
             interceptors: Vec::new(),
+            event_registries: HashMap::new(),
         }
     }
 
@@ -158,6 +164,46 @@ impl App {
             .push_operation(route.path, route.method, route.operation);
         self.router = self.router.route(route.path, route.method_router);
         self
+    }
+
+    /// Registra um [`EventHandler<E>`] tipado.
+    ///
+    /// Múltiplos handlers para o mesmo tipo `E` são acumulados e executados em
+    /// sequência por [`EventDispatcher::dispatch_event`]. O [`Container`] é
+    /// compartilhado entre handlers HTTP e event handlers — os mesmos serviços
+    /// registrados via [`Self::provide`] ficam disponíveis em `ctx`.
+    pub fn event<E, H>(mut self, handler: H) -> Self
+    where
+        E: Send + 'static,
+        H: EventHandler<E>,
+    {
+        let key = TypeId::of::<EventHandlerRegistry<E>>();
+        let registry = self
+            .event_registries
+            .entry(key)
+            .or_insert_with(|| Box::new(EventHandlerRegistry::<E>::new()));
+        registry
+            .downcast_mut::<EventHandlerRegistry<E>>()
+            .expect("type invariant: key matches registry type")
+            .register(handler);
+        self
+    }
+
+    /// Retorna `true` se pelo menos um event handler foi registrado (qualquer tipo `E`).
+    pub fn has_event_handlers(&self) -> bool {
+        !self.event_registries.is_empty()
+    }
+
+    /// Constrói um [`EventDispatcher<E>`] com todos os handlers registrados
+    /// para o tipo `E` e uma cópia do [`Container`] compartilhado.
+    pub fn into_event_dispatcher<E: Send + 'static>(mut self) -> EventDispatcher<E> {
+        let key = TypeId::of::<EventHandlerRegistry<E>>();
+        let registry = self
+            .event_registries
+            .remove(&key)
+            .and_then(|b| b.downcast::<EventHandlerRegistry<E>>().ok())
+            .unwrap_or_else(|| Box::new(EventHandlerRegistry::<E>::new()));
+        registry.into_dispatcher(self.container)
     }
 
     /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e `/redoc`.

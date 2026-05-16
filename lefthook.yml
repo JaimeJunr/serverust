@@ -9,11 +9,17 @@ pre-commit:
       run: ./scripts/quality_complexity.sh
     cycles:
       run: ./scripts/quality_cycles.sh
+    hello_world:
+      run: ./scripts/quality_hello_world.sh
 
 pre-push:
   parallel: false
   commands:
+    changelog:
+      run: ./scripts/quality_changelog.sh
     coverage:
       run: ./scripts/quality_coverage.sh
     mutation:
       run: ./scripts/quality_mutation.sh
+    kpi:
+      run: ./scripts/quality_kpi_gate.sh

@@ -17,5 +17,8 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      - name: Hello-world non-regression gate
+        run: ./scripts/quality_hello_world.sh
+
       - name: Benchmark gate
         run: ./scripts/benchmark_ci.sh
