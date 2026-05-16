@@ -5,6 +5,7 @@ members = [
     "serverust-cli",
     "serverust-lambda",
     "serverust-telemetry",
+    "serverust-events",
     "examples/hello-world",
     "examples/funds-api",
     "examples/todo-api",

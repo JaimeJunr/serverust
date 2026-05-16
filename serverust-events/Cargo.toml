@@ -1,0 +1,23 @@
+[package]
+name = "serverust-events"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Suporte event-driven opt-in para serverust: extractors tipados para Kafka, SQS, EventBridge."
+
+[dependencies]
+aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+thiserror = "1"
+
+[dev-dependencies]
+serde_json = "1"
