@@ -50,6 +50,12 @@ Loco.rs é a opção mais próxima de NestJS/Rails em termos de produtividade pa
 
 ---
 
+## Kafka & Event Sources
+
+Loco.rs não suporta Kafka event source. É um framework HTTP-only (construído sobre Axum) com foco em aplicações web tradicionais. O roadmap público não menciona suporte a event sources não-HTTP ([github.com/loco-rs/loco/issues](https://github.com/loco-rs/loco/issues)). Para Kafka em Lambda, seria necessário abandonar Loco e usar lambda_runtime diretamente.
+
+---
+
 ## Quando faz sentido usar Loco.rs
 
 - Aplicação web tradicional com banco de dados relacional (PostgreSQL, MySQL, SQLite)

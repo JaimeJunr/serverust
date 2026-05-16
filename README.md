@@ -23,17 +23,18 @@ cargo install serverust-cli
 
 O único framework Rust que cobre todo o ciclo — do `serverust new` ao `serverust deploy` — com suporte nativo a AWS Lambda, OpenAPI automático e DI em um único binário leve.
 
-| | **serverust** | Rocket | Loco.rs | Axum (raw) |
-|---|:---:|:---:|:---:|:---:|
-| AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ |
-| Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ |
-| OpenAPI 3.1 automático | ✅ | via plugin | via plugin | ❌ |
-| Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ |
-| Validação → HTTP 422 | ✅ | via plugin | ✅ | ❌ |
-| Dependency Injection nativo | ✅ | ❌ | ❌ | ❌ |
-| CLI scaffolding (`new`, `generate`) | ✅ | ❌ | ✅ | ❌ |
-| Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✅ |
-| Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✅ |
+| | **serverust** | Rocket | Loco.rs | actix-web | Axum (raw) |
+|---|:---:|:---:|:---:|:---:|:---:|
+| AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Kafka event source nativo (opt-in) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| OpenAPI 3.1 automático | ✅ | via plugin | via plugin | via plugin | ❌ |
+| Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Validação → HTTP 422 | ✅ | via plugin | ✅ | via plugin | ❌ |
+| Dependency Injection nativo | ✅ | ❌ | ❌ | ❌ | ❌ |
+| CLI scaffolding (`new`, `generate`) | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✗ | ✅ |
+| Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✗ | ✅ |
 
 ## Features
 
