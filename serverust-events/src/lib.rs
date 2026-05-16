@@ -13,6 +13,7 @@ pub mod extract;
 pub mod kafka;
 pub mod retry;
 pub mod router;
+pub mod runtime;
 
 #[cfg(feature = "kafka-producer")]
 pub mod producer;

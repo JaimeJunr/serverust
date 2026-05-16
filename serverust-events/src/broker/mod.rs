@@ -27,6 +27,8 @@ pub mod in_memory;
 #[cfg(feature = "kafka")]
 pub mod kafka;
 
+pub mod lambda;
+
 /// Erros retornados por implementações de [`Broker`].
 #[derive(Debug, Error)]
 pub enum BrokerError {

@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RetryPolicy` (variants `Immediate` / `Exponential`) em `serverust-events/src/retry.rs` — tipo público consumido pelo `EventRouter::with_retry`; aplicação runtime fica em US-5
 - `EventRouter::subscribe_publish::<T, U, _, _>(sub_topic, pub_topic, handler)` em `serverust-events/src/router.rs` — registra handler que serializa `Ok(U)` e publica em `pub_topic` (US-6)
 - Macros `#[subscriber(topic = "...")]` e `#[publisher(topic = "...")]` empilháveis em `serverust-macros/src/lib.rs` — emitem código baseado no builder `EventRouter::subscribe` / `subscribe_publish`, sem registro runtime (US-6)
+- `Runtime::detect()` em `serverust-events/src/runtime.rs` — diferencia execução em AWS Lambda (`AWS_LAMBDA_FUNCTION_NAME` presente) de processos long-running (ECS/EC2) sem acoplar o EventRouter ao adapter (US-7)
+- `LambdaBroker` em `serverust-events/src/broker/lambda.rs` — broker sink-only que despacha `aws_lambda_events::KafkaEvent` para handlers inscritos via `handle_kafka_event`. Independente da feature `kafka` (não puxa rdkafka), pronto para uso direto em Lambda Functions (US-7)
+- `KafkaBroker::dispatch(BrokerMessage)` em `serverust-events/src/broker/kafka.rs` — primitiva consumida pelo consumer loop long-running, testada de forma isolada sem broker físico (US-7)
 
 ### Changed
 - Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes

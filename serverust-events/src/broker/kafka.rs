@@ -18,7 +18,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::ConsumerContext;
 use rdkafka::producer::{FutureProducer, FutureRecord, ProducerContext};
 
-use super::{BoxedHandler, Broker, BrokerError};
+use super::{BoxedHandler, Broker, BrokerError, BrokerMessage};
 
 /// Contexto rdkafka que fornece o token IAM MSK via OAUTHBEARER.
 #[derive(Clone)]
@@ -105,11 +105,10 @@ pub struct KafkaBroker {
 
 /// Registro interno de uma inscrição (handler + tópico).
 ///
-/// `handler` ainda não é invocado: o consumer loop que dispara handlers
-/// chega em US-3/US-7. Mantido `pub(crate)` para uso futuro.
+/// O handler é invocado por [`KafkaBroker::dispatch`] quando o consumer
+/// loop entrega uma mensagem para o tópico correspondente.
 pub(crate) struct Subscription {
     pub(crate) topic: String,
-    #[allow(dead_code)]
     pub(crate) handler: BoxedHandler,
 }
 
@@ -153,6 +152,29 @@ impl KafkaBroker {
             .iter()
             .map(|s| s.topic.clone())
             .collect()
+    }
+
+    /// Despacha `msg` para todos os handlers inscritos em `msg.topic`.
+    ///
+    /// Esta é a primitiva consumida pelo consumer loop long-running:
+    /// a tarefa de polling do rdkafka traduz cada `BorrowedMessage` em
+    /// [`BrokerMessage`] e chama `dispatch` para entregar aos handlers.
+    /// Testar o loop real exige broker físico; `dispatch` é testado de
+    /// forma isolada.
+    pub async fn dispatch(&self, msg: BrokerMessage) -> Result<(), BrokerError> {
+        let handlers: Vec<BoxedHandler> = self
+            .subscriptions
+            .lock()
+            .map_err(|_| BrokerError::Subscribe("subscriptions mutex poisoned".into()))?
+            .iter()
+            .filter(|s| s.topic == msg.topic)
+            .map(|s| s.handler.clone())
+            .collect();
+
+        for handler in handlers {
+            handler(msg.clone()).await?;
+        }
+        Ok(())
     }
 }
 
