@@ -50,8 +50,9 @@ use proc_macro2::Span;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{
-    Data, DeriveInput, Expr, ExprLit, Fields, Ident, Item, ItemFn, Lit, LitInt, LitStr, Meta,
-    Token, Type, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned,
+    Data, DeriveInput, Expr, ExprLit, Fields, FnArg, GenericArgument, Ident, Item, ItemFn, Lit,
+    LitInt, LitStr, Meta, PathArguments, PathSegment, Token, Type, parse_macro_input, parse_quote,
+    punctuated::Punctuated, spanned::Spanned,
 };
 
 /// Atributo da macro de rota: caminho obrigatório + `response = Type` opcional.
@@ -527,6 +528,273 @@ pub fn derive_api_error(input: TokenStream) -> TokenStream {
                     status,
                     ::serverust_core::__private::axum::Json(body),
                 ).into_response()
+            }
+        }
+    };
+
+    expanded.into()
+}
+
+// --- #[kafka_consumer(...)] ---------------------------------------------------
+
+/// Atributo da macro de consumer Kafka.
+///
+/// Aceita `topic = "..."` (obrigatório), `group = "..."` (obrigatório),
+/// `batch_size = N` (opcional, default `0` = não usado) e `dlq = "..."`
+/// (opcional, reservado para futura integração). `topic`/`group` são
+/// expostos como constantes associadas na struct gerada.
+struct KafkaConsumerAttr {
+    topic: LitStr,
+    group: LitStr,
+    batch_size: Option<LitInt>,
+    dlq: Option<LitStr>,
+}
+
+impl Parse for KafkaConsumerAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        let mut topic: Option<LitStr> = None;
+        let mut group: Option<LitStr> = None;
+        let mut batch_size: Option<LitInt> = None;
+        let mut dlq: Option<LitStr> = None;
+
+        for meta in metas {
+            let Meta::NameValue(nv) = meta else {
+                return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
+            };
+            let key = nv
+                .path
+                .get_ident()
+                .map(|i| i.to_string())
+                .unwrap_or_default();
+            match key.as_str() {
+                "topic" => topic = Some(expect_lit_str(&nv.value, "topic")?),
+                "group" => group = Some(expect_lit_str(&nv.value, "group")?),
+                "batch_size" => batch_size = Some(expect_lit_int(&nv.value, "batch_size")?),
+                "dlq" => dlq = Some(expect_lit_str(&nv.value, "dlq")?),
+                other => {
+                    return Err(syn::Error::new(
+                        nv.path.span(),
+                        format!(
+                            "chave desconhecida `{other}` em #[kafka_consumer] (use topic, group, batch_size, dlq)"
+                        ),
+                    ));
+                }
+            }
+        }
+
+        Ok(KafkaConsumerAttr {
+            topic: topic.ok_or_else(|| {
+                syn::Error::new(
+                    Span::call_site(),
+                    "#[kafka_consumer] requer `topic = \"...\"`",
+                )
+            })?,
+            group: group.ok_or_else(|| {
+                syn::Error::new(
+                    Span::call_site(),
+                    "#[kafka_consumer] requer `group = \"...\"`",
+                )
+            })?,
+            batch_size,
+            dlq,
+        })
+    }
+}
+
+fn expect_lit_str(expr: &Expr, key: &str) -> syn::Result<LitStr> {
+    if let Expr::Lit(ExprLit {
+        lit: Lit::Str(s), ..
+    }) = expr
+    {
+        Ok(s.clone())
+    } else {
+        Err(syn::Error::new(
+            expr.span(),
+            format!("`{key}` precisa de literal string"),
+        ))
+    }
+}
+
+fn expect_lit_int(expr: &Expr, key: &str) -> syn::Result<LitInt> {
+    if let Expr::Lit(ExprLit {
+        lit: Lit::Int(n), ..
+    }) = expr
+    {
+        Ok(n.clone())
+    } else {
+        Err(syn::Error::new(
+            expr.span(),
+            format!("`{key}` precisa de literal inteiro"),
+        ))
+    }
+}
+
+fn last_path_segment(ty: &Type) -> Option<&PathSegment> {
+    if let Type::Path(tp) = ty {
+        tp.path.segments.last()
+    } else {
+        None
+    }
+}
+
+fn generic_inner<'a>(seg: &'a PathSegment, expected: &str) -> Option<&'a Type> {
+    if seg.ident != expected {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
+    args.args.iter().find_map(|a| match a {
+        GenericArgument::Type(t) => Some(t),
+        _ => None,
+    })
+}
+
+/// `State<Arc<X>>` → `Some(X)`.
+fn state_arc_inner(ty: &Type) -> Option<Type> {
+    let state_seg = last_path_segment(ty)?;
+    let arc_ty = generic_inner(state_seg, "State")?;
+    let arc_seg = last_path_segment(arc_ty)?;
+    generic_inner(arc_seg, "Arc").cloned()
+}
+
+/// Macro de atributo `#[kafka_consumer(topic = "...", group = "...", batch_size = N, dlq = "...")]`.
+///
+/// Transforma uma função `async fn nome(record: KafkaRecord<T>, State(svc): State<Arc<Svc>>, ...)`
+/// em uma unit struct homônima que implementa
+/// `serverust_core::events::EventHandler<aws_lambda_events::event::kafka::KafkaEvent>`.
+///
+/// O handler emitido:
+/// - decodifica os registros via `KafkaRecord::from_kafka_event`;
+/// - filtra por `topic` (descartando registros de tópicos não declarados);
+/// - resolve parâmetros `State<Arc<T>>` a partir do `Container` compartilhado;
+/// - invoca a função do usuário para cada registro e propaga o erro como `EventError`.
+///
+/// `topic`, `group`, `batch_size` e `dlq` ficam disponíveis como constantes
+/// associadas (`Self::TOPIC`, `Self::GROUP`, `Self::BATCH_SIZE`, `Self::DLQ`).
+#[proc_macro_attribute]
+pub fn kafka_consumer(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attrs = parse_macro_input!(attr as KafkaConsumerAttr);
+    let func = parse_macro_input!(item as ItemFn);
+
+    let vis = func.vis.clone();
+    let fn_name = func.sig.ident.clone();
+    let topic_lit = &attrs.topic;
+    let group_lit = &attrs.group;
+    let batch_size_lit = attrs
+        .batch_size
+        .clone()
+        .unwrap_or_else(|| LitInt::new("0", Span::call_site()));
+    let dlq_const_ty;
+    let dlq_const_val;
+    if let Some(d) = &attrs.dlq {
+        dlq_const_ty = quote! { &'static str };
+        dlq_const_val = quote! { #d };
+    } else {
+        dlq_const_ty = quote! { ::core::option::Option<&'static str> };
+        dlq_const_val = quote! { ::core::option::Option::None };
+    }
+
+    // Classifica os parâmetros: `State<Arc<X>>` → DI; o demais é o record param.
+    let mut state_inner_types: Vec<Type> = Vec::new();
+    let mut record_ty: Option<Type> = None;
+    let mut call_args: Vec<proc_macro2::TokenStream> = Vec::new();
+
+    for input in func.sig.inputs.iter() {
+        let pt = match input {
+            FnArg::Typed(pt) => pt,
+            FnArg::Receiver(r) => {
+                return syn::Error::new(
+                    r.span(),
+                    "#[kafka_consumer] não pode ser aplicado em métodos com `self`",
+                )
+                .to_compile_error()
+                .into();
+            }
+        };
+
+        if let Some(inner) = state_arc_inner(&pt.ty) {
+            let idx = state_inner_types.len();
+            let var = Ident::new(&format!("__svr_state_{idx}"), Span::call_site());
+            state_inner_types.push(inner);
+            call_args.push(quote! { #var });
+        } else if record_ty.is_none() {
+            // primeiro parâmetro não-State é o record
+            record_ty = Some((*pt.ty).clone());
+            call_args.push(quote! { __svr_record });
+        } else {
+            return syn::Error::new(
+                pt.ty.span(),
+                "parâmetro inesperado em handler #[kafka_consumer]: use `record: KafkaRecord<T>` e `State<Arc<T>>` para DI",
+            )
+            .to_compile_error()
+            .into();
+        }
+    }
+
+    let Some(record_ty) = record_ty else {
+        return syn::Error::new(
+            fn_name.span(),
+            "handler #[kafka_consumer] precisa de um parâmetro `record: KafkaRecord<T>`",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    // Constrói as resoluções `let __svr_state_i = State(ctx.get::<X>()...);`.
+    let state_resolutions = state_inner_types.iter().enumerate().map(|(i, x)| {
+        let var = Ident::new(&format!("__svr_state_{i}"), Span::call_site());
+        quote! {
+            let __svr_arc = ctx
+                .get::<#x>()
+                .unwrap_or_else(|| ::core::panic!(
+                    "kafka_consumer: service Arc<{}> não registrado no Container",
+                    ::core::any::type_name::<#x>(),
+                ));
+            let #var = ::serverust_core::__private::axum::extract::State(__svr_arc);
+        }
+    });
+
+    let fn_name_call = fn_name.clone();
+
+    let expanded = quote! {
+        #[allow(non_camel_case_types)]
+        #vis struct #fn_name;
+
+        impl #fn_name {
+            pub const TOPIC: &'static str = #topic_lit;
+            pub const GROUP: &'static str = #group_lit;
+            pub const BATCH_SIZE: usize = #batch_size_lit;
+            pub const DLQ: #dlq_const_ty = #dlq_const_val;
+        }
+
+        impl ::serverust_core::events::EventHandler<
+            ::aws_lambda_events::event::kafka::KafkaEvent,
+        > for #fn_name {
+            async fn handle(
+                &self,
+                __svr_event: ::aws_lambda_events::event::kafka::KafkaEvent,
+                ctx: &::serverust_core::Container,
+            ) -> ::core::result::Result<(), ::serverust_core::events::EventError> {
+                #func
+
+                let __svr_records: ::std::vec::Vec<#record_ty> =
+                    ::serverust_events::kafka::KafkaRecord::from_kafka_event(&__svr_event)
+                        .map_err(|__e| ::serverust_core::events::EventError(::std::string::ToString::to_string(&__e)))?;
+
+                for __svr_record in __svr_records {
+                    if __svr_record.topic != #topic_lit {
+                        continue;
+                    }
+                    #( #state_resolutions )*
+                    #fn_name_call ( #( #call_args ),* )
+                        .await
+                        .map_err(|__e| ::serverust_core::events::EventError(
+                            ::std::format!("{:?}", __e)
+                        ))?;
+                }
+                ::core::result::Result::Ok(())
             }
         }
     };
