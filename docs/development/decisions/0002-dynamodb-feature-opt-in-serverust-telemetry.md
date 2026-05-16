@@ -47,4 +47,4 @@ serverust-telemetry = { version = "...", features = ["dynamodb"] }
 
 - Decisão #4 (Idempotência) e #9 (Powertools scope MVP) em [`../decisions.md`](../decisions.md)
 - `serverust-telemetry/Cargo.toml` — feature `dynamodb`
-- Invariante de binário em [`../../AGENTS.md`](../../AGENTS.md)
+- Invariante de binário em [`../../CLAUDE.md`](../../CLAUDE.md)

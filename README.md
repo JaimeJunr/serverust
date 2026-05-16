@@ -4,7 +4,7 @@
 [![docs.rs](https://docs.rs/serverust-core/badge.svg)](https://docs.rs/serverust-core)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE)
 
-> **Maintainers e AI agents:** leia [`AGENTS.md`](AGENTS.md) antes de fazer qualquer mudança.
+> **Maintainers e AI agents:** leia [`CLAUDE.md`](CLAUDE.md) antes de fazer qualquer mudança.
 
 Framework Rust opinativo para APIs HTTP e **AWS Lambda**, inspirado em Axum + FastAPI + NestJS.
 

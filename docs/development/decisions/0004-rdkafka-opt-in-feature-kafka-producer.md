@@ -63,6 +63,6 @@ cargo tree -p serverust-events --features kafka-producer | grep rdkafka  # deve 
 ## Links e Referências
 
 - ADR 0003 — `serverust-events` como crate separada
-- [`../../AGENTS.md`](../../AGENTS.md) — invariante de tamanho de binário
+- [`../../CLAUDE.md`](../../CLAUDE.md) — invariante de tamanho de binário
 - [rdkafka crate](https://crates.io/crates/rdkafka)
 - [aws-msk-iam-sasl-signer](https://crates.io/crates/aws-msk-iam-sasl-signer)

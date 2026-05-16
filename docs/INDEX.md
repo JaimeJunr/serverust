@@ -31,7 +31,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 ## Guia para Contribuidores e AI Agents
 
-- [**../AGENTS.md**](../AGENTS.md) — Invariantes públicos, processo de release, quality gates, checklist de merge.
+- [**../CLAUDE.md**](../CLAUDE.md) — Invariantes públicos, processo de release, quality gates, checklist de merge.
 
 ## Como navegar
 

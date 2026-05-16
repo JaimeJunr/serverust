@@ -1,6 +1,6 @@
-# AGENTS.md — Guia para AI Agents e Maintainers
+# CLAUDE.md — Guia para Claude Code e Maintainers
 
-> Este arquivo é máquina-legível e destina-se a agentes AI e mantenedores humanos.
+> Este arquivo é lido automaticamente pelo Claude Code e destina-se a agentes AI e mantenedores humanos.
 > Para o guia detalhado de AI agents, veja [`docs/development/for-ai-agents.md`](docs/development/for-ai-agents.md) (criado em US-017).
 
 ---

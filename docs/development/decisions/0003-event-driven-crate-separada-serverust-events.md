@@ -56,4 +56,4 @@ cargo tree -p serverust-core | grep -E "kafka|rdkafka|event"
 
 - ADR 0001 — HTTP-first (princípio preservado por esta decisão)
 - ADR 0004 — rdkafka opt-in
-- [`../../AGENTS.md`](../../AGENTS.md) — invariante `serverust-core sem deps de eventos/Kafka`
+- [`../../CLAUDE.md`](../../CLAUDE.md) — invariante `serverust-core sem deps de eventos/Kafka`

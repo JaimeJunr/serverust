@@ -10,7 +10,7 @@ Execute nesta ordem antes de modificar qualquer arquivo:
 
 ```bash
 # 1. Verificar invariantes do projeto
-cat AGENTS.md
+cat CLAUDE.md
 
 # 2. Ler ADRs relevantes ao domínio que será alterado
 ls docs/development/decisions/
@@ -72,7 +72,7 @@ cat docs/product/metrics/history.json
 diff /tmp/before.txt /tmp/after.txt
 ```
 
-**Regressão = qualquer métrica piorando além dos limites em `AGENTS.md > Invariantes`.**
+**Regressão = qualquer métrica piorando além dos limites em `CLAUDE.md > Invariantes`.**
 Se uma regressão for inevitável, crie uma ADR em `docs/development/decisions/` antes de mergear.
 
 ---
@@ -125,4 +125,4 @@ git commit -m "feat(serverust-events): <descrição curta>"
 | `hello-world` sem deps Kafka/DynamoDB | zero |
 | Typecheck do workspace | verde |
 
-Fonte autoritativa: `AGENTS.md > Invariantes`.
+Fonte autoritativa: `CLAUDE.md > Invariantes`.

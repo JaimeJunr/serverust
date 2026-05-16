@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Event system roadmap (US-001–US-009): EventHandler trait, Kafka extractor, macro `#[kafka_consumer]`, KafkaProducer opt-in feature, DynamoRepo pattern
-- AGENTS.md and ADRs in MADR format under `docs/development/decisions/`
+- CLAUDE.md and ADRs in MADR format under `docs/development/decisions/`
 - `docs/development/for-ai-agents.md` machine-readable guide
 - `docs/product/metrics/history.json` versioned KPI history
 - Quality gates: `scripts/quality_kpi_gate.sh`, `scripts/quality_changelog.sh`

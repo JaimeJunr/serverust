@@ -6,7 +6,7 @@
 #   - cold_start_local:  falha se startup local for >20% acima da última entry de history.json
 #
 # Opt-in: controlado por LEFTHOOK_KPI=1
-# Override emergência: LEFTHOOK_KPI_SKIP=1 (exige justificativa no commit message — ver AGENTS.md)
+# Override emergência: LEFTHOOK_KPI_SKIP=1 (exige justificativa no commit message — ver CLAUDE.md)
 #
 # Se a regressão for inevitável, crie uma ADR em docs/development/decisions/ antes de mergear.
 # Consulte docs/development/decisions/ para o procedimento completo.
