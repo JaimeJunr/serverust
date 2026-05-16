@@ -9,6 +9,7 @@
 //! - [`producer::KafkaProducer`] (feature `kafka-producer`) — producer singleton legado, mantido para v0.1.x.
 
 pub mod broker;
+pub mod extract;
 pub mod kafka;
 pub mod retry;
 pub mod router;

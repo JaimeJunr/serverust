@@ -65,6 +65,8 @@ pub struct BrokerMessage {
     pub payload: Vec<u8>,
     /// Headers como mapa nome → bytes.
     pub headers: HashMap<String, Vec<u8>>,
+    /// Timestamp do registro em milissegundos (epoch), quando disponível.
+    pub timestamp: Option<i64>,
 }
 
 /// Future retornado por um handler inscrito.

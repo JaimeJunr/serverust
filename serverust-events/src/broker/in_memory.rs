@@ -61,6 +61,7 @@ impl Broker for InMemoryBroker {
             key: None,
             payload: payload.to_vec(),
             headers: HashMap::new(),
+            timestamp: None,
         };
 
         self.messages

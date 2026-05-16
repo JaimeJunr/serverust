@@ -101,6 +101,7 @@ fn broker_message_expoe_campos_essenciais() {
         key: Some(b"order-1".to_vec()),
         payload: b"{}".to_vec(),
         headers,
+        timestamp: None,
     };
 
     assert_eq!(msg.topic, "orders.created");

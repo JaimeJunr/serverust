@@ -25,11 +25,13 @@
 //! efetiva no DLQ chegam em US-5 — por ora, os campos `retry` e `dlq`
 //! ficam disponíveis para inspeção e são consumidos em iterações futuras.
 
+use std::any::Any;
 use std::sync::Arc;
 
 use serde::de::DeserializeOwned;
 
 use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage};
+use crate::extract::HandlerFn;
 use crate::retry::RetryPolicy;
 
 /// Inscrição registrada no router: tópico, handler boxado e configuração
@@ -51,6 +53,7 @@ pub(crate) struct Subscription {
 #[derive(Default)]
 pub struct EventRouter {
     subscriptions: Vec<Subscription>,
+    state: Option<Arc<dyn Any + Send + Sync>>,
 }
 
 impl EventRouter {
@@ -78,6 +81,44 @@ impl EventRouter {
                     .map_err(|e| BrokerError::Subscribe(format!("payload decode error: {e}")))?;
                 handler(event).await
             })
+        });
+
+        self.subscriptions.push(Subscription {
+            topic: topic.to_string(),
+            handler: wrapped,
+            retry: None,
+            dlq: None,
+        });
+        self
+    }
+
+    /// Registra estado compartilhado injetável nos handlers via `State<S>`.
+    pub fn with_state<S: Any + Send + Sync + 'static>(mut self, state: S) -> Self {
+        self.state = Some(Arc::new(state));
+        self
+    }
+
+    /// Registra um handler com extractors tipados para `topic`.
+    ///
+    /// O handler pode declarar zero ou mais extractors além do evento `T`:
+    /// [`crate::extract::EventCtx`], [`crate::extract::KafkaHeaders`],
+    /// [`crate::extract::State<S>`].
+    ///
+    /// # Exemplo
+    ///
+    /// ```ignore
+    /// router.subscribe_with("orders", |event: Order, ctx: EventCtx| async { Ok(()) });
+    /// ```
+    pub fn subscribe_with<T, Exts, H>(mut self, topic: &str, handler: H) -> Self
+    where
+        T: DeserializeOwned + Send + 'static,
+        H: HandlerFn<T, Exts>,
+    {
+        let state = self.state.clone();
+        let wrapped: BoxedHandler = Arc::new(move |msg: BrokerMessage| {
+            let handler = handler.clone();
+            let state = state.clone();
+            handler.call(msg, state)
         });
 
         self.subscriptions.push(Subscription {
