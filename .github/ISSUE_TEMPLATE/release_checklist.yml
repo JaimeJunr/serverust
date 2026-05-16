@@ -14,9 +14,13 @@ body:
       label: Antes do Release
       options:
         - label: "`cargo check --workspace` passa sem warnings"
+          required: true
         - label: "Testes dos crates core passam (`cargo test -p serverust-core`, etc.)"
+          required: true
         - label: "`scripts/quality_fmt.sh` + `quality_lint.sh` + `quality_complexity.sh` + `quality_cycles.sh` passam"
+          required: true
         - label: "`scripts/quality_hello_world.sh` passa (hello-world sem deps Kafka/DynamoDB)"
+          required: true
 
   - type: checkboxes
     id: version_changelog
@@ -24,8 +28,11 @@ body:
       label: Versão e Changelog
       options:
         - label: "Versão incrementada em `Cargo.toml` workspace"
+          required: true
         - label: "`CHANGELOG.md` atualizado com entrada para a nova versão"
+          required: true
         - label: "`scripts/quality_changelog.sh` verde"
+          required: true
 
   - type: checkboxes
     id: benchmarks
@@ -33,8 +40,11 @@ body:
       label: Benchmarks e Métricas
       options:
         - label: "`scripts/benchmark_ci.sh` executado — hello-world < 10 MB stripped, < 2000 ms cold start"
+          required: true
         - label: "`scripts/metrics_append.sh <version>` executado e `history.json` atualizado"
+          required: true
         - label: "`scripts/metrics_regression_check.sh` verde"
+          required: true
 
   - type: checkboxes
     id: event_sources
@@ -42,9 +52,13 @@ body:
       label: Event Sources
       options:
         - label: "`examples/kafka-wallet` compila (`cargo build -p kafka-wallet`)"
+          required: true
         - label: "Testes do kafka-wallet passam (`cargo test -p kafka-wallet --test dto`)"
+          required: true
         - label: "`scripts/benchmark_competitive.sh` executado com output atualizado"
+          required: true
         - label: "`docs/product/competitors/release-competitive-log.md` atualizado com entrada para esta versão"
+          required: true
 
   - type: checkboxes
     id: competitive
@@ -52,8 +66,11 @@ body:
       label: Análise Competitiva
       options:
         - label: "Versões de Rocket/Loco/actix-web/axum re-validadas"
+          required: true
         - label: "Tabela comparativa do README atualizada se necessário"
+          required: true
         - label: "Arquivos `rocket.md`, `loco.md`, `actix.md` atualizados"
+          required: true
 
   - type: checkboxes
     id: publication
@@ -61,8 +78,11 @@ body:
       label: Publicação
       options:
         - label: "Tag git criada (`git tag -s v<VERSION>`)"
+          required: true
         - label: "Crates publicados na ordem correta (macros → core → telemetry → lambda → events → cli)"
+          required: true
         - label: "CI passou com a tag no GitHub Actions"
+          required: true
 
   - type: input
     id: version
