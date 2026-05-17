@@ -38,7 +38,8 @@ jobs:
         uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          mode: agent
+          # Sem `mode` — action auto-detecta: pull_request -> auto-review com direct_prompt.
+          # `mode: agent` requer trigger explícito (workflow_dispatch) e fez prepare.ts skipar.
           direct_prompt: |
             Revise este PR contra a base. Foque em:
             - Correção lógica e edge cases.
