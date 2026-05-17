@@ -73,6 +73,19 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 - **Sagas como crate separado** (`serverust-sagas`): state machines para workflows de longa duração
 - **Topology declarativa** (inspiração Kafka Streams): `source → filter → map → sink` descritivo
 
+### v0.3.1 — Hardening do SqsBroker (follow-up review PR #5)
+
+Sugestões da review automática (Claude Code Action) agendadas para release de patch após v0.3.0:
+
+- **Structured logging completo**: padronizar todos os `tracing::warn!` do módulo `sqs` para `tracing::error!` quando o evento é uma falha de invariante (vs. degradação esperada). Campos consistentes: `queue`, `message_id`, `attempt`, `error`.
+- **Schema validation pós-deserialização**: validar campos obrigatórios em `Json<T>` extractor e em `SqsMetadata::from_message` — hoje só verificamos parse, não shape mínimo.
+- **Graceful degradation em edge cases**:
+  - `message_id` vazio: continuar gerando métrica `idempotency_bypass_total` + ainda emite warning (atual).
+  - `receipt_handle` inválido: validar formato básico antes de spawn do heartbeat (evita chamada AWS desnecessária).
+- **Overflow protection no backoff exponencial**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por `saturating_pow` + cap máximo configurável (`max_backoff: Duration`, default 30s).
+- **Métricas operacionais**: contadores EMF para `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total` — alimentam dashboard CloudWatch e alertam config errada.
+- **Circuit breaker no `StandaloneSqsBroker`**: tripping após N falhas consecutivas de `ReceiveMessage` (ex: 5 erros em 1 min ⇒ pausa de 30s) para evitar storm em incidente AWS.
+
 ### Futuro / backlog
 - WebSockets e Server-Sent Events
 - gRPC via tonic adapter
