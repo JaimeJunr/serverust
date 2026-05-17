@@ -8,13 +8,21 @@ on:
 
 jobs:
   review:
+    # issue_comment só dispara para autores confiáveis (evita commenters não-autorizados
+    # consumirem o secret OAuth via prompt-injection).
     if: |
       github.event_name == 'pull_request' ||
-      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude'))
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
     runs-on: ubuntu-latest
     environment: Teste
     permissions:
       contents: read
+      # pull-requests: write — postar review/comentários inline.
+      # issues: write — necessário porque comentários de PR usam a API de issues.
+      # id-token: write — OIDC para troca de token com o Claude Code App.
       pull-requests: write
       issues: write
       id-token: write
@@ -25,7 +33,9 @@ jobs:
           fetch-depth: 0
 
       - name: Claude Code review
-        uses: anthropics/claude-code-action@beta
+        # Pin para commit SHA (v0.0.63) — reproduzibilidade + supply-chain.
+        # Para atualizar: gh api repos/anthropics/claude-code-action/git/refs/tags/beta
+        uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           mode: agent
