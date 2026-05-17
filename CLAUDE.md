@@ -24,14 +24,38 @@ Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR ap
 
 ## Processo de Release
 
-1. Incrementar versão em `Cargo.toml` (workspace `version`).
-2. Atualizar `CHANGELOG.md` — mover items de `[Unreleased]` para a nova versão com data.
-3. Rodar `scripts/quality_changelog.sh` — deve passar.
-4. Rodar `scripts/benchmark_ci.sh` — registrar saída em `docs/product/metrics/history.json`.
-5. Rodar `scripts/benchmark_competitive.sh` — atualizar `docs/product/competitors/release-competitive-log.md`.
-6. Criar tag git: `git tag -s v<VERSION> -m "Release v<VERSION>"`.
-7. Publicar crates na ordem: `serverust-macros` → `serverust-core` → `serverust-telemetry` → `serverust-lambda` → `serverust-cli`.
-8. Confirmar que CI passou **com a tag** (histórico: v0.1.1 e v0.1.2 foram publicadas sem tag — não repetir).
+A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Tag por crate `<crate-name>-vX.Y.Z`. Pré-v0.4 usava workspace-wide unified versioning.
+
+### Fluxo recomendado (cargo-release)
+
+```bash
+# Patch release de um crate específico:
+cargo release patch -p serverust-events --execute
+
+# Workspace inteiro (bump + tag + publish na ordem certa, tudo atômico):
+cargo release patch --workspace --execute
+```
+
+`cargo-release` (config em `release.toml`) faz: bump → CHANGELOG date → commit → tag SSH-signed → push → `cargo publish` na ordem de dependência.
+
+### Fluxo manual (alternativa)
+
+1. Incrementar `version` no(s) `Cargo.toml` do(s) crate(s) afetado(s).
+2. Atualizar refs path-deps internas (`version = "X.Y.Z"`).
+3. Mover items de `[Unreleased]` para nova versão com data no `CHANGELOG.md`.
+4. Rodar `scripts/quality_changelog.sh` — deve passar.
+5. Rodar `scripts/benchmark_ci.sh` + `scripts/metrics_append.sh <version>`.
+6. Rodar `scripts/benchmark_competitive.sh` (atualiza `release-competitive-log.md`).
+7. Criar tag git assinada: `git tag -s <crate>-v<VERSION> -m "Release <crate> v<VERSION>"` (per-crate) ou `git tag -s v<VERSION>` (workspace).
+8. Publicar (Cargo 1.90+): `cargo publish --workspace` resolve ordem. Ou sequencial: `serverust-macros` → `serverust-core` → `serverust-telemetry` → `serverust-events` → `serverust-lambda` → `serverust-cli`.
+9. Confirmar que CI passou **com a tag** (histórico: v0.1.1 e v0.1.2 foram publicadas sem tag — não repetir).
+
+### Pré-flight obrigatório
+
+- SSH signing configurado (`gpg.format = ssh`, `user.signingkey = ~/.ssh/id_*.pub`, `tag.gpgsign = true`).
+- Public key adicionada como **Signing key** em GitHub settings.
+- `cargo login` configurado.
+- `cargo deny check` verde (CI: `.github/workflows/cargo-deny.yml`).
 
 Referência canônica: [`docs/development/release-checklist.md`](docs/development/release-checklist.md).
 
