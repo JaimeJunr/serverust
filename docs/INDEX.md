@@ -7,6 +7,8 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 - [**guides/getting-started.md**](guides/getting-started.md) — Em 5 minutos: do zero a uma API HTTP rodando local com Swagger UI.
 - [**guides/lambda-tutorial.md**](guides/lambda-tutorial.md) — Tutorial completo: construir uma API de tarefas (CRUD com validação, OpenAPI, DI), rodar local e fazer **deploy em AWS Lambda**. Tempo: 30-45 min.
 - [**guides/iac-compatibility.md**](guides/iac-compatibility.md) — Contrato oficial de compatibilidade com Serverless Framework, SST, Terraform, SAM/CDK e como validamos isso em testes/CI.
+- [**guides/dynamodb.md**](guides/dynamodb.md) — Guia prático de DynamoDB: setup de deps, CRUD com `DynamoRepo<T>` e `#[dynamo_table]`, credenciais (env vars, IAM role em Lambda), testes locais com DynamoDB Local e troubleshooting.
+- [**guides/event-driven.md**](guides/event-driven.md) — Guia de event-driven com Kafka: `Broker` trait, `EventRouter`, macros `#[subscriber]`/`#[publisher]`, retry policies e detecção de runtime Lambda vs long-running.
 
 ## Produto
 
