@@ -620,38 +620,223 @@ pub fn dynamo_table(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 // --- #[subscriber(...)] / #[publisher(...)] ----------------------------------
 
-/// Atributo da macro `#[subscriber(topic = "...")]`.
+/// Atributo da macro `#[subscriber(...)]`.
+///
+/// Sintaxes suportadas:
+///
+/// - `#[subscriber(topic = "x")]` — driver default `"kafka"` (back-compat v0.2.0).
+/// - `#[subscriber(driver = "kafka", topic = "x")]` — explícito.
+/// - `#[subscriber(driver = "sqs", queue = "x")]` — adapter SQS (US-001).
+///
+/// `topic` e `queue` mapeiam ambos para a string passada ao broker via a trait
+/// `Broker` — guarda apenas a chave de inscrição.
 struct SubscriberAttr {
-    topic: LitStr,
+    /// Driver alvo: `"kafka"` (default) ou `"sqs"`. Outros valores erram.
+    driver: LitStr,
+    /// Chave de inscrição: `topic` (kafka) ou `queue` (sqs).
+    subscribe_key: LitStr,
+    /// `true` quando o flag `fifo` foi declarado. Só válido para `driver = "sqs"`.
+    fifo: bool,
+    /// Span do flag `fifo` para mensagens de erro precisas.
+    fifo_span: Option<proc_macro2::Span>,
+    /// Máximo de tentativas para `RetryLayer`. Default 1 (sem retry).
+    retry_max: u32,
+    /// Base do backoff exponencial em milissegundos. Default 0 (sem espera).
+    retry_base_ms: u64,
+    /// Nome da fila DLQ (US-008). `None` quando o subscriber não declara DLQ.
+    dlq_queue: Option<LitStr>,
+    /// `true` quando o flag `asyncapi` foi declarado. Faz a macro emitir um
+    /// método associado `register_asyncapi(builder)` que adiciona o canal/op
+    /// no spec — exige `T: JsonSchema` no tipo do evento.
+    asyncapi: bool,
 }
 
 impl Parse for SubscriberAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        // Parse manual via `Punctuated::<TokenStream, Comma>` não é trivial
+        // porque `retry = exponential(max = 5, base = "100ms")` não é um
+        // `Meta` — `exponential(...)` é uma `Expr::Call`. Usamos `syn::Meta`
+        // para a maioria dos campos e fazemos parsing especial do `retry`
+        // através de uma expressão.
+        let mut driver: Option<LitStr> = None;
         let mut topic: Option<LitStr> = None;
-        for meta in metas {
-            let Meta::NameValue(nv) = meta else {
-                return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
-            };
-            let key = nv
-                .path
-                .get_ident()
-                .map(|i| i.to_string())
-                .unwrap_or_default();
-            match key.as_str() {
-                "topic" => topic = Some(expect_lit_str(&nv.value, "topic")?),
-                other => {
-                    return Err(syn::Error::new(
-                        nv.path.span(),
-                        format!("chave desconhecida `{other}` em #[subscriber] (use topic)"),
-                    ));
+        let mut queue: Option<LitStr> = None;
+        let mut topic_span: Option<proc_macro2::Span> = None;
+        let mut queue_span: Option<proc_macro2::Span> = None;
+        let mut fifo = false;
+        let mut fifo_span: Option<proc_macro2::Span> = None;
+        let mut retry_max: u32 = 1;
+        let mut retry_base_ms: u64 = 0;
+        let mut dlq_queue: Option<LitStr> = None;
+        let mut asyncapi = false;
+
+        while !input.is_empty() {
+            // Token de chave: identificador.
+            if input.peek(syn::Ident) {
+                let key: Ident = input.parse()?;
+                let key_str = key.to_string();
+                // Flag `fifo` sem valor.
+                if key_str == "fifo" && !input.peek(Token![=]) {
+                    fifo = true;
+                    fifo_span = Some(key.span());
+                } else if key_str == "asyncapi" && !input.peek(Token![=]) {
+                    asyncapi = true;
+                } else {
+                    input.parse::<Token![=]>()?;
+                    match key_str.as_str() {
+                        "driver" => driver = Some(input.parse()?),
+                        "topic" => {
+                            topic_span = Some(key.span());
+                            topic = Some(input.parse()?);
+                        }
+                        "queue" => {
+                            queue_span = Some(key.span());
+                            queue = Some(input.parse()?);
+                        }
+                        "dlq" => dlq_queue = Some(input.parse()?),
+                        "retry" => {
+                            // Aceita apenas `exponential(max = N, base = "Tms")`.
+                            let fn_name: Ident = input.parse()?;
+                            if fn_name != "exponential" {
+                                return Err(syn::Error::new(
+                                    fn_name.span(),
+                                    "retry só suporta `exponential(max = N, base = \"Tms\")`",
+                                ));
+                            }
+                            let content;
+                            syn::parenthesized!(content in input);
+                            // Parse pares `key = value` separados por vírgula.
+                            let mut got_max: Option<u32> = None;
+                            let mut got_base: Option<u64> = None;
+                            while !content.is_empty() {
+                                let arg_key: Ident = content.parse()?;
+                                content.parse::<Token![=]>()?;
+                                match arg_key.to_string().as_str() {
+                                    "max" => {
+                                        let lit: LitInt = content.parse()?;
+                                        got_max = Some(lit.base10_parse::<u32>()?);
+                                    }
+                                    "base" => {
+                                        let lit: LitStr = content.parse()?;
+                                        got_base = Some(parse_duration_ms(&lit)?);
+                                    }
+                                    other => {
+                                        return Err(syn::Error::new(
+                                            arg_key.span(),
+                                            format!(
+                                                "chave `{other}` desconhecida em exponential (use max, base)"
+                                            ),
+                                        ));
+                                    }
+                                }
+                                if content.peek(Token![,]) {
+                                    content.parse::<Token![,]>()?;
+                                }
+                            }
+                            retry_max = got_max.ok_or_else(|| {
+                                syn::Error::new(fn_name.span(), "exponential requer `max = N`")
+                            })?;
+                            retry_base_ms = got_base.ok_or_else(|| {
+                                syn::Error::new(
+                                    fn_name.span(),
+                                    "exponential requer `base = \"<N>ms\"`",
+                                )
+                            })?;
+                        }
+                        other => {
+                            return Err(syn::Error::new(
+                                key.span(),
+                                format!(
+                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo/retry/dlq/asyncapi)"
+                                ),
+                            ));
+                        }
+                    }
                 }
+            } else {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "esperado identificador (driver/topic/queue/fifo/retry/dlq/asyncapi)",
+                ));
+            }
+
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            } else {
+                break;
             }
         }
-        let topic = topic.ok_or_else(|| {
-            syn::Error::new(Span::call_site(), "#[subscriber] requer `topic = \"...\"`")
-        })?;
-        Ok(SubscriberAttr { topic })
+
+        let driver_value = driver
+            .as_ref()
+            .map(|d| d.value())
+            .unwrap_or_else(|| "kafka".to_string());
+
+        match driver_value.as_str() {
+            "kafka" => {
+                if let Some(span) = queue_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "`queue` é exclusivo do driver `sqs` — use `topic` para kafka",
+                    ));
+                }
+                if let Some(span) = fifo_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "flag `fifo` é exclusivo do driver `sqs`",
+                    ));
+                }
+                let topic = topic.ok_or_else(|| {
+                    syn::Error::new(
+                        Span::call_site(),
+                        "#[subscriber] com driver `kafka` requer `topic = \"...\"`",
+                    )
+                })?;
+                let driver_lit = driver.unwrap_or_else(|| LitStr::new("kafka", Span::call_site()));
+                Ok(SubscriberAttr {
+                    driver: driver_lit,
+                    subscribe_key: topic,
+                    fifo: false,
+                    fifo_span: None,
+                    retry_max,
+                    retry_base_ms,
+                    dlq_queue,
+                    asyncapi,
+                })
+            }
+            "sqs" => {
+                if let Some(span) = topic_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "`topic` é exclusivo do driver `kafka` — use `queue` para sqs",
+                    ));
+                }
+                let queue = queue.ok_or_else(|| {
+                    syn::Error::new(
+                        Span::call_site(),
+                        "#[subscriber] com driver `sqs` requer `queue = \"...\"`",
+                    )
+                })?;
+                let driver_lit = driver.unwrap_or_else(|| LitStr::new("sqs", Span::call_site()));
+                Ok(SubscriberAttr {
+                    driver: driver_lit,
+                    subscribe_key: queue,
+                    fifo,
+                    fifo_span,
+                    retry_max,
+                    retry_base_ms,
+                    dlq_queue,
+                    asyncapi,
+                })
+            }
+            other => Err(syn::Error::new(
+                driver
+                    .as_ref()
+                    .map(|d| d.span())
+                    .unwrap_or_else(Span::call_site),
+                format!("driver `{other}` não suportado em #[subscriber] — use `kafka` ou `sqs`"),
+            )),
+        }
     }
 }
 
@@ -699,7 +884,11 @@ impl Parse for PublisherAttr {
 /// - `Self::SUBSCRIBE_TOPIC` — tópico de entrada;
 /// - `Self::PUBLISH_TOPIC` — `Option<&'static str>` com o tópico de saída
 ///   quando `#[publisher(topic = "...")]` é empilhado;
-/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`].
+/// - `Self::HAS_ASYNCAPI` — `bool` indicando se a flag `asyncapi` foi declarada;
+/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`];
+/// - `Self::register_asyncapi(builder)` — só existe com a flag `asyncapi`;
+///   adiciona `receive`/`send` no `AsyncApiBuilder` e exige
+///   `T: ::schemars::JsonSchema` (US-013).
 ///
 /// A função original é movida para dentro de `register`, eliminando colisão de
 /// nomes com a struct emitida (mesmo padrão de `#[get(...)]`).
@@ -740,7 +929,53 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = func.vis.clone();
     func.vis = syn::Visibility::Inherited;
     let fn_name = func.sig.ident.clone();
-    let topic_lit = &attrs.topic;
+    let topic_lit = &attrs.subscribe_key;
+    let driver_lit = &attrs.driver;
+    let is_fifo = attrs.fifo;
+    let has_asyncapi = attrs.asyncapi;
+    let retry_max_lit = LitInt::new(&attrs.retry_max.to_string(), Span::call_site());
+    let retry_base_ms_lit = LitInt::new(&attrs.retry_base_ms.to_string(), Span::call_site());
+    let dlq_const_expr = match &attrs.dlq_queue {
+        Some(q) => quote! { ::core::option::Option::Some(#q) },
+        None => quote! { ::core::option::Option::None },
+    };
+
+    // Compile-time guard FIFO: `fifo` flag <=> handler usa SqsFifoMetadata.
+    // Inspeciona os parâmetros pelo último segmento do path do tipo.
+    let has_fifo_metadata = func.sig.inputs.iter().any(|arg| {
+        let FnArg::Typed(pt) = arg else {
+            return false;
+        };
+        let Type::Path(tp) = &*pt.ty else {
+            return false;
+        };
+        tp.path
+            .segments
+            .last()
+            .map(|s| s.ident == "SqsFifoMetadata")
+            .unwrap_or(false)
+    });
+
+    if attrs.fifo && !has_fifo_metadata {
+        let span = attrs.fifo_span.unwrap_or_else(|| fn_name.span());
+        return syn::Error::new(
+            span,
+            "subscriber FIFO requer um parâmetro do tipo `SqsFifoMetadata` na assinatura — \
+             adicione `meta: SqsFifoMetadata` ou remova o flag `fifo`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    if !attrs.fifo && has_fifo_metadata && attrs.driver.value() == "sqs" {
+        return syn::Error::new(
+            fn_name.span(),
+            "`SqsFifoMetadata` só pode ser usado em subscribers FIFO — \
+             adicione o flag `fifo` em `#[subscriber(driver = \"sqs\", queue = \"...\", fifo)]`",
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Extrai `T` do primeiro parâmetro `event: T`.
     let event_ty = match func.sig.inputs.iter().next() {
@@ -781,8 +1016,36 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     } else {
         quote! {
             #func
-            router.subscribe::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
+            router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
         }
+    };
+
+    // Quando o flag `asyncapi` é declarado no atributo (opt-in por subscriber),
+    // emitimos um método associado `register_asyncapi(builder)` que adiciona
+    // uma operação `receive` no spec e, se houver `#[publisher(topic = ...)]`,
+    // também uma operação `send`. O tipo do evento precisa implementar
+    // `JsonSchema` (compile error caso não derive) e a feature
+    // `serverust-events/asyncapi` precisa estar ativa para o path resolver.
+    let asyncapi_impl = if attrs.asyncapi {
+        let send_branch = if let Some(pub_topic) = &publisher_topic {
+            quote! {
+                let builder = builder.add_send::<#event_ty>(#pub_topic);
+            }
+        } else {
+            quote! {}
+        };
+        quote! {
+            #[allow(clippy::needless_pass_by_value)]
+            pub fn register_asyncapi(
+                builder: ::serverust_events::asyncapi::AsyncApiBuilder,
+            ) -> ::serverust_events::asyncapi::AsyncApiBuilder {
+                let builder = builder.add_receive::<#event_ty>(Self::SUBSCRIBE_TOPIC);
+                #send_branch
+                builder
+            }
+        }
+    } else {
+        quote! {}
     };
 
     let expanded = quote! {
@@ -791,13 +1054,21 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #fn_name {
             pub const SUBSCRIBE_TOPIC: &'static str = #topic_lit;
+            pub const DRIVER: &'static str = #driver_lit;
+            pub const IS_FIFO: bool = #is_fifo;
+            pub const HAS_ASYNCAPI: bool = #has_asyncapi;
             pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
+            pub const RETRY_MAX_ATTEMPTS: u32 = #retry_max_lit;
+            pub const RETRY_BASE_MS: u64 = #retry_base_ms_lit;
+            pub const DLQ_QUEUE: ::core::option::Option<&'static str> = #dlq_const_expr;
 
             pub fn register(
                 router: ::serverust_events::router::EventRouter,
             ) -> ::serverust_events::router::EventRouter {
                 #register_body
             }
+
+            #asyncapi_impl
         }
     };
 
@@ -885,6 +1156,29 @@ impl Parse for KafkaConsumerAttr {
             dlq,
         })
     }
+}
+
+/// Converte literal de duração tipo `"100ms"` ou `"2s"` em milissegundos.
+fn parse_duration_ms(lit: &LitStr) -> syn::Result<u64> {
+    let s = lit.value();
+    let s = s.trim();
+    let (num_part, unit, factor): (&str, &str, u64) = if let Some(p) = s.strip_suffix("ms") {
+        (p, "ms", 1)
+    } else if let Some(p) = s.strip_suffix("s") {
+        (p, "s", 1000)
+    } else {
+        return Err(syn::Error::new(
+            lit.span(),
+            "duração deve terminar em `ms` ou `s` (ex: \"100ms\", \"2s\")",
+        ));
+    };
+    let n: u64 = num_part.trim().parse().map_err(|_| {
+        syn::Error::new(
+            lit.span(),
+            format!("número inválido antes de `{unit}` em duração: `{s}`"),
+        )
+    })?;
+    Ok(n.saturating_mul(factor))
 }
 
 fn expect_lit_str(expr: &Expr, key: &str) -> syn::Result<LitStr> {

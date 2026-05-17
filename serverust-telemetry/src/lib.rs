@@ -46,6 +46,7 @@ pub mod dynamo;
 pub mod emf;
 pub mod idempotency;
 pub mod logger;
+pub mod tower;
 
 #[cfg(feature = "otel")]
 pub mod otel;
@@ -56,7 +57,8 @@ pub use correlation::{
 };
 pub use emf::{EmfMetric, emit_emf, emit_emf_to};
 pub use idempotency::{
-    IdempotencyError, IdempotencyRecord, IdempotencyStore, InMemoryIdempotencyStore,
+    AcquireOutcome, IdempotencyError, IdempotencyLockRecord, IdempotencyRecord, IdempotencyState,
+    IdempotencyStore, InMemoryIdempotencyStore,
 };
 pub use logger::{init, init_with_writer, json_subscriber};
 

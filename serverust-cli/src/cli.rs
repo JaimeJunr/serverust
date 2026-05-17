@@ -59,6 +59,28 @@ pub enum Command {
         #[command(subcommand)]
         command: OpenapiCommand,
     },
+    /// Inspeção e diagnóstico de filas SQS.
+    Queue {
+        #[command(subcommand)]
+        command: QueueCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum QueueCommand {
+    /// Mostra depth, age e redrive policy de uma fila.
+    Inspect {
+        /// URL da fila SQS.
+        url: String,
+    },
+    /// Exibe até N mensagens sem deletá-las (ReceiveMessage).
+    Tail {
+        /// URL da fila SQS.
+        url: String,
+        /// Quantidade máxima de mensagens (1–10, SQS limit).
+        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(i32).range(1..=10))]
+        max: i32,
+    },
 }
 
 #[derive(Subcommand, Debug)]

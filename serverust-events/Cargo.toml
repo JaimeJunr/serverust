@@ -15,9 +15,25 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 [features]
 default = []
 # Geração de spec AsyncAPI 3.0. Puxa schemars + serde_yaml (leves, sem C deps).
+# A macro `#[subscriber(..., asyncapi)]` emite `register_asyncapi` quando o
+# flag é declarado — esse método referencia `::serverust_events::asyncapi::*`
+# e só compila com esta feature ativa.
 asyncapi = ["dep:schemars", "dep:serde_yaml"]
 # Habilita InMemoryBroker para testes sem broker físico.
 in-memory = []
+# Habilita o adapter SQS (consumer Lambda ESM). Não puxa C deps — só ativa o
+# módulo `sqs` e a feature `sqs` de `aws_lambda_events` (deserialização de
+# `SqsEvent`/`SqsBatchResponse`). `serverust-core` continua sem dep de SQS.
+sqs = [
+    "aws_lambda_events/sqs",
+    "tokio/sync",
+    "tokio/rt",
+    "tokio/macros",
+    "dep:tower",
+    "dep:pin-project-lite",
+    "dep:serverust-telemetry",
+    "dep:tracing",
+]
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
 # só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
 kafka = [
@@ -45,6 +61,15 @@ tokio = { version = "1", features = ["time"] }
 # Geração de AsyncAPI 3.0 — opt-in via feature `asyncapi`. Leves, sem C deps.
 schemars = { version = "0.8", optional = true }
 serde_yaml = { version = "0.9", optional = true }
+# Tower pipeline (feature `sqs`). Mantém o build default leve.
+tower = { version = "0.5", features = ["util"], optional = true }
+pin-project-lite = { version = "0.2", optional = true }
+# Telemetria reusada pelos Tower layers (feature `sqs`). Default features mantém
+# o build leve (sem otel/dynamodb).
+serverust-telemetry = { path = "../serverust-telemetry", version = "0.2.0", optional = true }
+# Tracing usado no `ObservabilityLayer` (feature `sqs`) para abrir spans com
+# trace_id no formato AWS X-Ray.
+tracing = { version = "0.1", optional = true }
 
 # Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
@@ -65,3 +90,63 @@ serde_yaml = "0.9"
 [[test]]
 name = "asyncapi_spec"
 required-features = ["asyncapi"]
+
+[[test]]
+name = "asyncapi_from_macros"
+required-features = ["asyncapi", "sqs"]
+
+[[test]]
+name = "sqs_consumer"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_delete"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs"
+required-features = ["in-memory"]
+
+[[test]]
+name = "sqs_producer"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_fifo"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs_fifo"
+required-features = ["in-memory", "sqs"]
+
+[[test]]
+name = "sqs_tower"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_idempotency"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_dlq"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs_dlq"
+required-features = ["in-memory", "sqs"]
+
+[[test]]
+name = "sqs_heartbeat"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_standalone"
+required-features = ["sqs"]
+
+[[test]]
+name = "transport_parity"
+required-features = ["sqs"]
+
+[[test]]
+name = "sqs_observability"
+required-features = ["sqs"]

@@ -1,0 +1,13 @@
+error: subscriber FIFO requer um parâmetro do tipo `SqsFifoMetadata` na assinatura — adicione `meta: SqsFifoMetadata` ou remova o flag `fifo`
+ --> tests/ui/fail_fifo_missing_metadata.rs:6:53
+  |
+6 | #[subscriber(driver = "sqs", queue = "orders.fifo", fifo)]
+  |                                                     ^^^^
+
+warning: unused import: `serverust_events::broker::BrokerError`
+ --> tests/ui/fail_fifo_missing_metadata.rs:3:5
+  |
+3 | use serverust_events::broker::BrokerError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default

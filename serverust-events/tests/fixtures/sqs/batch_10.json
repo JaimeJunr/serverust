@@ -1,0 +1,84 @@
+{
+  "Records": [
+    {
+      "messageId": "msg-01", "receiptHandle": "rh-01",
+      "body": "{\"orderId\":\"order-01\",\"amount\":10}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-02", "receiptHandle": "rh-02",
+      "body": "{\"orderId\":\"order-02\",\"amount\":20}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-03", "receiptHandle": "rh-03",
+      "body": "{\"orderId\":\"order-03\",\"amount\":30}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-04", "receiptHandle": "rh-04",
+      "body": "{\"orderId\":\"order-04\",\"amount\":40}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-05", "receiptHandle": "rh-05",
+      "body": "{\"orderId\":\"order-05\",\"amount\":50}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-06", "receiptHandle": "rh-06",
+      "body": "{\"orderId\":\"order-06\",\"amount\":60}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-07", "receiptHandle": "rh-07",
+      "body": "{\"orderId\":\"order-07\",\"amount\":70}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-08", "receiptHandle": "rh-08",
+      "body": "{\"orderId\":\"order-08\",\"amount\":80}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-09", "receiptHandle": "rh-09",
+      "body": "{\"orderId\":\"order-09\",\"amount\":90}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "msg-10", "receiptHandle": "rh-10",
+      "body": "{\"orderId\":\"order-10\",\"amount\":100}",
+      "attributes": {"ApproximateReceiveCount": "1"},
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs", "awsRegion": "us-east-1"
+    }
+  ]
+}

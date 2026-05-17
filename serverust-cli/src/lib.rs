@@ -22,12 +22,14 @@
 
 pub mod cli;
 pub mod commands;
+pub mod queue;
+pub mod queue_aws;
 pub mod scaffold;
 pub mod templates;
 
 use anyhow::Result;
 
-use crate::cli::{Cli, Command, DeployTarget, OpenapiCommand};
+use crate::cli::{Cli, Command, DeployTarget, OpenapiCommand, QueueCommand};
 
 /// Executa um comando da CLI já parseado.
 ///
@@ -90,6 +92,24 @@ pub fn run(cli: Cli) -> Result<()> {
                 "openapi client",
             ),
         },
+        Command::Queue { command } => {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| anyhow::anyhow!("failed to build tokio runtime: {e}"))?;
+            match command {
+                QueueCommand::Inspect { url } => {
+                    let attrs = rt.block_on(queue_aws::get_attributes(&url))?;
+                    print!("{}", queue::format_inspect(&attrs));
+                    Ok(())
+                }
+                QueueCommand::Tail { url, max } => {
+                    let msgs = rt.block_on(queue_aws::receive_messages(&url, max))?;
+                    print!("{}", queue::format_messages(&msgs));
+                    Ok(())
+                }
+            }
+        }
     }
 }
 

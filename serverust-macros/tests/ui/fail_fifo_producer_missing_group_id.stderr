@@ -1,0 +1,8 @@
+error[E0599]: no method named `send` found for struct `FifoSendBuilder<'_, NoGroupId>` in the current scope
+  --> tests/ui/fail_fifo_producer_missing_group_id.rs:41:43
+   |
+41 |     let _ = producer.send_builder("body").send().await;
+   |                                           ^^^^ method not found in `FifoSendBuilder<'_, NoGroupId>`
+   |
+   = note: the method was found for
+           - `FifoSendBuilder<'a, HasGroupId>`

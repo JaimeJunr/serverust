@@ -1,0 +1,51 @@
+{
+  "Records": [
+    {
+      "messageId": "11d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+      "receiptHandle": "AQEBBX8nesZEXmkhsmZeyIE8iQAMig7qw...",
+      "body": "{\"orderId\":\"order-1\",\"amount\":100}",
+      "md5OfBody": "ignored",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1678000000000",
+        "SenderId": "AIDAIENQZJOLO23YVJ4VO",
+        "ApproximateFirstReceiveTimestamp": "1678000000001"
+      },
+      "messageAttributes": {
+        "trace_id": {
+          "stringValue": "abc-123",
+          "dataType": "String"
+        }
+      },
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs",
+      "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "22d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+      "receiptHandle": "AQEBBX8nesZEXmkhsmZeyIE8iQAMig7qw...",
+      "body": "{\"orderId\":\"order-2\",\"amount\":250}",
+      "md5OfBody": "ignored",
+      "attributes": {
+        "ApproximateReceiveCount": "1"
+      },
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs",
+      "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "33d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+      "receiptHandle": "AQEBBX8nesZEXmkhsmZeyIE8iQAMig7qw...",
+      "body": "{\"orderId\":\"order-3\",\"amount\":42}",
+      "md5OfBody": "ignored",
+      "attributes": {
+        "ApproximateReceiveCount": "2"
+      },
+      "messageAttributes": {},
+      "eventSourceARN": "arn:aws:sqs:us-east-1:123456789012:orders",
+      "eventSource": "aws:sqs",
+      "awsRegion": "us-east-1"
+    }
+  ]
+}
