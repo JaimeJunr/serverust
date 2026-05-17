@@ -1,0 +1,48 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    # issue_comment só dispara para autores confiáveis (evita commenters não-autorizados
+    # consumirem o secret OAuth via prompt-injection).
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '@claude') &&
+       contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association))
+    runs-on: ubuntu-latest
+    environment: Teste
+    permissions:
+      contents: read
+      # pull-requests: write — postar review/comentários inline.
+      # issues: write — necessário porque comentários de PR usam a API de issues.
+      # id-token: write — OIDC para troca de token com o Claude Code App.
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude Code review
+        # Pin para commit SHA (v0.0.63) — reproduzibilidade + supply-chain.
+        # Para atualizar: gh api repos/anthropics/claude-code-action/git/refs/tags/beta
+        uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          mode: agent
+          direct_prompt: |
+            Revise este PR contra a base. Foque em:
+            - Correção lógica e edge cases.
+            - Segurança (OWASP, injeção, secrets, SSRF).
+            - Aderência ao CLAUDE.md do projeto (Surgical Changes, Simplicity First, invariantes serverust-core sem deps SQS, hello-world sem deps SQS, cold start <50ms preservado).
+            - Cobertura de testes para mudanças novas.
+            Postar comentários inline nos arquivos/linhas relevantes. Final: summary curto (3-5 bullets) com blockers, warnings e sugestões. Idioma: português.
