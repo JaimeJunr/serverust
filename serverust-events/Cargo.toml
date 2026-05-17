@@ -131,3 +131,7 @@ required-features = ["sqs"]
 [[test]]
 name = "sqs_standalone"
 required-features = ["sqs"]
+
+[[test]]
+name = "transport_parity"
+required-features = ["sqs"]
