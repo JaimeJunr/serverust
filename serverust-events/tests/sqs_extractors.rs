@@ -113,9 +113,9 @@ async fn json_extractor_erro_desserializacao_retorna_err_com_motivo() {
 
 #[tokio::test]
 async fn sqs_metadata_expoe_todos_os_campos_necessarios() {
+    type MetaCaptured = Arc<Mutex<Vec<(String, String, String, String)>>>;
     let broker = Arc::new(SqsBroker::new());
-    let captured: Arc<Mutex<Vec<(String, String, String, String)>>> =
-        Arc::new(Mutex::new(Vec::new()));
+    let captured: MetaCaptured = Arc::new(Mutex::new(Vec::new()));
 
     let router = {
         let captured = captured.clone();

@@ -23,10 +23,11 @@ proc-macro2 = "1"
 [dev-dependencies]
 trybuild = "1"
 serverust-core = { path = "../serverust-core" }
-serverust-events = { path = "../serverust-events" }
+serverust-events = { path = "../serverust-events", features = ["sqs"] }
 serverust-telemetry = { path = "../serverust-telemetry" }
 aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt"] }
+async-trait = "0.1"
 base64 = "0.22"

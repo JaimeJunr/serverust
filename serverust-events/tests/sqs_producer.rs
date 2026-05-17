@@ -13,8 +13,10 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use serverust_events::sqs::producer::{
-    MessageId, ProducerConfig, SendClient, SendEntry, SendError, SendResult, SqsProducer,
+    ProducerConfig, SendClient, SendEntry, SendError, SendResult, SqsProducer,
 };
+
+type CallLog = Arc<Mutex<Vec<Vec<SendEntry>>>>;
 
 // --------------------------------------------------------------------------
 // Mock clients
@@ -26,7 +28,7 @@ struct AlwaysOkClient {
 }
 
 impl AlwaysOkClient {
-    fn new() -> (Arc<Self>, Arc<Mutex<Vec<Vec<SendEntry>>>>) {
+    fn new() -> (Arc<Self>, CallLog) {
         let calls = Arc::new(Mutex::new(Vec::new()));
         (
             Arc::new(Self {
@@ -63,7 +65,7 @@ struct FirstEntryFailOnce {
 }
 
 impl FirstEntryFailOnce {
-    fn new() -> (Arc<Self>, Arc<Mutex<Vec<Vec<SendEntry>>>>) {
+    fn new() -> (Arc<Self>, CallLog) {
         let calls = Arc::new(Mutex::new(Vec::new()));
         (
             Arc::new(Self {
@@ -180,14 +182,16 @@ async fn test_10_mensagens_acumuladas_fazem_uma_unica_chamada_ao_atingir_batch_s
     }
 
     // Deve ter feito exatamente 1 chamada com 10 entradas
-    let call_log = calls.lock().unwrap();
-    assert_eq!(
-        call_log.len(),
-        1,
-        "esperava 1 chamada send_batch, got {}",
-        call_log.len()
-    );
-    assert_eq!(call_log[0].len(), 10, "esperava 10 entradas no batch");
+    {
+        let call_log = calls.lock().unwrap();
+        assert_eq!(
+            call_log.len(),
+            1,
+            "esperava 1 chamada send_batch, got {}",
+            call_log.len()
+        );
+        assert_eq!(call_log[0].len(), 10, "esperava 10 entradas no batch");
+    }
 
     drop(producer);
     task.await.unwrap();
@@ -215,11 +219,13 @@ async fn test_flush_ocorre_apos_linger_timeout_mesmo_com_batch_incompleto() {
     assert!(r2.is_ok(), "r2 esperava Ok, got {r2:?}");
 
     // Deve ter flushed pelo linger timeout
-    let call_log = calls.lock().unwrap();
-    assert!(
-        !call_log.is_empty(),
-        "esperava ao menos 1 chamada send_batch após linger"
-    );
+    {
+        let call_log = calls.lock().unwrap();
+        assert!(
+            !call_log.is_empty(),
+            "esperava ao menos 1 chamada send_batch após linger"
+        );
+    }
 
     drop(producer);
     task.await.unwrap();
@@ -255,18 +261,20 @@ async fn test_retry_parcial_reenvia_apenas_entradas_falhadas() {
         assert!(r.is_ok(), "esperava Ok após retry, got {r:?}");
     }
 
-    let call_log = calls.lock().unwrap();
-    assert!(
-        call_log.len() >= 2,
-        "esperava >= 2 chamadas (original + retry), got {}",
-        call_log.len()
-    );
-    // O segundo batch (retry) deve conter apenas 1 entrada
-    assert_eq!(
-        call_log[1].len(),
-        1,
-        "retry deve reenviar apenas a entrada falhada"
-    );
+    {
+        let call_log = calls.lock().unwrap();
+        assert!(
+            call_log.len() >= 2,
+            "esperava >= 2 chamadas (original + retry), got {}",
+            call_log.len()
+        );
+        // O segundo batch (retry) deve conter apenas 1 entrada
+        assert_eq!(
+            call_log[1].len(),
+            1,
+            "retry deve reenviar apenas a entrada falhada"
+        );
+    }
 
     drop(producer);
     task.await.unwrap();

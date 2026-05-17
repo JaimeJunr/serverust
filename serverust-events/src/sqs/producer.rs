@@ -49,6 +49,10 @@ pub struct SendEntry {
     pub message_body: String,
     /// Atributos opcionais da mensagem.
     pub message_attributes: HashMap<String, String>,
+    /// Grupo de ordering FIFO. `Some` apenas em filas FIFO; em standard fica `None`.
+    pub message_group_id: Option<String>,
+    /// Identificador de deduplicação FIFO. `Some` apenas quando aplicável.
+    pub message_deduplication_id: Option<String>,
 }
 
 /// Resultado de `SendMessageBatch`.
@@ -115,6 +119,8 @@ struct PendingMessage {
     id: String,
     body: String,
     attributes: HashMap<String, String>,
+    message_group_id: Option<String>,
+    message_deduplication_id: Option<String>,
     tx: oneshot::Sender<Result<MessageId, SendError>>,
 }
 
@@ -181,11 +187,27 @@ impl SqsProducer {
         body: impl Into<String>,
         attributes: HashMap<String, String>,
     ) -> Result<MessageId, SendError> {
+        self.enqueue(body.into(), attributes, None, None).await
+    }
+
+    /// Enfileira uma mensagem com campos FIFO opcionais.
+    ///
+    /// Usado pelo [`super::fifo_producer::SqsFifoProducer`] após o builder
+    /// type-state ter exigido `message_group_id` em compile-time.
+    pub(crate) async fn enqueue(
+        &self,
+        body: String,
+        attributes: HashMap<String, String>,
+        message_group_id: Option<String>,
+        message_deduplication_id: Option<String>,
+    ) -> Result<MessageId, SendError> {
         let (result_tx, result_rx) = oneshot::channel();
         let msg = PendingMessage {
             id: next_id(),
-            body: body.into(),
+            body,
             attributes,
+            message_group_id,
+            message_deduplication_id,
             tx: result_tx,
         };
         self.tx.send(msg).await.map_err(|_| SendError::Shutdown)?;
@@ -281,6 +303,8 @@ async fn flush(
             id: m.id.clone(),
             message_body: m.body.clone(),
             message_attributes: m.attributes.clone(),
+            message_group_id: m.message_group_id.clone(),
+            message_deduplication_id: m.message_deduplication_id.clone(),
         })
         .collect();
 

@@ -16,4 +16,5 @@
 pub mod consumer;
 pub mod delete;
 pub mod extract;
+pub mod fifo_producer;
 pub mod producer;

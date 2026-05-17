@@ -58,3 +58,58 @@ impl FromExtractor for SqsMetadata {
         })
     }
 }
+
+/// Metadados específicos de uma mensagem de fila **SQS FIFO**.
+///
+/// Expõe os atributos exclusivos do modo FIFO:
+///
+/// - `message_group_id`: identifica o grupo de ordering (obrigatório em FIFO).
+/// - `message_deduplication_id`: identificador de deduplicação (presente quando
+///   enviado explicitamente ou via content-based dedupe).
+/// - `sequence_number`: número de sequência atribuído pelo SQS na entrega.
+///
+/// O extractor falha em runtime se a mensagem **não** vier de uma fila FIFO
+/// (sem `MessageGroupId` nos `attributes`). O compile-time guard que evita esse
+/// erro está na macro `#[subscriber(driver = "sqs", queue = "...", fifo)]`:
+/// ela exige que o handler declare `SqsFifoMetadata` quando `fifo` está
+/// presente, e proíbe o tipo em queues standard.
+#[derive(Debug, Clone)]
+pub struct SqsFifoMetadata {
+    /// Identificador do grupo de ordering FIFO (obrigatório).
+    pub message_group_id: String,
+    /// Identificador de deduplicação (opcional — content-based pode preencher).
+    pub message_deduplication_id: Option<String>,
+    /// Número de sequência atribuído pelo SQS.
+    pub sequence_number: Option<String>,
+}
+
+impl FromExtractor for SqsFifoMetadata {
+    fn from_message(
+        msg: &BrokerMessage,
+        _state: Option<&Arc<dyn Any + Send + Sync>>,
+    ) -> Result<Self, BrokerError> {
+        let raw = msg.headers.get(SQS_METADATA_HEADER).ok_or_else(|| {
+            BrokerError::Subscribe(
+                "SqsFifoMetadata: BrokerMessage was not produced by SqsBroker (header ausente)"
+                    .into(),
+            )
+        })?;
+        let parsed: SqsMessage = serde_json::from_slice(raw).map_err(|e| {
+            BrokerError::Subscribe(format!("SqsFifoMetadata: failed to decode metadata: {e}"))
+        })?;
+
+        let message_group_id = parsed.attributes.get("MessageGroupId").ok_or_else(|| {
+            BrokerError::Subscribe(
+                "SqsFifoMetadata: MessageGroupId ausente — a fila não é FIFO ou \
+                 o atributo não foi propagado pelo Lambda ESM"
+                    .into(),
+            )
+        })?;
+
+        Ok(SqsFifoMetadata {
+            message_group_id: message_group_id.clone(),
+            message_deduplication_id: parsed.attributes.get("MessageDeduplicationId").cloned(),
+            sequence_number: parsed.attributes.get("SequenceNumber").cloned(),
+        })
+    }
+}

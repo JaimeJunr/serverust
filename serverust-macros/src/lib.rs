@@ -635,6 +635,10 @@ struct SubscriberAttr {
     driver: LitStr,
     /// Chave de inscrição: `topic` (kafka) ou `queue` (sqs).
     subscribe_key: LitStr,
+    /// `true` quando o flag `fifo` foi declarado. Só válido para `driver = "sqs"`.
+    fifo: bool,
+    /// Span do flag `fifo` para mensagens de erro precisas.
+    fifo_span: Option<proc_macro2::Span>,
 }
 
 impl Parse for SubscriberAttr {
@@ -645,31 +649,57 @@ impl Parse for SubscriberAttr {
         let mut queue: Option<LitStr> = None;
         let mut topic_span: Option<proc_macro2::Span> = None;
         let mut queue_span: Option<proc_macro2::Span> = None;
+        let mut fifo = false;
+        let mut fifo_span: Option<proc_macro2::Span> = None;
         for meta in metas {
-            let Meta::NameValue(nv) = meta else {
-                return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
-            };
-            let key = nv
-                .path
-                .get_ident()
-                .map(|i| i.to_string())
-                .unwrap_or_default();
-            match key.as_str() {
-                "driver" => driver = Some(expect_lit_str(&nv.value, "driver")?),
-                "topic" => {
-                    topic_span = Some(nv.path.span());
-                    topic = Some(expect_lit_str(&nv.value, "topic")?);
+            match meta {
+                Meta::Path(p) => {
+                    let key = p.get_ident().map(|i| i.to_string()).unwrap_or_default();
+                    match key.as_str() {
+                        "fifo" => {
+                            fifo = true;
+                            fifo_span = Some(p.span());
+                        }
+                        other => {
+                            return Err(syn::Error::new(
+                                p.span(),
+                                format!(
+                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo)"
+                                ),
+                            ));
+                        }
+                    }
                 }
-                "queue" => {
-                    queue_span = Some(nv.path.span());
-                    queue = Some(expect_lit_str(&nv.value, "queue")?);
+                Meta::NameValue(nv) => {
+                    let key = nv
+                        .path
+                        .get_ident()
+                        .map(|i| i.to_string())
+                        .unwrap_or_default();
+                    match key.as_str() {
+                        "driver" => driver = Some(expect_lit_str(&nv.value, "driver")?),
+                        "topic" => {
+                            topic_span = Some(nv.path.span());
+                            topic = Some(expect_lit_str(&nv.value, "topic")?);
+                        }
+                        "queue" => {
+                            queue_span = Some(nv.path.span());
+                            queue = Some(expect_lit_str(&nv.value, "queue")?);
+                        }
+                        other => {
+                            return Err(syn::Error::new(
+                                nv.path.span(),
+                                format!(
+                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo)"
+                                ),
+                            ));
+                        }
+                    }
                 }
                 other => {
                     return Err(syn::Error::new(
-                        nv.path.span(),
-                        format!(
-                            "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue)"
-                        ),
+                        other.span(),
+                        "esperado `key = valor` ou flag `fifo`",
                     ));
                 }
             }
@@ -688,6 +718,12 @@ impl Parse for SubscriberAttr {
                         "`queue` é exclusivo do driver `sqs` — use `topic` para kafka",
                     ));
                 }
+                if let Some(span) = fifo_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "flag `fifo` é exclusivo do driver `sqs`",
+                    ));
+                }
                 let topic = topic.ok_or_else(|| {
                     syn::Error::new(
                         Span::call_site(),
@@ -698,6 +734,8 @@ impl Parse for SubscriberAttr {
                 Ok(SubscriberAttr {
                     driver: driver_lit,
                     subscribe_key: topic,
+                    fifo: false,
+                    fifo_span: None,
                 })
             }
             "sqs" => {
@@ -717,6 +755,8 @@ impl Parse for SubscriberAttr {
                 Ok(SubscriberAttr {
                     driver: driver_lit,
                     subscribe_key: queue,
+                    fifo,
+                    fifo_span,
                 })
             }
             other => Err(syn::Error::new(
@@ -817,6 +857,44 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let fn_name = func.sig.ident.clone();
     let topic_lit = &attrs.subscribe_key;
     let driver_lit = &attrs.driver;
+    let is_fifo = attrs.fifo;
+
+    // Compile-time guard FIFO: `fifo` flag <=> handler usa SqsFifoMetadata.
+    // Inspeciona os parâmetros pelo último segmento do path do tipo.
+    let has_fifo_metadata = func.sig.inputs.iter().any(|arg| {
+        let FnArg::Typed(pt) = arg else {
+            return false;
+        };
+        let Type::Path(tp) = &*pt.ty else {
+            return false;
+        };
+        tp.path
+            .segments
+            .last()
+            .map(|s| s.ident == "SqsFifoMetadata")
+            .unwrap_or(false)
+    });
+
+    if attrs.fifo && !has_fifo_metadata {
+        let span = attrs.fifo_span.unwrap_or_else(|| fn_name.span());
+        return syn::Error::new(
+            span,
+            "subscriber FIFO requer um parâmetro do tipo `SqsFifoMetadata` na assinatura — \
+             adicione `meta: SqsFifoMetadata` ou remova o flag `fifo`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    if !attrs.fifo && has_fifo_metadata && attrs.driver.value() == "sqs" {
+        return syn::Error::new(
+            fn_name.span(),
+            "`SqsFifoMetadata` só pode ser usado em subscribers FIFO — \
+             adicione o flag `fifo` em `#[subscriber(driver = \"sqs\", queue = \"...\", fifo)]`",
+        )
+        .to_compile_error()
+        .into();
+    }
 
     // Extrai `T` do primeiro parâmetro `event: T`.
     let event_ty = match func.sig.inputs.iter().next() {
@@ -857,7 +935,7 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     } else {
         quote! {
             #func
-            router.subscribe::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
+            router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
         }
     };
 
@@ -868,6 +946,7 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
         impl #fn_name {
             pub const SUBSCRIBE_TOPIC: &'static str = #topic_lit;
             pub const DRIVER: &'static str = #driver_lit;
+            pub const IS_FIFO: bool = #is_fifo;
             pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
 
             pub fn register(

@@ -1,0 +1,19 @@
+error: `SqsFifoMetadata` só pode ser usado em subscribers FIFO — adicione o flag `fifo` em `#[subscriber(driver = "sqs", queue = "...", fifo)]`
+ --> tests/ui/fail_metadata_on_standard.rs:8:10
+  |
+8 | async fn handle_standard_with_fifo_metadata(
+  |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `serverust_events::broker::BrokerError`
+ --> tests/ui/fail_metadata_on_standard.rs:3:5
+  |
+3 | use serverust_events::broker::BrokerError;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `serverust_events::sqs::extract::SqsFifoMetadata`
+ --> tests/ui/fail_metadata_on_standard.rs:4:5
+  |
+4 | use serverust_events::sqs::extract::SqsFifoMetadata;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

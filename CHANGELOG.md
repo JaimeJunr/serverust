@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `serverust-events::sqs::extract::SqsFifoMetadata` extractor expondo `message_group_id`, `message_deduplication_id` e `sequence_number` para subscribers FIFO (US-005)
+- `serverust-events::sqs::fifo_producer::SqsFifoProducer` com `FifoSendBuilder` type-state (`NoGroupId` → `HasGroupId`): `send()` só compila após `.message_group_id(...)`, evitando publicação FIFO inválida em runtime (US-005)
+- Macro `#[subscriber(driver = "sqs", queue = "...", fifo)]` valida em compile-time que o handler declara `SqsFifoMetadata`; uso indevido em queue standard ou FIFO sem o flag emite erro de compilação claro (US-005)
+- `SendEntry::message_group_id` e `SendEntry::message_deduplication_id` propagados pelo `SqsProducer` para entregas FIFO (US-005)
 - Trait `Broker` (`subscribe` + `publish` assíncronos) e tipos `BrokerMessage`, `BrokerError`, `BoxedHandler` em `serverust-events/src/broker/mod.rs` (US-1 do workspace `serverust-events`)
 - `KafkaBroker` (rust-rdkafka) atrás da nova feature `kafka` — pavimenta o EventRouter (US-3) sem acoplar `serverust-core` ao Kafka
 - `InMemoryBroker` em `serverust-events/src/broker/in_memory.rs` (feature `in-memory`) — entrega síncrona em memória para testes sem broker físico (US-2)

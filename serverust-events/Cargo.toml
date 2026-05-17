@@ -85,3 +85,11 @@ required-features = ["in-memory"]
 [[test]]
 name = "sqs_producer"
 required-features = ["sqs"]
+
+[[test]]
+name = "sqs_fifo"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs_fifo"
+required-features = ["in-memory", "sqs"]
