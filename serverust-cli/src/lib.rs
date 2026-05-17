@@ -61,9 +61,17 @@ pub fn run(cli: Cli) -> Result<()> {
                 spawn_status(commands::deploy_lambda_cargo_command(arch), "deploy lambda")
             }
         },
-        Command::Info => {
-            println!("{}", commands::info_text());
-            Ok(())
+        Command::Info { asyncapi, out } => {
+            if asyncapi {
+                let out_path = out.unwrap_or_else(|| std::path::PathBuf::from("asyncapi.yaml"));
+                spawn_status(
+                    commands::asyncapi_export_command(&out_path),
+                    "info --asyncapi",
+                )
+            } else {
+                println!("{}", commands::info_text());
+                Ok(())
+            }
         }
         Command::Doctor => {
             let cwd = std::env::current_dir()?;

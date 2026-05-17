@@ -8,6 +8,7 @@
 //! - [`broker::kafka::KafkaBroker`] (feature `kafka`) — implementação Kafka via `rust-rdkafka`.
 //! - [`producer::KafkaProducer`] (feature `kafka-producer`) — producer singleton legado, mantido para v0.1.x.
 
+pub mod asyncapi;
 pub mod broker;
 pub mod extract;
 pub mod kafka;

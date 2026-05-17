@@ -40,6 +40,10 @@ async-trait = "0.1"
 # tokio/time sempre disponível — necessário para sleep no backoff exponencial.
 # Features de runtime (rt, sync, macros) ativas apenas com feature `kafka`.
 tokio = { version = "1", features = ["time"] }
+# Geração de AsyncAPI 3.0 — schemars produz JSON Schema dos tipos serde;
+# serde_yaml serializa o spec final. Deps leves, sem librdkafka.
+schemars = "0.8"
+serde_yaml = "0.9"
 
 # Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
@@ -54,3 +58,5 @@ aws-types = { version = "1", optional = true }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serverust-macros = { path = "../serverust-macros" }
+schemars = "0.8"
+serde_yaml = "0.9"
