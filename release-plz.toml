@@ -1,0 +1,83 @@
+# Configuração do release-plz (https://release-plz.dev).
+#
+# release-plz roda em CI (.github/workflows/release-plz.yml) e:
+#   1. Compara local com crates.io para descobrir o que precisa de release
+#   2. Abre Release PR com bump de versão + CHANGELOG atualizado + tag annotation
+#   3. Quando o Release PR é mergeado, dispara cargo publish + git tag + GitHub Release
+#
+# Tags geradas: `<package_name>-v<version>` (per-crate, estilo tokio/axum).
+# CHANGELOG: gerado por git-cliff (config em cliff.toml).
+# Breaking changes: detectadas por cargo-semver-checks integrado.
+
+[workspace]
+# Conventional Commits opcionais — release-plz usa para bump automático
+# (feat = minor, fix = patch, feat!/BREAKING CHANGE = major).
+changelog_config = "cliff.toml"
+
+# Habilita cargo-semver-checks para detectar breaking changes em código que
+# o autor marcou como `fix:` sem `!:` — protege contra patch release acidental.
+semver_check = true
+
+# Cria GitHub Releases para cada tag. Body = changelog do crate.
+git_release_enable = true
+git_release_type = "auto"  # prerelease se versão tem -alpha/-beta/-rc
+
+# Tag pattern por crate — encaixa com release-plz workflow.
+git_tag_name = "{{ package }}-v{{ version }}"
+
+# Comentário no Release PR explicando o que mudou por crate.
+pr_branch_prefix = "release-plz/"
+pr_labels = ["release"]
+pr_name = "chore: release"
+
+# Atualizações de dependências internas no workspace — bump dependentes quando
+# o crate dependente recebe minor/patch (mantém path-deps consistentes).
+dependencies_update = true
+
+# Crates publicáveis. Listados explicitamente para evitar publicar examples/
+# por engano. release-plz só toca o que está listado.
+[[package]]
+name = "serverust-macros"
+publish = true
+publish_features = []
+
+[[package]]
+name = "serverust-core"
+publish = true
+
+[[package]]
+name = "serverust-telemetry"
+publish = true
+
+[[package]]
+name = "serverust-events"
+publish = true
+
+[[package]]
+name = "serverust-lambda"
+publish = true
+
+[[package]]
+name = "serverust-cli"
+publish = true
+
+# Crates internas que NÃO devem ser publicadas (examples, baselines).
+[[package]]
+name = "hello-world"
+publish = false
+release = false
+
+[[package]]
+name = "funds-api"
+publish = false
+release = false
+
+[[package]]
+name = "todo-api"
+publish = false
+release = false
+
+[[package]]
+name = "kafka-wallet"
+publish = false
+release = false

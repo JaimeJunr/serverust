@@ -57,27 +57,23 @@ A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada
 
 ## Publicação
 
-### Opção A — `cargo-release` (recomendado, atômico)
+### Opção A — `release-plz` (recomendado, automatizado via CI)
 
-`cargo-release` é o wrapper que tokio e maintainers Rust top usam. Configurado em `release.toml`.
+[`release-plz`](https://release-plz.dev) é Rust-native (inspirado pelo Google `release-please` mas otimizado pra Rust). Roda automaticamente em CI:
 
-```bash
-# Instalar uma vez:
-cargo install cargo-release
+1. **Você merge commits** no `main` seguindo Conventional Commits (`feat:`, `fix:`, `chore:`).
+2. **release-plz abre um Release PR** com bump de versão (per-crate, baseado nos commits) + CHANGELOG atualizado via git-cliff + breaking changes detectadas via cargo-semver-checks.
+3. **Você mergea o Release PR** → release-plz dispara `cargo publish` (na ordem certa) + cria git tags `<crate>-v<X.Y.Z>` + abre GitHub Release.
 
-# Patch release de um crate específico:
-cargo release patch -p serverust-events --execute
+Configuração:
+- `release-plz.toml` na raiz — quais crates publicar, política de tags.
+- `cliff.toml` na raiz — template do CHANGELOG.
+- `.github/workflows/release-plz.yml` — CI workflow.
+- Secret `CARGO_REGISTRY_TOKEN` no environment GitHub (gere em https://crates.io/me).
 
-# Workspace inteiro (bump major/minor/patch em tudo que mudou):
-cargo release patch --workspace --execute
+Trigger manual: vá em Actions → release-plz → "Run workflow".
 
-# Dry-run (default, sem --execute):
-cargo release patch --workspace
-```
-
-`cargo-release` faz tudo em uma corrida: bump → CHANGELOG date → commit → tag SSH-signed (`<crate>-v<X.Y.Z>`) → push → `cargo publish` na ordem certa.
-
-### Opção B — `cargo publish --workspace` (Cargo 1.90+)
+### Opção B — `cargo publish --workspace` (manual, Cargo 1.90+)
 
 A partir de Cargo 1.90 (Nov 2025) o `cargo publish` aceita `--workspace` e resolve ordem de dependência sozinho:
 
@@ -86,7 +82,7 @@ cargo publish --workspace            # publica TODOS os crates do workspace
 cargo publish -p serverust-macros -p serverust-core   # subset selecionado
 ```
 
-Diferença vs Opção A: não faz bump/tag, só publica. Pré-requisito: versões já bumpadas e commit feito.
+Use quando precisar de publish ad-hoc sem passar por release-plz. Pré-requisito: versões já bumpadas e commit feito.
 
 ### Opção C — Manual sequencial (legado v0.3.x)
 

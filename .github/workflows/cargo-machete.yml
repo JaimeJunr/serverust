@@ -1,0 +1,20 @@
+name: cargo-machete
+
+on:
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "**/Cargo.lock"
+      - "**/*.rs"
+      - ".github/workflows/cargo-machete.yml"
+  schedule:
+    # Cron semanal para pegar deps removidas/órfãs no ecossistema.
+    - cron: "17 6 * * 1"
+
+jobs:
+  machete:
+    name: Find unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bnjbvr/cargo-machete@main

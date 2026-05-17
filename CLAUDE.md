@@ -26,17 +26,23 @@ Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR ap
 
 A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Tag por crate `<crate-name>-vX.Y.Z`. Pré-v0.4 usava workspace-wide unified versioning.
 
-### Fluxo recomendado (cargo-release)
+### Fluxo recomendado (release-plz, automatizado via CI)
 
-```bash
-# Patch release de um crate específico:
-cargo release patch -p serverust-events --execute
+[`release-plz`](https://release-plz.dev) é Rust-native, dispara automaticamente:
 
-# Workspace inteiro (bump + tag + publish na ordem certa, tudo atômico):
-cargo release patch --workspace --execute
-```
+1. Merge commits seguindo Conventional Commits (`feat:`, `fix:`, `chore:`) no `main`.
+2. release-plz abre Release PR com bump per-crate + CHANGELOG via git-cliff + cargo-semver-checks.
+3. Merge do Release PR → `cargo publish` (ordem certa) + git tags `<crate>-v<X.Y.Z>` + GitHub Release.
 
-`cargo-release` (config em `release.toml`) faz: bump → CHANGELOG date → commit → tag SSH-signed → push → `cargo publish` na ordem de dependência.
+Configs:
+- `release-plz.toml` — quais crates publicar, política de tags.
+- `cliff.toml` — template CHANGELOG.
+- `cog.toml` — Conventional Commits via cocogitto.
+- `.github/workflows/release-plz.yml` — CI workflow.
+
+Pré-flight: secret `CARGO_REGISTRY_TOKEN` (gere em https://crates.io/me).
+
+Trigger manual: Actions → release-plz → "Run workflow".
 
 ### Fluxo manual (alternativa)
 

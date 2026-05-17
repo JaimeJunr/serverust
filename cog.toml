@@ -1,0 +1,42 @@
+# Configuração do cocogitto (https://docs.cocogitto.io).
+#
+# cocogitto é o linter de Conventional Commits Rust-native.
+# Usado pelo lefthook (commit-msg hook) e pelo CI (.github/workflows/commitlint.yml).
+#
+# Validar histórico: cog check
+# Validar próximo commit message: cog verify "feat(scope): message"
+
+# Tipos permitidos (Conventional Commits v1.0 + Angular convention).
+[commit_types]
+feat = { changelog_title = "Features" }
+fix = { changelog_title = "Bug Fixes" }
+perf = { changelog_title = "Performance" }
+refactor = { changelog_title = "Refactoring" }
+docs = { changelog_title = "Documentation" }
+test = { changelog_title = "Tests" }
+build = { changelog_title = "Build System" }
+ci = { changelog_title = "Continuous Integration" }
+chore = { changelog_title = "Chores" }
+revert = { changelog_title = "Reverts" }
+style = { changelog_title = "Style" }
+
+# Scopes recomendados (monorepo). cog verify warns se scope desconhecido.
+# Lista vazia = qualquer scope aceito; descomente para enforcement estrito futuro.
+# scopes = ["core", "macros", "events", "telemetry", "lambda", "cli", "examples", "docs", "ci"]
+
+# Política do tag — bate com release-plz.
+tag_prefix = ""
+post_bump_hooks = []
+
+# Branch base. cog check valida histórico contra a branch atual.
+branch_whitelist = ["main", "release-plz/*", "ralph/*", "ci/*", "chore/*", "fix/*", "feat/*", "docs/*"]
+
+# Permite merge commits e revert commits sem enforcement estrito.
+ignore_merge_commits = true
+
+[changelog]
+authors = []
+template = "remote"
+remote = "github.com"
+repository = "serverust"
+owner = "JaimeJunr"
