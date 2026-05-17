@@ -10,6 +10,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Trait `Broker` (`subscribe` + `publish` assíncronos) e tipos `BrokerMessage`, `BrokerError`, `BoxedHandler` em `serverust-events/src/broker/mod.rs` (US-1 do workspace `serverust-events`)
+- `KafkaBroker` (rust-rdkafka) atrás da nova feature `kafka` — pavimenta o EventRouter (US-3) sem acoplar `serverust-core` ao Kafka
+- `InMemoryBroker` em `serverust-events/src/broker/in_memory.rs` (feature `in-memory`) — entrega síncrona em memória para testes sem broker físico (US-2)
+- `EventRouter` builder programático em `serverust-events/src/router.rs`: `subscribe::<T, _>(topic, handler)` com decodificação JSON, `with_retry(RetryPolicy)`, `with_dlq(topic)`, `attach(&broker)` aceitando qualquer `impl Broker` (US-3)
+- `RetryPolicy` (variants `Immediate` / `Exponential`) em `serverust-events/src/retry.rs` — tipo público consumido pelo `EventRouter::with_retry`; aplicação runtime fica em US-5
+- `EventRouter::subscribe_publish::<T, U, _, _>(sub_topic, pub_topic, handler)` em `serverust-events/src/router.rs` — registra handler que serializa `Ok(U)` e publica em `pub_topic` (US-6)
+- Macros `#[subscriber(topic = "...")]` e `#[publisher(topic = "...")]` empilháveis em `serverust-macros/src/lib.rs` — emitem código baseado no builder `EventRouter::subscribe` / `subscribe_publish`, sem registro runtime (US-6)
+- `Runtime::detect()` em `serverust-events/src/runtime.rs` — diferencia execução em AWS Lambda (`AWS_LAMBDA_FUNCTION_NAME` presente) de processos long-running (ECS/EC2) sem acoplar o EventRouter ao adapter (US-7)
+- `LambdaBroker` em `serverust-events/src/broker/lambda.rs` — broker sink-only que despacha `aws_lambda_events::KafkaEvent` para handlers inscritos via `handle_kafka_event`. Independente da feature `kafka` (não puxa rdkafka), pronto para uso direto em Lambda Functions (US-7)
+- `KafkaBroker::dispatch(BrokerMessage)` em `serverust-events/src/broker/kafka.rs` — primitiva consumida pelo consumer loop long-running, testada de forma isolada sem broker físico (US-7)
+- Módulo `asyncapi` em `serverust-events/src/asyncapi.rs`: `AsyncApiBuilder` que gera spec [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0) com `channels` (tópicos), `operations` (`receive`/`send`) e `components` (messages + JSON Schema embarcado via `schemars`); `AsyncApiSpec::to_yaml()` serializa YAML válido (US-8)
+- Subcomando `serverust info --asyncapi [--out path]` em `serverust-cli` — spawna `cargo run -- --serverust-emit-asyncapi <out>` para extrair o spec do binário do projeto sem subir consumer/producer (US-8)
+
+### Changed
+- Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes
+
 ## [0.2.0] - 2026-05-16
 
 ### Added

@@ -44,6 +44,20 @@ pub fn openapi_export_command(out: &Path) -> Command {
     cmd
 }
 
+/// `cargo run --quiet -- --serverust-emit-asyncapi <out>` — extrai o spec
+/// AsyncAPI 3.0 do binário do projeto. O `main` do projeto detecta a flag,
+/// monta o `AsyncApiBuilder` com os tipos de evento da aplicação, grava o
+/// YAML em `<out>` e sai sem subir consumer/producer.
+pub fn asyncapi_export_command(out: &Path) -> Command {
+    let mut cmd = Command::new("cargo");
+    cmd.arg("run")
+        .arg("--quiet")
+        .arg("--")
+        .arg("--serverust-emit-asyncapi")
+        .arg(out);
+    cmd
+}
+
 /// `openapi-generator-cli generate -g <lang> -i <input> -o <out>`.
 pub fn openapi_client_command(lang: OpenapiClientLang, input: &Path, out: &Path) -> Command {
     let mut cmd = Command::new("openapi-generator-cli");

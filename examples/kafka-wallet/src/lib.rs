@@ -1,17 +1,13 @@
-//! Handler kafka-wallet: consome WalletEvent, persiste em DynamoDB e publica
-//! resultado em outra fila Kafka. Tudo via APIs do serverust — sem boilerplate.
+//! Handler kafka-wallet: consome WalletEvent e persiste saldo em DynamoDB.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
-use serverust_core::events::EventError;
-use serverust_core::extract::State;
-use serverust_events::kafka::KafkaRecord;
-use serverust_events::producer::KafkaProducer;
-use serverust_macros::{dynamo_table, kafka_consumer};
+use serverust_events::broker::BrokerError;
+use serverust_macros::{dynamo_table, subscriber};
 use serverust_telemetry::dynamo::DynamoRepo;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct WalletEvent {
     pub user_id: String,
     pub amount: i64,
@@ -25,51 +21,48 @@ pub struct Wallet {
     pub balance: i64,
 }
 
-#[derive(Debug, Serialize)]
-pub struct WalletResult {
-    pub user_id: String,
-    pub new_balance: i64,
-    pub status: &'static str,
+// Singleton do repositório — warm-start seguro para Lambda e long-running.
+static REPO: OnceLock<Arc<DynamoRepo<Wallet>>> = OnceLock::new();
+
+/// Inicializa o repositório DynamoDB antes de `attach` ser chamado.
+pub fn init_repo(repo: Arc<DynamoRepo<Wallet>>) {
+    if REPO.set(repo).is_err() {
+        panic!("REPO already initialized");
+    }
 }
 
-#[kafka_consumer(topic = "wallet.events", group = "wallet-processor")]
-pub async fn handle_wallet(
-    record: KafkaRecord<WalletEvent>,
-    State(repo): State<Arc<DynamoRepo<Wallet>>>,
-) -> Result<(), EventError> {
-    let event = record.payload;
+/// Processa WalletEvent e persiste o saldo atualizado em DynamoDB.
+///
+/// Para publicar resultados em `wallet.results` a partir do modo Lambda, use
+/// um `KafkaBroker` (feature `kafka`) ou `KafkaProducer` explicitamente —
+/// `LambdaBroker` é sink-only e não pode publicar de volta ao Kafka.
+#[subscriber(topic = "wallet.events")]
+pub async fn handle_wallet(event: WalletEvent) -> Result<(), BrokerError> {
+    let repo = REPO
+        .get()
+        .ok_or_else(|| BrokerError::Configuration("call init_repo before attach".into()))?;
+
     let current = repo
         .get(event.user_id.clone())
         .await
-        .map_err(|e| EventError(e.to_string()))?
+        .map_err(|e| BrokerError::Transport(e.to_string()))?
         .unwrap_or(Wallet {
             user_id: event.user_id.clone(),
             balance: 0,
         });
+
     let new_balance = match event.operation.as_str() {
         "credit" => current.balance + event.amount,
         "debit" => current.balance - event.amount,
-        op => return Err(EventError(format!("unknown operation: {op}"))),
+        op => return Err(BrokerError::Subscribe(format!("unknown operation: {op}"))),
     };
-    let updated = Wallet {
+
+    repo.put(&Wallet {
         user_id: event.user_id.clone(),
         balance: new_balance,
-    };
-    repo.put(&updated)
-        .await
-        .map_err(|e| EventError(e.to_string()))?;
-    let producer = KafkaProducer::from_env().map_err(|e| EventError(e.to_string()))?;
-    producer
-        .publish(
-            "wallet.results",
-            &updated.user_id,
-            &WalletResult {
-                user_id: event.user_id,
-                new_balance,
-                status: "processed",
-            },
-        )
-        .await
-        .map_err(|e| EventError(e.to_string()))?;
+    })
+    .await
+    .map_err(|e| BrokerError::Transport(e.to_string()))?;
+
     Ok(())
 }

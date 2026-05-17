@@ -1,8 +1,8 @@
 # Análise Competitiva — actix-web
 
 > Última atualização: 2026-05-16
-> Versão analisada: actix-web v4.9.0 (novembro 2024)
-> Fonte: https://actix.rs · https://github.com/actix/actix-web/releases/tag/web-v4.9.0
+> Versão analisada: actix-web v4.13.0 (maio 2026)
+> Fonte: https://actix.rs · https://github.com/actix/actix-web/releases
 
 ---
 
@@ -27,6 +27,13 @@ actix-web é o framework web Rust mais utilizado em produção. Proposta de valo
 | WebSockets | Suporte nativo via actix-web-actors |
 
 actix-web é a escolha certa quando o requisito é throughput HTTP máximo em servidor long-running.
+
+### Mudanças notáveis em v4.10 – v4.13 (atualização 2026-05-16)
+
+- **MSRV elevado para Rust 1.88** (a partir de v4.12): projetos com toolchain fixo precisam atualizar.
+- **Throughput HTTP/2 melhorado**: novos parâmetros `h2_initial_window_size` e `h2_initial_connection_window_size` no `HttpServer` permitem ajuste fino do controle de fluxo — ganhos mensuráveis em streams de alta throughput.
+- **Security fix actix-http v3.12.1**: corrigido request smuggling via cabeçalhos `Content-Length` + `Transfer-Encoding` simultâneos. Atualização obrigatória para quem expõe actix-web diretamente à internet.
+- **`experimental-introspection` feature**: lista rotas registradas em runtime — funcionalidade comparável ao OpenAPI automático do serverust, mas experimental, opt-in, e sem schema de tipos nem Scalar UI integrado.
 
 ---
 
