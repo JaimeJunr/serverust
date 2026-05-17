@@ -21,7 +21,15 @@ in-memory = []
 # Habilita o adapter SQS (consumer Lambda ESM). Não puxa C deps — só ativa o
 # módulo `sqs` e a feature `sqs` de `aws_lambda_events` (deserialização de
 # `SqsEvent`/`SqsBatchResponse`). `serverust-core` continua sem dep de SQS.
-sqs = ["aws_lambda_events/sqs", "tokio/sync", "tokio/rt", "tokio/macros"]
+sqs = [
+    "aws_lambda_events/sqs",
+    "tokio/sync",
+    "tokio/rt",
+    "tokio/macros",
+    "dep:tower",
+    "dep:pin-project-lite",
+    "dep:serverust-telemetry",
+]
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
 # só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
 kafka = [
@@ -49,6 +57,12 @@ tokio = { version = "1", features = ["time"] }
 # Geração de AsyncAPI 3.0 — opt-in via feature `asyncapi`. Leves, sem C deps.
 schemars = { version = "0.8", optional = true }
 serde_yaml = { version = "0.9", optional = true }
+# Tower pipeline (feature `sqs`). Mantém o build default leve.
+tower = { version = "0.5", features = ["util"], optional = true }
+pin-project-lite = { version = "0.2", optional = true }
+# Telemetria reusada pelos Tower layers (feature `sqs`). Default features mantém
+# o build leve (sem otel/dynamodb).
+serverust-telemetry = { path = "../serverust-telemetry", version = "0.2.0", optional = true }
 
 # Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
@@ -93,3 +107,7 @@ required-features = ["sqs"]
 [[test]]
 name = "macros_sqs_fifo"
 required-features = ["in-memory", "sqs"]
+
+[[test]]
+name = "sqs_tower"
+required-features = ["sqs"]

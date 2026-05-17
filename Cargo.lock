@@ -2699,14 +2699,17 @@ dependencies = [
  "aws-types",
  "aws_lambda_events",
  "base64",
+ "pin-project-lite",
  "rdkafka",
  "schemars 0.8.22",
  "serde",
  "serde_json",
  "serde_yaml",
  "serverust-macros",
+ "serverust-telemetry",
  "thiserror 1.0.69",
  "tokio",
+ "tower",
 ]
 
 [[package]]
@@ -2759,6 +2762,7 @@ dependencies = [
  "opentelemetry",
  "opentelemetry-aws",
  "opentelemetry_sdk",
+ "pin-project-lite",
  "serde",
  "serde_json",
  "serverust-macros",

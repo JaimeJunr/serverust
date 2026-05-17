@@ -46,6 +46,7 @@ pub mod dynamo;
 pub mod emf;
 pub mod idempotency;
 pub mod logger;
+pub mod tower;
 
 #[cfg(feature = "otel")]
 pub mod otel;
