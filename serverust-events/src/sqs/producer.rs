@@ -30,6 +30,7 @@ use async_trait::async_trait;
 use thiserror::Error;
 use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
+use tracing::{error, warn};
 
 static MSG_COUNTER: AtomicU64 = AtomicU64::new(0);
 fn next_id() -> String {
@@ -321,21 +322,22 @@ async fn flush(
                 }
                 let failed_set: HashSet<_> = result.failed.into_iter().collect();
                 to_send.retain(|e| failed_set.contains(&e.id));
-                eprintln!(
-                    "[serverust-events] sqs producer partial failure \
-                     (attempt {attempt}/{}): {} entrada(s) retentando",
-                    config.max_retries,
-                    to_send.len()
+                warn!(
+                    attempt,
+                    max_retries = config.max_retries,
+                    retrying = to_send.len(),
+                    "sqs producer partial failure; retentando",
                 );
                 if attempt < config.max_retries && !config.base_backoff.is_zero() {
                     tokio::time::sleep(config.base_backoff * 2u32.pow(attempt - 1)).await;
                 }
             }
             Err(e) => {
-                eprintln!(
-                    "[serverust-events] sqs producer send error \
-                     (attempt {attempt}/{}): {e}",
-                    config.max_retries
+                error!(
+                    attempt,
+                    max_retries = config.max_retries,
+                    error = %e,
+                    "sqs producer send error",
                 );
                 if attempt < config.max_retries && !config.base_backoff.is_zero() {
                     tokio::time::sleep(config.base_backoff * 2u32.pow(attempt - 1)).await;

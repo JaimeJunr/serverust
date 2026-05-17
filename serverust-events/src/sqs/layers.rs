@@ -47,6 +47,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use aws_lambda_events::event::sqs::SqsMessage;
 use serverust_telemetry::IdempotencyStore;
+use tracing::warn;
 use serverust_telemetry::idempotency::AcquireOutcome;
 use tower::{Layer, Service};
 
@@ -251,6 +252,12 @@ where
         Box::pin(async move {
             let key = req.message_id.clone().unwrap_or_default();
             if key.is_empty() {
+                // Bypass de idempotência intencional: sem chave estável, qualquer
+                // tentativa de dedupe produziria falsos positivos. Sinaliza a
+                // configuração inesperada para o operador detectar fonte sem ID.
+                warn!(
+                    "idempotency bypass: SqsMessage sem message_id; handler executará sem dedupe",
+                );
                 return inner.call(req).await;
             }
 

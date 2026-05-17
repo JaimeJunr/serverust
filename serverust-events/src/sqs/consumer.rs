@@ -39,6 +39,7 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use aws_lambda_events::event::sqs::{SqsBatchResponse, SqsEvent, SqsMessage};
+use tracing::warn;
 
 use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage};
 
@@ -135,9 +136,10 @@ impl SqsBroker {
                 if let Some(id) = raw.message_id.clone() {
                     response.add_failure(id);
                 } else {
-                    eprintln!(
-                        "[serverust-events] sqs message in queue {queue} failed but has no message_id; \
-                         Lambda will retry the whole batch. Underlying error: {e}"
+                    warn!(
+                        queue = %queue,
+                        error = %e,
+                        "sqs message failed but has no message_id; Lambda will retry the whole batch",
                     );
                 }
             }
@@ -206,10 +208,22 @@ pub(crate) fn build_broker_message(queue: &str, msg: &SqsMessage) -> BrokerMessa
         .get("SentTimestamp")
         .and_then(|v| v.parse::<i64>().ok());
 
-    let metadata_json = serde_json::to_vec(msg).expect("SqsMessage is always serializable");
-
+    // SqsMessage é `Serialize` por definição (aws_lambda_events), então isso só
+    // falha em situações patológicas (alocação). Degrada graciosamente: o header
+    // de metadata fica ausente e o `SqsMetadata` extractor retornará erro claro.
     let mut headers: HashMap<String, Vec<u8>> = HashMap::new();
-    headers.insert(SQS_METADATA_HEADER.to_string(), metadata_json);
+    match serde_json::to_vec(msg) {
+        Ok(metadata_json) => {
+            headers.insert(SQS_METADATA_HEADER.to_string(), metadata_json);
+        }
+        Err(e) => {
+            warn!(
+                message_id = msg.message_id.as_deref().unwrap_or("<none>"),
+                error = %e,
+                "falha ao serializar SqsMessage para metadata header; SqsMetadata extractor falhará",
+            );
+        }
+    }
 
     BrokerMessage {
         topic: queue.to_string(),
