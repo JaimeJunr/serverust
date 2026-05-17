@@ -17,6 +17,7 @@ pub mod consumer;
 pub mod delete;
 pub mod extract;
 pub mod fifo_producer;
+pub mod heartbeat;
 pub mod layers;
 pub mod producer;
 pub mod subscriber;
