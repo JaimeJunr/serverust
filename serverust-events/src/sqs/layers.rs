@@ -280,6 +280,12 @@ where
 /// mensagens órfãs.
 pub const FAILURE_REASON_ATTR: &str = "_serverust_failure_reason";
 
+/// Nome canônico da métrica EMF emitida pelo [`DlqLayer`] (família
+/// `serverust.sqs.*`). Exposto como constante para ser referenciado por
+/// outros componentes (ex.: [`super::observability`]) sem duplicar o
+/// literal.
+pub const DLQ_ROUTED_METRIC: &str = "serverust.sqs.dlq_routed";
+
 /// Cliente abstrato que envia uma mensagem para uma fila DLQ.
 ///
 /// Implementações reais delegam para `aws_sdk_sqs::Client::send_message`. Em
@@ -442,7 +448,7 @@ fn emit_dlq_metric(
     handler: &str,
 ) {
     let metric = DlqMetric {
-        metric_name: "serverust.sqs.dlq_routed",
+        metric_name: DLQ_ROUTED_METRIC,
         queue: queue.to_string(),
         handler: handler.to_string(),
         value: 1.0,

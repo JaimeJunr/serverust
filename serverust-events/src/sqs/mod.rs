@@ -19,6 +19,7 @@ pub mod extract;
 pub mod fifo_producer;
 pub mod heartbeat;
 pub mod layers;
+pub mod observability;
 pub mod producer;
 pub mod standalone;
 pub mod subscriber;
