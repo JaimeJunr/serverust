@@ -84,7 +84,9 @@ where
             for attempt in 0..max_attempts {
                 if attempt > 0 {
                     if let Some(RetryPolicy::Exponential { base_delay, .. }) = &retry {
-                        let delay = *base_delay * 2u32.pow(attempt - 1);
+                        // Saturate exponent at 31 to avoid u32 overflow (2^32 panics in debug).
+                        let exponent = (attempt - 1).min(31);
+                        let delay = *base_delay * 2u32.pow(exponent);
                         tokio::time::sleep(delay).await;
                     }
                 }
@@ -96,7 +98,11 @@ where
 
             // Todas as tentativas falharam — publicar no DLQ se configurado.
             if let Some(dlq_topic) = &dlq {
-                let _ = broker.publish(dlq_topic, &msg.payload).await;
+                if let Err(dlq_err) = broker.publish(dlq_topic, &msg.payload).await {
+                    // DLQ write failure: log to stderr so operators can detect it.
+                    // The original handler error is returned regardless.
+                    eprintln!("[serverust-events] DLQ publish to '{dlq_topic}' failed: {dlq_err}");
+                }
             }
             Err(last_err.unwrap_or_else(|| BrokerError::Subscribe("sem tentativas".to_string())))
         })

@@ -137,14 +137,30 @@ mod kafka_broker_tests {
 
     #[test]
     fn kafka_broker_falha_quando_brokers_ausentes() {
-        // Garante isolamento mesmo que o ambiente injete a env.
-        // SAFETY: testes single-threaded por escopo do harness; a env é
-        // restaurada no fim do bloco.
+        // Salva valores anteriores para restaurar após o teste e evitar
+        // interferência com outros testes que podem rodar em paralelo.
+        let prev_msk = std::env::var("MSK_BOOTSTRAP_SERVERS").ok();
+        let prev_kafka = std::env::var("KAFKA_BROKERS").ok();
+
         unsafe {
             std::env::remove_var("MSK_BOOTSTRAP_SERVERS");
             std::env::remove_var("KAFKA_BROKERS");
         }
-        match KafkaBroker::from_env() {
+
+        let result = KafkaBroker::from_env();
+
+        unsafe {
+            match prev_msk {
+                Some(v) => std::env::set_var("MSK_BOOTSTRAP_SERVERS", v),
+                None => std::env::remove_var("MSK_BOOTSTRAP_SERVERS"),
+            }
+            match prev_kafka {
+                Some(v) => std::env::set_var("KAFKA_BROKERS", v),
+                None => std::env::remove_var("KAFKA_BROKERS"),
+            }
+        }
+
+        match result {
             Ok(_) => panic!("sem brokers, deve falhar"),
             Err(err) => assert!(matches!(err, BrokerError::Configuration(_))),
         }

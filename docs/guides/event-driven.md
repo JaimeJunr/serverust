@@ -21,8 +21,9 @@ Este guia cobre as APIs event-driven do `serverust-events` introduzidas no v0.2.
 A trait `Broker` define o contrato mínimo de qualquer transporte:
 
 ```rust
+use std::sync::Arc;
 use async_trait::async_trait;
-use serverust_events::broker::{Broker, BrokerError, BrokerMessage};
+use serverust_events::broker::{Broker, BrokerError, BrokerMessage, HandlerFuture};
 
 #[async_trait]
 impl Broker for MeuBroker {
@@ -72,8 +73,9 @@ assert_eq!(msgs.len(), 1);
 Registre handlers de forma fluente sem macros:
 
 ```rust
-use serverust_events::{router::EventRouter, retry::RetryPolicy};
+use std::sync::Arc;
 use std::time::Duration;
+use serverust_events::{router::EventRouter, retry::RetryPolicy};
 
 EventRouter::new()
     .subscribe::<OrderCreated, _, _>("orders.created", handle_order)

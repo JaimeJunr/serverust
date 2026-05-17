@@ -1,10 +1,10 @@
 //! Política de retentativa para inscrições do [`crate::router::EventRouter`].
 //!
-//! Esta US-3 introduz **apenas o tipo** público `RetryPolicy` para que o
-//! builder seja capaz de aceitar `with_retry(...)` na API fluente. A lógica
-//! de aplicação (loop de retentativas, jitter, integração com DLQ) é
-//! escopo de US-5 — manter este módulo livre de dependências runtime
-//! preserva o invariante de cold start do `serverust-core`.
+//! `RetryPolicy` é aplicada pelo [`crate::router::EventRouter::attach`]:
+//! tentativas imediatas (`Immediate`) ou com backoff exponencial
+//! (`Exponential`). Após esgotamento, a mensagem é publicada no DLQ
+//! configurado via [`RetryPolicy::dead_letter`] ou
+//! [`crate::router::EventRouter::with_dlq`], se houver.
 
 use std::time::Duration;
 

@@ -62,6 +62,9 @@ pub fn run(cli: Cli) -> Result<()> {
             }
         },
         Command::Info { asyncapi, out } => {
+            if out.is_some() && !asyncapi {
+                anyhow::bail!("`--out` requer `--asyncapi`. Use: serverust info --asyncapi --out <arquivo>");
+            }
             if asyncapi {
                 let out_path = out.unwrap_or_else(|| std::path::PathBuf::from("asyncapi.yaml"));
                 spawn_status(

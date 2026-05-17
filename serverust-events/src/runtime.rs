@@ -25,7 +25,7 @@
 //!         # /*
 //!         let broker = Arc::new(KafkaBroker::from_env()?);
 //!         router.attach(broker.clone()).await?;
-//!         broker.run_consumer_loop().await?;
+//!         // loop { let msg = poll_rdkafka(); broker.dispatch(msg).await?; }
 //!         # */
 //!     }
 //! }

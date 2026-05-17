@@ -12,10 +12,13 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 ## Produto
 
-- [**product/prd.md**](product/prd.md) — Product Requirements Document completo. 11 user stories, 11 requisitos funcionais, success metrics, Decision Log.
-- [**product/stories.json**](product/stories.json) — User stories estruturadas (JSON usado pelo Ralph loop). Útil para integração com ferramentas.
+- [**product/vision.md**](product/vision.md) — O que é, por que existe, objetivos mensuráveis, princípios de design e não-objetivos.
+- [**product/roadmap.md**](product/roadmap.md) — O que foi entregue (v0.1.x, v0.2.0) e o que está planejado (v0.3, v0.4, backlog).
+- [**product/competitors/axum.md**](product/competitors/axum.md) — Análise de Axum: mesma stack Tower/Tokio, gaps em DI nativa, OpenAPI e Lambda.
+- [**product/competitors/actix.md**](product/competitors/actix.md) — Análise de actix-web v4.13.0: pontos fortes, gaps vs serverust e quando cada um faz sentido.
 - [**product/competitors/rocket.md**](product/competitors/rocket.md) — Análise de Rocket v0.5.1: pontos fortes, gaps vs serverust e quando cada um faz sentido.
 - [**product/competitors/loco.md**](product/competitors/loco.md) — Análise de Loco.rs v0.16.3: pontos fortes, gaps vs serverust e quando cada um faz sentido.
+- [**product/metrics/**](product/metrics/) — SLOs publicados e histórico de benchmarks por versão.
 
 ## Arquitetura
 
@@ -28,8 +31,8 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 ## Desenvolvimento
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
-- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines).
-- [**development/ralph-progress.md**](development/ralph-progress.md) — Log de execução do Ralph Loop. Codebase Patterns no topo + relato detalhado de cada user story (US-001 a US-011) com aprendizados.
+- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines), 0006 (rdkafka vs RSKafka), 0007 (event API design).
+- [**development/ralph-progress.md**](development/ralph-progress.md) — Learnings de implementação por versão. Codebase Patterns + relato detalhado por user story com o que funcionou e o que não funcionou.
 
 ## Guia para Contribuidores e AI Agents
 
@@ -39,16 +42,16 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 - **Usando o framework pela primeira vez?** [guides/getting-started.md](guides/getting-started.md) → [guides/lambda-tutorial.md](guides/lambda-tutorial.md).
 - **Quer entender a arquitetura?** [architecture/overview.md](architecture/overview.md) → diagramas em [architecture/diagrams/](architecture/diagrams/).
-- **Contribuindo com código?** [development/decisions.md](development/decisions.md) (padrões fechados) → [development/ralph-progress.md](development/ralph-progress.md) (exemplos do que funcionou).
-- **Entendendo o "porquê"?** [product/prd.md](product/prd.md), especialmente seções 6 (Design Considerations) e 7 (Technical Considerations).
+- **Contribuindo com código?** [development/decisions/](development/decisions/) (ADRs) → [development/ralph-progress.md](development/ralph-progress.md) (learnings de implementação).
+- **Entendendo o "porquê"?** [product/vision.md](product/vision.md) (filosofia e objetivos) → [product/roadmap.md](product/roadmap.md) (o que foi construído e por quê).
 - **Referência completa de API?** `cargo doc --workspace --no-deps --open`.
 
 ## Histórico de versões
 
 - [**../CHANGELOG.md**](../CHANGELOG.md) — Histórico completo de mudanças por versão (Keep a Changelog 1.1.0).
 
-## Sobre estes artefatos
+## Sobre esta documentação
 
-Os documentos em `docs/` são o **snapshot publicável** do MVP do framework. Foram gerados a partir do PRD original via Ralph Loop e estão consolidados aqui para a comunidade.
+Os documentos em `docs/` são a documentação pública do framework — visão de produto, guias de uso, arquitetura e learnings de implementação.
 
-Edições humanas vão direto em `docs/`. Diagramas `.excalidraw` podem ser editados em [excalidraw.com](https://excalidraw.com) ou no app desktop — os PNGs ao lado servem só como preview.
+Artefatos de planejamento (PRDs, stories JSON, progress logs brutos) ficam em `.ralph/` e não pertencem aqui. Edições humanas vão direto em `docs/`. Diagramas `.excalidraw` podem ser editados em [excalidraw.com](https://excalidraw.com) ou no app desktop — os PNGs ao lado servem só como preview.

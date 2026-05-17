@@ -35,13 +35,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             .await?;
         }
         Runtime::LongRunning => {
-            // Modo long-running usa KafkaBroker (feature `kafka`) com loop de poll.
-            // Exemplo: let broker = Arc::new(KafkaBroker::from_env()?);
-            //          router.attach(broker.clone()).await?;
-            //          // chamar broker.dispatch(msg) para cada msg recebida via rdkafka
-            eprintln!(
-                "Long-running mode: configure KafkaBroker (feature `kafka`) e dispatch loop."
-            );
+            // Modo long-running: habilite a feature `kafka` e use KafkaBroker.
+            // let broker = Arc::new(KafkaBroker::from_env()?);
+            // router.attach(broker.clone()).await?;
+            // loop { let msg = poll_rdkafka(&broker); broker.dispatch(msg).await?; }
+            //
+            // Sem a feature `kafka`, este exemplo é Lambda-only.
+            eprintln!("Long-running mode não configurado: habilite a feature `kafka` e implemente o poll loop.");
+            std::process::exit(1);
         }
     }
     Ok(())

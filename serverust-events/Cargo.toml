@@ -14,6 +14,8 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 
 [features]
 default = []
+# Geração de spec AsyncAPI 3.0. Puxa schemars + serde_yaml (leves, sem C deps).
+asyncapi = ["dep:schemars", "dep:serde_yaml"]
 # Habilita InMemoryBroker para testes sem broker físico.
 in-memory = []
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
@@ -40,10 +42,9 @@ async-trait = "0.1"
 # tokio/time sempre disponível — necessário para sleep no backoff exponencial.
 # Features de runtime (rt, sync, macros) ativas apenas com feature `kafka`.
 tokio = { version = "1", features = ["time"] }
-# Geração de AsyncAPI 3.0 — schemars produz JSON Schema dos tipos serde;
-# serde_yaml serializa o spec final. Deps leves, sem librdkafka.
-schemars = "0.8"
-serde_yaml = "0.9"
+# Geração de AsyncAPI 3.0 — opt-in via feature `asyncapi`. Leves, sem C deps.
+schemars = { version = "0.8", optional = true }
+serde_yaml = { version = "0.9", optional = true }
 
 # Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
@@ -60,3 +61,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serverust-macros = { path = "../serverust-macros" }
 schemars = "0.8"
 serde_yaml = "0.9"
+
+[[test]]
+name = "asyncapi_spec"
+required-features = ["asyncapi"]

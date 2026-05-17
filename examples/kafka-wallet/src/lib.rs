@@ -1,12 +1,9 @@
-//! Handler kafka-wallet: consome WalletEvent, persiste em DynamoDB e publica
-//! WalletResult em wallet.results via #[subscriber] + #[publisher].
+//! Handler kafka-wallet: consome WalletEvent e persiste saldo em DynamoDB.
 
 use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Serialize};
 use serverust_events::broker::BrokerError;
-#[allow(unused_imports)]
-use serverust_macros::publisher;
 use serverust_macros::{dynamo_table, subscriber};
 use serverust_telemetry::dynamo::DynamoRepo;
 
@@ -24,13 +21,6 @@ pub struct Wallet {
     pub balance: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WalletResult {
-    pub user_id: String,
-    pub new_balance: i64,
-    pub status: String,
-}
-
 // Singleton do repositório — warm-start seguro para Lambda e long-running.
 static REPO: OnceLock<Arc<DynamoRepo<Wallet>>> = OnceLock::new();
 
@@ -41,9 +31,13 @@ pub fn init_repo(repo: Arc<DynamoRepo<Wallet>>) {
     }
 }
 
+/// Processa WalletEvent e persiste o saldo atualizado em DynamoDB.
+///
+/// Para publicar resultados em `wallet.results` a partir do modo Lambda, use
+/// um `KafkaBroker` (feature `kafka`) ou `KafkaProducer` explicitamente —
+/// `LambdaBroker` é sink-only e não pode publicar de volta ao Kafka.
 #[subscriber(topic = "wallet.events")]
-#[publisher(topic = "wallet.results")]
-pub async fn handle_wallet(event: WalletEvent) -> Result<WalletResult, BrokerError> {
+pub async fn handle_wallet(event: WalletEvent) -> Result<(), BrokerError> {
     let repo = REPO
         .get()
         .ok_or_else(|| BrokerError::Configuration("call init_repo before attach".into()))?;
@@ -70,9 +64,5 @@ pub async fn handle_wallet(event: WalletEvent) -> Result<WalletResult, BrokerErr
     .await
     .map_err(|e| BrokerError::Transport(e.to_string()))?;
 
-    Ok(WalletResult {
-        user_id: event.user_id,
-        new_balance,
-        status: "processed".to_string(),
-    })
+    Ok(())
 }

@@ -181,20 +181,26 @@ impl AsyncApiBuilder {
             });
 
         // 2) Operação — id único por (action, topic).
+        // Múltiplas mensagens no mesmo canal+ação são adicionadas à lista
+        // messages da operação existente em vez de criar uma nova operação.
         let action_str = match action {
             Action::Send => "send",
             Action::Receive => "receive",
         };
         let op_id = format!("{action_str}_{topic}");
-        self.operations.entry(op_id).or_insert_with(|| Operation {
+        let msg_ref = Reference {
+            reference: format!("#/channels/{topic}/messages/{message_name}"),
+        };
+        let op = self.operations.entry(op_id).or_insert_with(|| Operation {
             action,
             channel: Reference {
                 reference: format!("#/channels/{topic}"),
             },
-            messages: vec![Reference {
-                reference: format!("#/channels/{topic}/messages/{message_name}"),
-            }],
+            messages: vec![],
         });
+        if !op.messages.iter().any(|r| r.reference == msg_ref.reference) {
+            op.messages.push(msg_ref);
+        }
 
         // 3) Componentes — message + schema.
         self.components

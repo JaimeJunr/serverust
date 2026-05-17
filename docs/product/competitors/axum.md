@@ -76,7 +76,7 @@ serverust tem `serverust-cli` com `new`, `generate`, `dev`, `build`, `deploy` e 
 | AWS Lambda nativo | ✅ | ⚠️ (via lambda_http, manual) |
 | Runtime dual HTTP ↔ Lambda | ✅ | ❌ |
 | Kafka event source nativo | ✅ | ❌ |
-| SQS / EventBridge / S3 event source | ✅ | ❌ |
+| SQS / EventBridge / S3 event source | 🔜 planejado | ❌ |
 | OpenAPI 3.1 automático | ✅ | ❌ (utoipa manual) |
 | Scalar / docs UI embutido | ✅ | ❌ |
 | Dependency Injection nativo | ✅ | ❌ (State<Arc<T>> manual) |
