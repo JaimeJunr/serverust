@@ -81,7 +81,13 @@ fn parses_deploy_lambda_with_arch() {
 #[test]
 fn parses_info() {
     let cli = Cli::try_parse_from(["serverust", "info"]).expect("parse");
-    assert!(matches!(cli.command, Command::Info));
+    assert!(matches!(
+        cli.command,
+        Command::Info {
+            asyncapi: false,
+            out: None
+        }
+    ));
 }
 
 #[test]

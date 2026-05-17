@@ -618,6 +618,208 @@ pub fn dynamo_table(attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+// --- #[subscriber(...)] / #[publisher(...)] ----------------------------------
+
+/// Atributo da macro `#[subscriber(topic = "...")]`.
+struct SubscriberAttr {
+    topic: LitStr,
+}
+
+impl Parse for SubscriberAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        let mut topic: Option<LitStr> = None;
+        for meta in metas {
+            let Meta::NameValue(nv) = meta else {
+                return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
+            };
+            let key = nv
+                .path
+                .get_ident()
+                .map(|i| i.to_string())
+                .unwrap_or_default();
+            match key.as_str() {
+                "topic" => topic = Some(expect_lit_str(&nv.value, "topic")?),
+                other => {
+                    return Err(syn::Error::new(
+                        nv.path.span(),
+                        format!("chave desconhecida `{other}` em #[subscriber] (use topic)"),
+                    ));
+                }
+            }
+        }
+        let topic = topic.ok_or_else(|| {
+            syn::Error::new(Span::call_site(), "#[subscriber] requer `topic = \"...\"`")
+        })?;
+        Ok(SubscriberAttr { topic })
+    }
+}
+
+/// Atributo da macro `#[publisher(topic = "...")]` (mesmo schema de
+/// [`SubscriberAttr`]).
+struct PublisherAttr {
+    topic: LitStr,
+}
+
+impl Parse for PublisherAttr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        let mut topic: Option<LitStr> = None;
+        for meta in metas {
+            let Meta::NameValue(nv) = meta else {
+                return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
+            };
+            let key = nv
+                .path
+                .get_ident()
+                .map(|i| i.to_string())
+                .unwrap_or_default();
+            match key.as_str() {
+                "topic" => topic = Some(expect_lit_str(&nv.value, "topic")?),
+                other => {
+                    return Err(syn::Error::new(
+                        nv.path.span(),
+                        format!("chave desconhecida `{other}` em #[publisher] (use topic)"),
+                    ));
+                }
+            }
+        }
+        let topic = topic.ok_or_else(|| {
+            syn::Error::new(Span::call_site(), "#[publisher] requer `topic = \"...\"`")
+        })?;
+        Ok(PublisherAttr { topic })
+    }
+}
+
+/// Macro de atributo `#[subscriber(topic = "...")]`.
+///
+/// Transforma uma `async fn name(event: T) -> Result<R, BrokerError>` em uma
+/// unit struct homônima com:
+///
+/// - `Self::SUBSCRIBE_TOPIC` — tópico de entrada;
+/// - `Self::PUBLISH_TOPIC` — `Option<&'static str>` com o tópico de saída
+///   quando `#[publisher(topic = "...")]` é empilhado;
+/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`].
+///
+/// A função original é movida para dentro de `register`, eliminando colisão de
+/// nomes com a struct emitida (mesmo padrão de `#[get(...)]`).
+///
+/// # Composição com `#[publisher]`
+///
+/// `#[subscriber]` deve ser o atributo **mais externo**: ele consome um
+/// `#[publisher(topic = "...")]` interno e emite código baseado em
+/// `EventRouter::subscribe_publish`. Sem `#[publisher]`, emite
+/// `EventRouter::subscribe` para handler ack-only (`Result<(), BrokerError>`).
+///
+/// Ambas as macros emitem código do builder `EventRouter` — não há registro
+/// global mágico em runtime.
+#[proc_macro_attribute]
+pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attrs = parse_macro_input!(attr as SubscriberAttr);
+    let mut func = parse_macro_input!(item as ItemFn);
+
+    // Consome um eventual `#[publisher(topic = "...")]` interno.
+    let mut publisher_topic: Option<LitStr> = None;
+    let mut publisher_error: Option<syn::Error> = None;
+    let mut kept_attrs: Vec<syn::Attribute> = Vec::with_capacity(func.attrs.len());
+    for a in func.attrs.drain(..) {
+        if a.path().is_ident("publisher") {
+            match a.parse_args::<PublisherAttr>() {
+                Ok(p) => publisher_topic = Some(p.topic),
+                Err(err) => publisher_error = Some(err),
+            }
+        } else {
+            kept_attrs.push(a);
+        }
+    }
+    func.attrs = kept_attrs;
+    if let Some(err) = publisher_error {
+        return err.to_compile_error().into();
+    }
+
+    let vis = func.vis.clone();
+    func.vis = syn::Visibility::Inherited;
+    let fn_name = func.sig.ident.clone();
+    let topic_lit = &attrs.topic;
+
+    // Extrai `T` do primeiro parâmetro `event: T`.
+    let event_ty = match func.sig.inputs.iter().next() {
+        Some(FnArg::Typed(pt)) => (*pt.ty).clone(),
+        Some(FnArg::Receiver(r)) => {
+            return syn::Error::new(
+                r.span(),
+                "#[subscriber] não pode ser aplicado em métodos com `self`",
+            )
+            .to_compile_error()
+            .into();
+        }
+        None => {
+            return syn::Error::new(
+                fn_name.span(),
+                "#[subscriber] requer um parâmetro `event: T`",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
+
+    let publish_const = if let Some(t) = &publisher_topic {
+        quote! { ::core::option::Option::Some(#t) }
+    } else {
+        quote! { ::core::option::Option::None }
+    };
+
+    let register_body = if let Some(pub_topic) = &publisher_topic {
+        quote! {
+            #func
+            router.subscribe_publish::<#event_ty, _, _, _>(
+                Self::SUBSCRIBE_TOPIC,
+                #pub_topic,
+                #fn_name,
+            )
+        }
+    } else {
+        quote! {
+            #func
+            router.subscribe::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
+        }
+    };
+
+    let expanded = quote! {
+        #[allow(non_camel_case_types)]
+        #vis struct #fn_name;
+
+        impl #fn_name {
+            pub const SUBSCRIBE_TOPIC: &'static str = #topic_lit;
+            pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
+
+            pub fn register(
+                router: ::serverust_events::router::EventRouter,
+            ) -> ::serverust_events::router::EventRouter {
+                #register_body
+            }
+        }
+    };
+
+    expanded.into()
+}
+
+/// Macro de atributo `#[publisher(topic = "...")]` — marcador empilhável.
+///
+/// Não pode ser usada isoladamente: emite código apenas quando consumida pelo
+/// `#[subscriber(...)]` mais externo. Aplicada sozinha, gera erro de compilação
+/// orientando a colocação correta.
+#[proc_macro_attribute]
+pub fn publisher(_attr: TokenStream, _item: TokenStream) -> TokenStream {
+    syn::Error::new(
+        Span::call_site(),
+        "#[publisher] precisa ser empilhado dentro de #[subscriber(...)] — \
+         coloque #[subscriber(...)] como o atributo mais externo",
+    )
+    .to_compile_error()
+    .into()
+}
+
 // --- #[kafka_consumer(...)] ---------------------------------------------------
 
 /// Atributo da macro de consumer Kafka.

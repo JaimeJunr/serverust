@@ -41,7 +41,17 @@ pub enum Command {
         target: DeployTarget,
     },
     /// Imprime informações sobre a CLI e o ambiente.
-    Info,
+    ///
+    /// Com `--asyncapi`, gera o schema AsyncAPI 3.0 do projeto atual
+    /// invocando o binário com a flag `--serverust-emit-asyncapi <out>`.
+    Info {
+        /// Emite o spec AsyncAPI 3.0 do projeto em YAML.
+        #[arg(long)]
+        asyncapi: bool,
+        /// Caminho do arquivo de saída para `--asyncapi`. Default: `asyncapi.yaml`.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Valida setup local e requisitos mínimos de telemetria/configuração.
     Doctor,
     /// Operações de OpenAPI: export da spec e geração de client SDK.

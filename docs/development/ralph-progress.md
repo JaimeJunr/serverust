@@ -239,3 +239,68 @@ Padrões reusáveis descobertos durante a implementação, consultar antes de it
   - Disk full (100% usage): `cargo build` falha silenciosamente com exit code 1 e zero output — `ctx-rewrite` hook trunca o output. Solução: `cargo clean` libera o `target/`.
   - Exemplo `funds-api` precisa de `[lib]` + `[[bin]]` no `Cargo.toml` para expor lib para integration tests.
   - Handlers com `Path<u64>` exigem `axum` no `Cargo.toml` do exemplo (não vem re-exportado via `serverust-core`).
+
+---
+
+## v0.2.0 — serverust-events (feature event-driven Kafka)
+
+**Fonte**: `.ralph/serverust-events/progress.txt` · Branch: `ralph/serverust-events-kafka`  
+**Stories**: US-1 a US-13 (`passes: true`)
+
+### Codebase Patterns (serverust-events)
+
+- `serverust-events` segue feature flags opt-in: deps pesadas (rdkafka, aws-*) só compiladas com flag explícita; default leve para preservar invariante de cold start.
+- Trait async pública usa `async-trait = "0.1"` em vez de native async-fn-in-trait — facilita uso como trait object (`Arc<dyn Broker>`).
+- Errors públicos via `thiserror::Error` com variantes `String` (sem `&'static str`) para contexto completo.
+- `examples/hello-world` é INTOCÁVEL — não adicionar deps; é o benchmark de cold start.
+- Invariante chave: `cargo tree -p serverust-core | grep -E 'kafka|rdkafka|event'` deve retornar vazio.
+- Testes de integração em `serverust-events/tests/` como crates separados (`#![cfg(feature = "...")]` no topo quando precisam de feature).
+- Campo ainda não usado mas que será em US futura: marcar com `#[allow(dead_code)]` + comentário citando a US destino.
+- **prd.json corrompeu em todas as iterações** na linha 101 (ctx-rewrite hook trunca com marker literal `[... truncado: ...]`). Para editar prd.json sempre usar `python3` (`json.load`/`json.dump`), nunca `jq` via Bash.
+
+### Learnings por US
+
+**US-1 — Broker trait + KafkaBroker**
+- `expect_err` em tipo sem `Debug` quebra build — usar `match` quando o tipo Ok não deriva `Debug`.
+- `KafkaBroker` feature `kafka` é umbrella de rdkafka + aws-*; `kafka-producer` virou alias para compatibilidade retroativa.
+
+**US-2 — InMemoryBroker**
+- `Mutex` não pode ser mantido através de `await` points: clonar handlers antes de iterar.
+- `#![cfg(feature = "...")]` no topo do arquivo de teste em `tests/` exclui o arquivo inteiro sem a feature — mais limpo que `#[cfg]` em cada item.
+- Feature sem deps extras: só o módulo habilitado — não polui a árvore de deps.
+
+**US-3 — EventRouter**
+- `attach(&dyn Broker)` requer `B: Broker + ?Sized` no where clause; sem isso, `Arc<dyn Broker>` falha por `Sized` implícito.
+- `Fn(T) -> Fut + Send + Sync + 'static` + `Arc::new(handler)` permite clonar handler dentro de cada invocação sem exigir `H: Clone`.
+- API com 3 generics (`T`, `H`, `Fut`) força turbofish `<T, _, _>` — aceitável, Axum usa o mesmo padrão.
+
+**US-4 — Extractors tipados**
+- Blanket impl `FromMessage` para `T: DeserializeOwned` conflita com impls específicas — usar trait separada `FromExtractor` para tipos de metadados/estado resolve o conflito.
+- `Arc::<dyn Any + Send + Sync>::downcast::<S>()` disponível em stable Rust (≥1.51) — sem necessidade de `as_any()`.
+- Macro `impl_handler_fn!` com `#[allow(non_snake_case)]` usa nomes de tipo como variáveis no async block sem `paste` crate.
+- Ao adicionar campo a `BrokerMessage`, buscar construções em todos os testes via `grep "BrokerMessage {"`.
+
+**US-5 — RetryPolicy**
+- `impl<B: Broker> Broker for Arc<B>` é o padrão idiomático para compartilhamento de broker.
+- `tokio::time::sleep` requer a feature `time`; adicioná-la como dep base evita `#[cfg(feature = ...)]` no código de retry.
+- DLQ: `with_dlq()` no router tem precedência sobre `dead_letter()` na policy.
+
+**US-6 — Macros `#[subscriber]` e `#[publisher]`**
+- Em proc-macros empilháveis, o **outermost roda primeiro** e recebe inner attributes via `func.attrs`. O outer consome o inner; o inner como proc-macro standalone emite `compile_error!`.
+- Para adiar captura de recurso runtime (broker) em código emitido pelo builder: `Box<dyn FnOnce(Recurso) -> BoxedHandler + Send>` no estado da inscrição; resolve em `attach`.
+- Quando ItemFn é movido para dentro de `fn register`, sua visibilidade precisa virar `Inherited` — itens locais em fn não aceitam `pub`.
+
+**US-7 — Detecção de runtime Lambda vs long-running**
+- `LambdaBroker` fora de qualquer feature gate: em Lambda o transporte é resolvido pelo runtime AWS, rdkafka não precisa compilar — preserva cold start ARM64.
+- `aws_lambda_events::KafkaRecord.headers` é `Vec<HashMap<String, Vec<i8>>>` (note os `i8`); cast `*b as u8` converte para `Vec<u8>`.
+- `MillisecondTimestamp` deriva via `Deref` para `DateTime<Utc>` — `timestamp_millis()` resolve direto.
+
+**US-8 — AsyncAPI**
+- `schemars = "0.8"` + `serde_yaml = "0.9"` são leves o suficiente para deps mandatórias sem violar invariante.
+- AsyncAPI 3.0 só aceita `action: send|receive` (diferente do v2 que tinha `subscribe`/`publish`).
+- `Command::Info { ... }` em vez de `Command::Info` (unit) exige atualizar todos os matches existentes — fácil de esquecer.
+
+**US-9 — kafka-wallet + docs**
+- `OnceLock::set` retorna `Result<(), T>` — `expect` falha se `T` não implementa `Debug`; usar `if is_err() { panic!(...) }`.
+- `lambda_runtime::run` exige `F::Error: Into<Diagnostic> + Debug`; `BrokerError` não implementa — mapear com `.map_err(|e| e.to_string())`.
+- `#[publisher]` funciona end-to-end com brokers bidirecionais; em Lambda, `LambdaBroker` é sink-only — publicar resultado exige broker separado ou producer direto.

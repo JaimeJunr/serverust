@@ -14,14 +14,13 @@ name = "kafka_wallet"
 path = "src/lib.rs"
 
 [dependencies]
-serverust-core = { path = "../../serverust-core" }
 serverust-macros = { path = "../../serverust-macros" }
-serverust-lambda = { path = "../../serverust-lambda" }
-serverust-events = { path = "../../serverust-events", features = ["kafka-producer"] }
+serverust-events = { path = "../../serverust-events" }
 serverust-telemetry = { path = "../../serverust-telemetry", features = ["dynamodb"] }
 aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
 aws-sdk-dynamodb = "1"
 aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
+lambda_runtime = "1.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

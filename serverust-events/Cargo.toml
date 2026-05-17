@@ -14,15 +14,23 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 
 [features]
 default = []
-# Habilita o KafkaProducer (rdkafka + librdkafka C). Off por default — apps
-# que apenas consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
-kafka-producer = [
+# Geração de spec AsyncAPI 3.0. Puxa schemars + serde_yaml (leves, sem C deps).
+asyncapi = ["dep:schemars", "dep:serde_yaml"]
+# Habilita InMemoryBroker para testes sem broker físico.
+in-memory = []
+# Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
+# só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
+kafka = [
     "dep:rdkafka",
     "dep:aws-msk-iam-sasl-signer",
     "dep:aws-config",
     "dep:aws-types",
-    "dep:tokio",
+    "tokio/rt",
+    "tokio/sync",
+    "tokio/macros",
 ]
+# Mantido por compatibilidade com v0.1.x. `kafka` é o novo umbrella.
+kafka-producer = ["kafka"]
 
 [dependencies]
 aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
@@ -30,8 +38,15 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.22"
 thiserror = "1"
+async-trait = "0.1"
+# tokio/time sempre disponível — necessário para sleep no backoff exponencial.
+# Features de runtime (rt, sync, macros) ativas apenas com feature `kafka`.
+tokio = { version = "1", features = ["time"] }
+# Geração de AsyncAPI 3.0 — opt-in via feature `asyncapi`. Leves, sem C deps.
+schemars = { version = "0.8", optional = true }
+serde_yaml = { version = "0.9", optional = true }
 
-# Opt-in via feature kafka-producer
+# Opt-in via feature `kafka` (e o alias `kafka-producer`).
 # `ssl` é necessário para SASL_SSL e habilita OAUTHBEARER nativamente em
 # librdkafka. NÃO habilitar `sasl` — ela puxa libsasl2-dev (Cyrus) e quebra
 # build local; OAUTHBEARER para MSK IAM não depende de Cyrus SASL.
@@ -39,8 +54,14 @@ rdkafka = { version = "0.35", default-features = false, features = ["cmake-build
 aws-msk-iam-sasl-signer = { version = "1.0", optional = true }
 aws-config = { version = "1", optional = true, default-features = false, features = ["rt-tokio"] }
 aws-types = { version = "1", optional = true }
-tokio = { version = "1", optional = true, features = ["rt", "sync", "macros"] }
 
 [dev-dependencies]
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serverust-macros = { path = "../serverust-macros" }
+schemars = "0.8"
+serde_yaml = "0.9"
+
+[[test]]
+name = "asyncapi_spec"
+required-features = ["asyncapi"]
