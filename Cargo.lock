@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "figment",
@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-events"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-lambda"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "aws_lambda_events",
  "axum",
@@ -2761,7 +2761,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
@@ -2780,7 +2780,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-telemetry"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "aws-config",

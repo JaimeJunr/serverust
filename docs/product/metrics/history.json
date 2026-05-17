@@ -62,5 +62,21 @@
     },
     "competitor_refs": null,
     "notes": "Coletado automaticamente por metrics_append.sh"
+  },
+  {
+    "version": "0.3.0",
+    "date": "2026-05-17",
+    "cold_start_p95_ms": 12,
+    "stripped_bytes": 3549224,
+    "loc_handler": 13,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Coletado automaticamente por metrics_append.sh"
   }
 ]

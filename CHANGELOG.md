@@ -10,29 +10,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-17
+
+`serverust-events 0.3.0` — SqsBroker maduro: Lambda ESM + Standalone worker, FIFO type-safe, Tower pipeline, idempotency, DLQ declarativo, transport abstraction SQS↔Kafka, AsyncAPI, EMF, X-Ray e CLI inspector. 14 user stories (US-001..US-014) entregues.
+
 ### Added
-- `serverust-events::sqs::extract::SqsFifoMetadata` extractor expondo `message_group_id`, `message_deduplication_id` e `sequence_number` para subscribers FIFO (US-005)
-- `serverust-events::sqs::fifo_producer::SqsFifoProducer` com `FifoSendBuilder` type-state (`NoGroupId` → `HasGroupId`): `send()` só compila após `.message_group_id(...)`, evitando publicação FIFO inválida em runtime (US-005)
-- Macro `#[subscriber(driver = "sqs", queue = "...", fifo)]` valida em compile-time que o handler declara `SqsFifoMetadata`; uso indevido em queue standard ou FIFO sem o flag emite erro de compilação claro (US-005)
-- `SendEntry::message_group_id` e `SendEntry::message_deduplication_id` propagados pelo `SqsProducer` para entregas FIFO (US-005)
-- Trait `Broker` (`subscribe` + `publish` assíncronos) e tipos `BrokerMessage`, `BrokerError`, `BoxedHandler` em `serverust-events/src/broker/mod.rs` (US-1 do workspace `serverust-events`)
-- `KafkaBroker` (rust-rdkafka) atrás da nova feature `kafka` — pavimenta o EventRouter (US-3) sem acoplar `serverust-core` ao Kafka
-- `InMemoryBroker` em `serverust-events/src/broker/in_memory.rs` (feature `in-memory`) — entrega síncrona em memória para testes sem broker físico (US-2)
-- `EventRouter` builder programático em `serverust-events/src/router.rs`: `subscribe::<T, _>(topic, handler)` com decodificação JSON, `with_retry(RetryPolicy)`, `with_dlq(topic)`, `attach(&broker)` aceitando qualquer `impl Broker` (US-3)
-- `RetryPolicy` (variants `Immediate` / `Exponential`) em `serverust-events/src/retry.rs` — tipo público consumido pelo `EventRouter::with_retry`; aplicação runtime fica em US-5
-- `EventRouter::subscribe_publish::<T, U, _, _>(sub_topic, pub_topic, handler)` em `serverust-events/src/router.rs` — registra handler que serializa `Ok(U)` e publica em `pub_topic` (US-6)
-- Macros `#[subscriber(topic = "...")]` e `#[publisher(topic = "...")]` empilháveis em `serverust-macros/src/lib.rs` — emitem código baseado no builder `EventRouter::subscribe` / `subscribe_publish`, sem registro runtime (US-6)
-- `Runtime::detect()` em `serverust-events/src/runtime.rs` — diferencia execução em AWS Lambda (`AWS_LAMBDA_FUNCTION_NAME` presente) de processos long-running (ECS/EC2) sem acoplar o EventRouter ao adapter (US-7)
-- `LambdaBroker` em `serverust-events/src/broker/lambda.rs` — broker sink-only que despacha `aws_lambda_events::KafkaEvent` para handlers inscritos via `handle_kafka_event`. Independente da feature `kafka` (não puxa rdkafka), pronto para uso direto em Lambda Functions (US-7)
-- `KafkaBroker::dispatch(BrokerMessage)` em `serverust-events/src/broker/kafka.rs` — primitiva consumida pelo consumer loop long-running, testada de forma isolada sem broker físico (US-7)
-- Módulo `asyncapi` em `serverust-events/src/asyncapi.rs`: `AsyncApiBuilder` que gera spec [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0) com `channels` (tópicos), `operations` (`receive`/`send`) e `components` (messages + JSON Schema embarcado via `schemars`); `AsyncApiSpec::to_yaml()` serializa YAML válido (US-8)
-- Subcomando `serverust info --asyncapi [--out path]` em `serverust-cli` — spawna `cargo run -- --serverust-emit-asyncapi <out>` para extrair o spec do binário do projeto sem subir consumer/producer (US-8)
-- Flag opt-in `asyncapi` em `#[subscriber(...)]` — quando presente, a macro emite o método associado `register_asyncapi(builder)` que adiciona `receive` (e `send` se `#[publisher]` empilhado) no `AsyncApiBuilder` para o tipo do evento; `HAS_ASYNCAPI: bool` exposto como constante (US-013)
-- `serverust-events::asyncapi::emit_asyncapi_if_requested(builder, args)` detecta a flag `--serverust-emit-asyncapi <path>` em `args` e grava o spec em YAML; integra com `serverust info --asyncapi` ao ser chamado no `main` do projeto (US-013)
-- `serverust-events::asyncapi::__private::JsonSchema` re-export consumido pelas macros para evitar exigir `schemars` direto no Cargo.toml do projeto (US-013)
+- `SqsBroker` em `serverust-events/src/sqs/consumer.rs` (feature `sqs`) — consumer Lambda ESM com partial batch failure automático via `SqsBatchResponse.batchItemFailures` (US-001)
+- Macro `#[subscriber(driver = "sqs", queue = "...")]` em `serverust-macros` — mesma macro suporta `driver = "kafka"` e `driver = "sqs"` sem alterar a lógica do handler (US-001, US-011)
+- Extractors estilo Axum para SQS em `serverust-events/src/sqs/extract.rs` — `Json<T>`, `State<S>`, `SqsMetadata` (`message_id`, `receipt_handle`, `attributes`, `system_attributes`) (US-002)
+- `DeleteManager` em `serverust-events/src/sqs/delete.rs` — agrupa `DeleteMessageBatch` no standalone worker; em Lambda ESM o ack/nack é controlado por `batchItemFailures` (US-003)
+- `SqsProducer` em `serverust-events/src/sqs/producer.rs` — batching transparente (até 10 msgs / 200ms linger, configurável), retry exponencial em partial failure, graceful shutdown com flush (US-004)
+- `SqsFifoMetadata` extractor expondo `message_group_id`, `message_deduplication_id`, `sequence_number` para subscribers FIFO (US-005)
+- `SqsFifoProducer` com `FifoSendBuilder` type-state (`NoGroupId` → `HasGroupId`) — `send()` só compila após `.message_group_id(...)`, eliminando erros runtime de FIFO inválido (US-005)
+- `#[subscriber(driver = "sqs", queue = "...", fifo)]` valida em compile-time que o handler declara `SqsFifoMetadata` (US-005)
+- `SqsSubscriber` implementa `tower::Service<SqsMessage>` em `serverust-events/src/sqs/subscriber.rs` — pipeline `TracingLayer → MetricsLayer → IdempotencyLayer → RetryLayer → handler` reaproveita `serverust-telemetry` (US-006)
+- `IdempotencyLayer` em `serverust-events/src/sqs/layers.rs` (feature `sqs`) — at-least-once → effectively-once com `IdempotencyStore` (in-memory + DynamoDB), protocolo InProgress/Completed + TTL configurável default 24h (US-007)
+- `RetryLayer` + `DlqLayer` declarativos via macro `#[subscriber(retry = exponential(max = 5, base = "100ms"), dlq = "orders-dlq")]` — política em metadata, código de negócio limpo (US-008)
+- `HeartbeatLayer` em `serverust-events/src/sqs/heartbeat.rs` — `ChangeMessageVisibility` automático em background quando 30% do timeout resta; ativo por default no standalone, opt-in em Lambda ESM (US-009)
+- `StandaloneSqsBroker` em `serverust-events/src/sqs/standalone.rs` — long-poll worker para ECS/EC2/bare-metal, concorrência configurável, graceful shutdown drenando in-flight, backoff exponencial em fila vazia. Mesma macro `#[subscriber]` funciona em Lambda ESM e standalone (US-010)
+- Transport abstraction — `#[subscriber(driver = "kafka|sqs")]` no mesmo handler; brokers heterogêneos no mesmo app via `EventRouter::attach`; example `examples/transport-swap` (US-011)
+- Observability EMF + X-Ray automáticos: métricas `messages_received`, `processing_duration`, `partial_failures`, `dlq_routed`, `idempotency_hits` por queue/handler; span por mensagem com `AWSTraceHeader` propagado outbound pelo producer (US-012)
+- Flag opt-in `asyncapi` em `#[subscriber(...)]` — emite método associado `register_asyncapi(builder)` que adiciona `receive` (e `send` se `#[publisher]` empilhado) no `AsyncApiBuilder`; `HAS_ASYNCAPI: bool` exposto (US-013)
+- `serverust-events::asyncapi::emit_asyncapi_if_requested(builder, args)` — detecta `--serverust-emit-asyncapi <path>` em `args` e grava spec YAML; integra com `serverust info --asyncapi` (US-013)
+- `serverust queue inspect/tail` em `serverust-cli` — lista subscribers/publishers declarados, valida queues + permissões IAM + DLQ stats; saída tabela humana ou `--json` (US-014)
 
 ### Changed
-- Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes
+- `EventRouter::attach` aceita qualquer `impl Broker` (não só `KafkaBroker`)
+- Feature `aws_lambda_events/sqs` ativada pela feature flag `sqs` no `serverust-events`
+
+### Fixed
+- Structured logging consistente: substituído `eprintln!` por `tracing::{warn, error}` em `consumer.rs`, `producer.rs`, `layers.rs` — evita vazamento ad-hoc em CloudWatch
+- Graceful degradation em `serde_json::to_vec(SqsMessage)` — falha de alocação não causa panic; metadata header omitido e `SqsMetadata` extractor falha com erro claro
+- `IdempotencyLayer` agora emite `tracing::warn` quando bypassa por `message_id` vazio (era silencioso)
+
+### Preserved
+- `serverust-core` continua sem deps de SQS (invariante CLAUDE.md verificada via `cargo tree`)
+- `examples/hello-world` sem dep transitiva de SQS
+- Cold start ARM64 128MB < 50ms p95 mantido (feature `sqs` é opt-in)
 
 ## [0.2.0] - 2026-05-16
 

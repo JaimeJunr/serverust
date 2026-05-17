@@ -14,10 +14,10 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.85"
-authors = ["Jaime Junior <jaime.odair@investtools.com.br>"]
+authors = ["Jaime Junior <jaimeodairbassojuniorjaime@gmail.com>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/JaimeJunr/serverust"
 homepage = "https://github.com/JaimeJunr/serverust"
