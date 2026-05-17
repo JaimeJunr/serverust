@@ -127,3 +127,7 @@ required-features = ["in-memory", "sqs"]
 [[test]]
 name = "sqs_heartbeat"
 required-features = ["sqs"]
+
+[[test]]
+name = "sqs_standalone"
+required-features = ["sqs"]

@@ -20,4 +20,5 @@ pub mod fifo_producer;
 pub mod heartbeat;
 pub mod layers;
 pub mod producer;
+pub mod standalone;
 pub mod subscriber;

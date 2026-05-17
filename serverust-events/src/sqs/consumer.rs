@@ -192,7 +192,7 @@ fn extract_queue_name(msg: &SqsMessage) -> Option<String> {
 ///   apenas pelo extractor [`super::extract::SqsMetadata`]. `SqsMessage` é
 ///   `Serialize` por definição (aws_lambda_events); o unwrap é seguro.
 /// - `timestamp` = `SentTimestamp` do `attributes` quando parseável como `i64`.
-fn build_broker_message(queue: &str, msg: &SqsMessage) -> BrokerMessage {
+pub(crate) fn build_broker_message(queue: &str, msg: &SqsMessage) -> BrokerMessage {
     let payload = msg
         .body
         .as_deref()
