@@ -28,7 +28,7 @@ jobs:
         uses: anthropics/claude-code-action@beta
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          mode: review
+          mode: agent
           direct_prompt: |
             Revise este PR contra a base. Foque em:
             - Correção lógica e edge cases.
