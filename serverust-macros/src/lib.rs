@@ -620,15 +620,31 @@ pub fn dynamo_table(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 // --- #[subscriber(...)] / #[publisher(...)] ----------------------------------
 
-/// Atributo da macro `#[subscriber(topic = "...")]`.
+/// Atributo da macro `#[subscriber(...)]`.
+///
+/// Sintaxes suportadas:
+///
+/// - `#[subscriber(topic = "x")]` — driver default `"kafka"` (back-compat v0.2.0).
+/// - `#[subscriber(driver = "kafka", topic = "x")]` — explícito.
+/// - `#[subscriber(driver = "sqs", queue = "x")]` — adapter SQS (US-001).
+///
+/// `topic` e `queue` mapeiam ambos para a string passada ao broker via a trait
+/// `Broker` — guarda apenas a chave de inscrição.
 struct SubscriberAttr {
-    topic: LitStr,
+    /// Driver alvo: `"kafka"` (default) ou `"sqs"`. Outros valores erram.
+    driver: LitStr,
+    /// Chave de inscrição: `topic` (kafka) ou `queue` (sqs).
+    subscribe_key: LitStr,
 }
 
 impl Parse for SubscriberAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        let mut driver: Option<LitStr> = None;
         let mut topic: Option<LitStr> = None;
+        let mut queue: Option<LitStr> = None;
+        let mut topic_span: Option<proc_macro2::Span> = None;
+        let mut queue_span: Option<proc_macro2::Span> = None;
         for meta in metas {
             let Meta::NameValue(nv) = meta else {
                 return Err(syn::Error::new(meta.span(), "esperado `key = valor`"));
@@ -639,19 +655,78 @@ impl Parse for SubscriberAttr {
                 .map(|i| i.to_string())
                 .unwrap_or_default();
             match key.as_str() {
-                "topic" => topic = Some(expect_lit_str(&nv.value, "topic")?),
+                "driver" => driver = Some(expect_lit_str(&nv.value, "driver")?),
+                "topic" => {
+                    topic_span = Some(nv.path.span());
+                    topic = Some(expect_lit_str(&nv.value, "topic")?);
+                }
+                "queue" => {
+                    queue_span = Some(nv.path.span());
+                    queue = Some(expect_lit_str(&nv.value, "queue")?);
+                }
                 other => {
                     return Err(syn::Error::new(
                         nv.path.span(),
-                        format!("chave desconhecida `{other}` em #[subscriber] (use topic)"),
+                        format!(
+                            "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue)"
+                        ),
                     ));
                 }
             }
         }
-        let topic = topic.ok_or_else(|| {
-            syn::Error::new(Span::call_site(), "#[subscriber] requer `topic = \"...\"`")
-        })?;
-        Ok(SubscriberAttr { topic })
+
+        let driver_value = driver
+            .as_ref()
+            .map(|d| d.value())
+            .unwrap_or_else(|| "kafka".to_string());
+
+        match driver_value.as_str() {
+            "kafka" => {
+                if let Some(span) = queue_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "`queue` é exclusivo do driver `sqs` — use `topic` para kafka",
+                    ));
+                }
+                let topic = topic.ok_or_else(|| {
+                    syn::Error::new(
+                        Span::call_site(),
+                        "#[subscriber] com driver `kafka` requer `topic = \"...\"`",
+                    )
+                })?;
+                let driver_lit = driver.unwrap_or_else(|| LitStr::new("kafka", Span::call_site()));
+                Ok(SubscriberAttr {
+                    driver: driver_lit,
+                    subscribe_key: topic,
+                })
+            }
+            "sqs" => {
+                if let Some(span) = topic_span {
+                    return Err(syn::Error::new(
+                        span,
+                        "`topic` é exclusivo do driver `kafka` — use `queue` para sqs",
+                    ));
+                }
+                let queue = queue.ok_or_else(|| {
+                    syn::Error::new(
+                        Span::call_site(),
+                        "#[subscriber] com driver `sqs` requer `queue = \"...\"`",
+                    )
+                })?;
+                let driver_lit = driver.unwrap_or_else(|| LitStr::new("sqs", Span::call_site()));
+                Ok(SubscriberAttr {
+                    driver: driver_lit,
+                    subscribe_key: queue,
+                })
+            }
+            other => Err(syn::Error::new(
+                driver
+                    .as_ref()
+                    .map(|d| d.span())
+                    .unwrap_or_else(Span::call_site),
+                format!("driver `{other}` não suportado em #[subscriber] — use `kafka` ou `sqs`"),
+            )),
+        }
     }
 }
 
@@ -740,7 +815,8 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let vis = func.vis.clone();
     func.vis = syn::Visibility::Inherited;
     let fn_name = func.sig.ident.clone();
-    let topic_lit = &attrs.topic;
+    let topic_lit = &attrs.subscribe_key;
+    let driver_lit = &attrs.driver;
 
     // Extrai `T` do primeiro parâmetro `event: T`.
     let event_ty = match func.sig.inputs.iter().next() {
@@ -791,6 +867,7 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
 
         impl #fn_name {
             pub const SUBSCRIBE_TOPIC: &'static str = #topic_lit;
+            pub const DRIVER: &'static str = #driver_lit;
             pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
 
             pub fn register(

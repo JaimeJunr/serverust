@@ -18,6 +18,10 @@ default = []
 asyncapi = ["dep:schemars", "dep:serde_yaml"]
 # Habilita InMemoryBroker para testes sem broker físico.
 in-memory = []
+# Habilita o adapter SQS (consumer Lambda ESM). Não puxa C deps — só ativa o
+# módulo `sqs` e a feature `sqs` de `aws_lambda_events` (deserialização de
+# `SqsEvent`/`SqsBatchResponse`). `serverust-core` continua sem dep de SQS.
+sqs = ["aws_lambda_events/sqs"]
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
 # só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
 kafka = [
@@ -65,3 +69,11 @@ serde_yaml = "0.9"
 [[test]]
 name = "asyncapi_spec"
 required-features = ["asyncapi"]
+
+[[test]]
+name = "sqs_consumer"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs"
+required-features = ["in-memory"]
