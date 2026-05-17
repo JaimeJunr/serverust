@@ -75,5 +75,9 @@ name = "sqs_consumer"
 required-features = ["sqs"]
 
 [[test]]
+name = "sqs_delete"
+required-features = ["sqs"]
+
+[[test]]
 name = "macros_sqs"
 required-features = ["in-memory"]

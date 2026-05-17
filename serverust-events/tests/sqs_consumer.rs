@@ -215,6 +215,57 @@ async fn sqs_broker_subscribed_queues_lista_filas_em_ordem() {
     );
 }
 
+fn fixture_10() -> SqsEvent {
+    let raw = include_str!("fixtures/sqs/batch_10.json");
+    serde_json::from_str(raw).expect("fixture batch_10.json deve ser SqsEvent valido")
+}
+
+/// US-003 — Lambda ESM: sucesso nao aparece em batchItemFailures; erro aparece.
+/// Batch de 10 mensagens: IDs pares falham, impares tem sucesso.
+#[tokio::test]
+async fn handle_sqs_event_batch_de_10_sucesso_e_erro_misturados() {
+    let broker = Arc::new(SqsBroker::new());
+
+    let router = EventRouter::new().subscribe::<Order, _, _>("orders", |order: Order| async move {
+        let num: u32 = order.order_id.trim_start_matches("order-").parse().unwrap();
+        if num % 2 == 0 {
+            Err(BrokerError::Subscribe(format!(
+                "falha em {}",
+                order.order_id
+            )))
+        } else {
+            Ok(())
+        }
+    });
+    router.attach(broker.clone()).await.unwrap();
+
+    let resp = broker.handle_sqs_event(&fixture_10()).await;
+
+    assert_eq!(
+        resp.batch_item_failures.len(),
+        5,
+        "{:?}",
+        resp.batch_item_failures
+    );
+    let ids: std::collections::HashSet<String> = resp
+        .batch_item_failures
+        .iter()
+        .map(|f| f.item_identifier.clone())
+        .collect();
+    for expected in ["msg-02", "msg-04", "msg-06", "msg-08", "msg-10"] {
+        assert!(
+            ids.contains(expected),
+            "{expected} deve estar em batchItemFailures"
+        );
+    }
+    for not_expected in ["msg-01", "msg-03", "msg-05", "msg-07", "msg-09"] {
+        assert!(
+            !ids.contains(not_expected),
+            "{not_expected} nao deve estar em batchItemFailures"
+        );
+    }
+}
+
 #[test]
 fn sqs_broker_default_equivale_a_new() {
     let broker = SqsBroker::default();

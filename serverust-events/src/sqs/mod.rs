@@ -10,6 +10,9 @@
 //!   handlers por nome de fila e despacha um `SqsEvent` em uma
 //!   `SqsBatchResponse` com `batch_item_failures` para mensagens em erro.
 //! - [`extract`] — extractors específicos do SQS, como [`extract::SqsMetadata`].
+//! - [`delete`] — abstração de `DeleteMessageBatch` com retry/backoff para
+//!   standalone workers (US-003/US-010).
 
 pub mod consumer;
+pub mod delete;
 pub mod extract;
