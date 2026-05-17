@@ -21,7 +21,7 @@ in-memory = []
 # Habilita o adapter SQS (consumer Lambda ESM). Não puxa C deps — só ativa o
 # módulo `sqs` e a feature `sqs` de `aws_lambda_events` (deserialização de
 # `SqsEvent`/`SqsBatchResponse`). `serverust-core` continua sem dep de SQS.
-sqs = ["aws_lambda_events/sqs"]
+sqs = ["aws_lambda_events/sqs", "tokio/sync", "tokio/rt", "tokio/macros"]
 # Habilita o KafkaBroker (rdkafka + librdkafka C). Off por default — apps que
 # só consomem Kafka via Lambda trigger não pagam o custo de librdkafka.
 kafka = [
@@ -81,3 +81,7 @@ required-features = ["sqs"]
 [[test]]
 name = "macros_sqs"
 required-features = ["in-memory"]
+
+[[test]]
+name = "sqs_producer"
+required-features = ["sqs"]

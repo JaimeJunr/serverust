@@ -16,3 +16,4 @@
 pub mod consumer;
 pub mod delete;
 pub mod extract;
+pub mod producer;
