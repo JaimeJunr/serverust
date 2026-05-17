@@ -639,11 +639,21 @@ struct SubscriberAttr {
     fifo: bool,
     /// Span do flag `fifo` para mensagens de erro precisas.
     fifo_span: Option<proc_macro2::Span>,
+    /// Máximo de tentativas para `RetryLayer`. Default 1 (sem retry).
+    retry_max: u32,
+    /// Base do backoff exponencial em milissegundos. Default 0 (sem espera).
+    retry_base_ms: u64,
+    /// Nome da fila DLQ (US-008). `None` quando o subscriber não declara DLQ.
+    dlq_queue: Option<LitStr>,
 }
 
 impl Parse for SubscriberAttr {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let metas = Punctuated::<Meta, Token![,]>::parse_terminated(input)?;
+        // Parse manual via `Punctuated::<TokenStream, Comma>` não é trivial
+        // porque `retry = exponential(max = 5, base = "100ms")` não é um
+        // `Meta` — `exponential(...)` é uma `Expr::Call`. Usamos `syn::Meta`
+        // para a maioria dos campos e fazemos parsing especial do `retry`
+        // através de uma expressão.
         let mut driver: Option<LitStr> = None;
         let mut topic: Option<LitStr> = None;
         let mut queue: Option<LitStr> = None;
@@ -651,57 +661,102 @@ impl Parse for SubscriberAttr {
         let mut queue_span: Option<proc_macro2::Span> = None;
         let mut fifo = false;
         let mut fifo_span: Option<proc_macro2::Span> = None;
-        for meta in metas {
-            match meta {
-                Meta::Path(p) => {
-                    let key = p.get_ident().map(|i| i.to_string()).unwrap_or_default();
-                    match key.as_str() {
-                        "fifo" => {
-                            fifo = true;
-                            fifo_span = Some(p.span());
-                        }
-                        other => {
-                            return Err(syn::Error::new(
-                                p.span(),
-                                format!(
-                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo)"
-                                ),
-                            ));
-                        }
-                    }
-                }
-                Meta::NameValue(nv) => {
-                    let key = nv
-                        .path
-                        .get_ident()
-                        .map(|i| i.to_string())
-                        .unwrap_or_default();
-                    match key.as_str() {
-                        "driver" => driver = Some(expect_lit_str(&nv.value, "driver")?),
+        let mut retry_max: u32 = 1;
+        let mut retry_base_ms: u64 = 0;
+        let mut dlq_queue: Option<LitStr> = None;
+
+        while !input.is_empty() {
+            // Token de chave: identificador.
+            if input.peek(syn::Ident) {
+                let key: Ident = input.parse()?;
+                let key_str = key.to_string();
+                // Flag `fifo` sem valor.
+                if key_str == "fifo" && !input.peek(Token![=]) {
+                    fifo = true;
+                    fifo_span = Some(key.span());
+                } else {
+                    input.parse::<Token![=]>()?;
+                    match key_str.as_str() {
+                        "driver" => driver = Some(input.parse()?),
                         "topic" => {
-                            topic_span = Some(nv.path.span());
-                            topic = Some(expect_lit_str(&nv.value, "topic")?);
+                            topic_span = Some(key.span());
+                            topic = Some(input.parse()?);
                         }
                         "queue" => {
-                            queue_span = Some(nv.path.span());
-                            queue = Some(expect_lit_str(&nv.value, "queue")?);
+                            queue_span = Some(key.span());
+                            queue = Some(input.parse()?);
+                        }
+                        "dlq" => dlq_queue = Some(input.parse()?),
+                        "retry" => {
+                            // Aceita apenas `exponential(max = N, base = "Tms")`.
+                            let fn_name: Ident = input.parse()?;
+                            if fn_name != "exponential" {
+                                return Err(syn::Error::new(
+                                    fn_name.span(),
+                                    "retry só suporta `exponential(max = N, base = \"Tms\")`",
+                                ));
+                            }
+                            let content;
+                            syn::parenthesized!(content in input);
+                            // Parse pares `key = value` separados por vírgula.
+                            let mut got_max: Option<u32> = None;
+                            let mut got_base: Option<u64> = None;
+                            while !content.is_empty() {
+                                let arg_key: Ident = content.parse()?;
+                                content.parse::<Token![=]>()?;
+                                match arg_key.to_string().as_str() {
+                                    "max" => {
+                                        let lit: LitInt = content.parse()?;
+                                        got_max = Some(lit.base10_parse::<u32>()?);
+                                    }
+                                    "base" => {
+                                        let lit: LitStr = content.parse()?;
+                                        got_base = Some(parse_duration_ms(&lit)?);
+                                    }
+                                    other => {
+                                        return Err(syn::Error::new(
+                                            arg_key.span(),
+                                            format!(
+                                                "chave `{other}` desconhecida em exponential (use max, base)"
+                                            ),
+                                        ));
+                                    }
+                                }
+                                if content.peek(Token![,]) {
+                                    content.parse::<Token![,]>()?;
+                                }
+                            }
+                            retry_max = got_max.ok_or_else(|| {
+                                syn::Error::new(fn_name.span(), "exponential requer `max = N`")
+                            })?;
+                            retry_base_ms = got_base.ok_or_else(|| {
+                                syn::Error::new(
+                                    fn_name.span(),
+                                    "exponential requer `base = \"<N>ms\"`",
+                                )
+                            })?;
                         }
                         other => {
                             return Err(syn::Error::new(
-                                nv.path.span(),
+                                key.span(),
                                 format!(
-                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo)"
+                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo/retry/dlq)"
                                 ),
                             ));
                         }
                     }
                 }
-                other => {
-                    return Err(syn::Error::new(
-                        other.span(),
-                        "esperado `key = valor` ou flag `fifo`",
-                    ));
-                }
+            } else {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "esperado identificador (driver/topic/queue/fifo/retry/dlq)",
+                ));
+            }
+
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            } else {
+                break;
             }
         }
 
@@ -736,6 +791,9 @@ impl Parse for SubscriberAttr {
                     subscribe_key: topic,
                     fifo: false,
                     fifo_span: None,
+                    retry_max,
+                    retry_base_ms,
+                    dlq_queue,
                 })
             }
             "sqs" => {
@@ -757,6 +815,9 @@ impl Parse for SubscriberAttr {
                     subscribe_key: queue,
                     fifo,
                     fifo_span,
+                    retry_max,
+                    retry_base_ms,
+                    dlq_queue,
                 })
             }
             other => Err(syn::Error::new(
@@ -858,6 +919,12 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let topic_lit = &attrs.subscribe_key;
     let driver_lit = &attrs.driver;
     let is_fifo = attrs.fifo;
+    let retry_max_lit = LitInt::new(&attrs.retry_max.to_string(), Span::call_site());
+    let retry_base_ms_lit = LitInt::new(&attrs.retry_base_ms.to_string(), Span::call_site());
+    let dlq_const_expr = match &attrs.dlq_queue {
+        Some(q) => quote! { ::core::option::Option::Some(#q) },
+        None => quote! { ::core::option::Option::None },
+    };
 
     // Compile-time guard FIFO: `fifo` flag <=> handler usa SqsFifoMetadata.
     // Inspeciona os parâmetros pelo último segmento do path do tipo.
@@ -948,6 +1015,9 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
             pub const DRIVER: &'static str = #driver_lit;
             pub const IS_FIFO: bool = #is_fifo;
             pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
+            pub const RETRY_MAX_ATTEMPTS: u32 = #retry_max_lit;
+            pub const RETRY_BASE_MS: u64 = #retry_base_ms_lit;
+            pub const DLQ_QUEUE: ::core::option::Option<&'static str> = #dlq_const_expr;
 
             pub fn register(
                 router: ::serverust_events::router::EventRouter,
@@ -1041,6 +1111,29 @@ impl Parse for KafkaConsumerAttr {
             dlq,
         })
     }
+}
+
+/// Converte literal de duração tipo `"100ms"` ou `"2s"` em milissegundos.
+fn parse_duration_ms(lit: &LitStr) -> syn::Result<u64> {
+    let s = lit.value();
+    let s = s.trim();
+    let (num_part, unit, factor): (&str, &str, u64) = if let Some(p) = s.strip_suffix("ms") {
+        (p, "ms", 1)
+    } else if let Some(p) = s.strip_suffix("s") {
+        (p, "s", 1000)
+    } else {
+        return Err(syn::Error::new(
+            lit.span(),
+            "duração deve terminar em `ms` ou `s` (ex: \"100ms\", \"2s\")",
+        ));
+    };
+    let n: u64 = num_part.trim().parse().map_err(|_| {
+        syn::Error::new(
+            lit.span(),
+            format!("número inválido antes de `{unit}` em duração: `{s}`"),
+        )
+    })?;
+    Ok(n.saturating_mul(factor))
 }
 
 fn expect_lit_str(expr: &Expr, key: &str) -> syn::Result<LitStr> {

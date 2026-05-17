@@ -115,3 +115,11 @@ required-features = ["sqs"]
 [[test]]
 name = "sqs_idempotency"
 required-features = ["sqs"]
+
+[[test]]
+name = "sqs_dlq"
+required-features = ["sqs"]
+
+[[test]]
+name = "macros_sqs_dlq"
+required-features = ["in-memory", "sqs"]
