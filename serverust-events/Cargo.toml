@@ -111,3 +111,7 @@ required-features = ["in-memory", "sqs"]
 [[test]]
 name = "sqs_tower"
 required-features = ["sqs"]
+
+[[test]]
+name = "sqs_idempotency"
+required-features = ["sqs"]
