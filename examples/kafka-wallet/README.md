@@ -1,20 +1,27 @@
 # kafka-wallet
 
-Exemplo end-to-end **Kafka → DynamoDB → Kafka** usando o framework serverust.
+Exemplo end-to-end **Kafka → DynamoDB → Kafka** usando a API event-driven do serverust v0.2.0.
 
-O handler do usuário (`src/lib.rs`) tem **75 LOC** total (limite do PRD: ≤ 80 LOC),
-incluindo as 3 structs DTO e as anotações `#[kafka_consumer]` + `#[dynamo_table]`.
+Demonstra `#[subscriber]` + `#[publisher]` + `EventRouter` + `Runtime::detect()`.
 
 ## Fluxo
 
-1. Lambda recebe um `KafkaEvent` contendo registros publicados no tópico
-   `wallet.events` (carteira a ser creditada/debitada).
-2. Para cada registro, o handler:
-   - Lê o estado atual da carteira no DynamoDB (tabela `Wallets`, pk = `user_id`).
+1. `Runtime::detect()` identifica o ambiente (Lambda vs long-running).
+2. `handle_wallet::register(EventRouter::new())` registra o handler no router.
+3. Em Lambda: `LambdaBroker` recebe o `KafkaEvent` e despacha registros para o handler.
+4. O handler:
+   - Lê o saldo atual no DynamoDB via `REPO` (OnceLock singleton).
    - Aplica `credit` ou `debit`.
    - Persiste o novo saldo via `DynamoRepo<Wallet>`.
-   - Publica o resultado (`WalletResult`) no tópico `wallet.results` via
-     `KafkaProducer`.
+   - Retorna `WalletResult` — o `#[publisher]` serializa e publica em `wallet.results`.
+
+## Estrutura
+
+```
+src/lib.rs   — DTOs + #[subscriber]/#[publisher] em handle_wallet
+src/main.rs  — init_repo + EventRouter + Runtime::detect + LambdaBroker
+tests/dto.rs — contratos de serialização dos DTOs
+```
 
 ## Setup local
 
@@ -76,8 +83,7 @@ cargo lambda deploy kafka-wallet \
   --env-var MSK_IAM_ROLE=enabled
 ```
 
-Em seguida, anexe um *event source mapping* MSK (Console AWS ou Terraform)
-apontando para o tópico `wallet.events`.
+Em seguida, anexe um *event source mapping* MSK apontando para `wallet.events`.
 
 ## Variáveis de ambiente
 
@@ -86,5 +92,11 @@ apontando para o tópico `wallet.events`.
 | `KAFKA_BROKERS` | bootstrap servers locais | Local |
 | `MSK_BOOTSTRAP_SERVERS` | bootstrap MSK | Produção |
 | `MSK_IAM_ROLE` | ativa SASL_SSL + OAUTHBEARER IAM | Produção |
-| `AWS_REGION` | região AWS para Dynamo + signer MSK | Sempre |
+| `AWS_REGION` | região AWS para Dynamo | Sempre |
 | `AWS_ENDPOINT_URL` | endpoint custom (DynamoDB Local) | Local |
+
+## Referências
+
+- [Guia event-driven](../../docs/guides/event-driven.md)
+- [ADR 0006 — rdkafka vs RSKafka](../../docs/development/decisions/0006-rdkafka-vs-rskafka.md)
+- [ADR 0007 — design da API macro + builder](../../docs/development/decisions/0007-event-api-design-macro-builder.md)
