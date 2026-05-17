@@ -42,6 +42,49 @@ pub trait FromExtractor: Sized + Send + 'static {
 // Extractors concretos
 // ---------------------------------------------------------------------------
 
+/// Wrapper explícito que desserializa o payload do evento como JSON.
+///
+/// Análogo ao extractor `Json<T>` do Axum: permite que handlers declarem
+/// explicitamente que recebem o corpo da mensagem como `T`.
+///
+/// - Como primeiro argumento (`T`): desserializado via `serde_json` do payload.
+/// - Como extractor posicional (`E1`, `E2`, `E3`): implementa [`FromExtractor`],
+///   também desserializa do payload.
+///
+/// # Exemplo
+///
+/// ```ignore
+/// async fn handle(Json(order): Json<Order>, meta: SqsMetadata) -> Result<(), BrokerError> {
+///     println!("order_id={}", order.order_id);
+///     Ok(())
+/// }
+/// ```
+pub struct Json<T>(pub T);
+
+impl<T: std::ops::Deref> std::ops::Deref for Json<T> {
+    type Target = T::Target;
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Json<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::deserialize(d).map(Json)
+    }
+}
+
+impl<T: DeserializeOwned + Send + 'static> FromExtractor for Json<T> {
+    fn from_message(
+        msg: &BrokerMessage,
+        _state: Option<&Arc<dyn Any + Send + Sync>>,
+    ) -> Result<Self, BrokerError> {
+        serde_json::from_slice(&msg.payload).map(Json).map_err(|e| {
+            BrokerError::Subscribe(format!("Json extractor: payload decode error: {e}"))
+        })
+    }
+}
+
 /// Metadados do evento: tópico, partição, offset e timestamp.
 pub struct EventCtx {
     pub topic: String,
