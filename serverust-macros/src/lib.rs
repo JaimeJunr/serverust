@@ -645,6 +645,10 @@ struct SubscriberAttr {
     retry_base_ms: u64,
     /// Nome da fila DLQ (US-008). `None` quando o subscriber não declara DLQ.
     dlq_queue: Option<LitStr>,
+    /// `true` quando o flag `asyncapi` foi declarado. Faz a macro emitir um
+    /// método associado `register_asyncapi(builder)` que adiciona o canal/op
+    /// no spec — exige `T: JsonSchema` no tipo do evento.
+    asyncapi: bool,
 }
 
 impl Parse for SubscriberAttr {
@@ -664,6 +668,7 @@ impl Parse for SubscriberAttr {
         let mut retry_max: u32 = 1;
         let mut retry_base_ms: u64 = 0;
         let mut dlq_queue: Option<LitStr> = None;
+        let mut asyncapi = false;
 
         while !input.is_empty() {
             // Token de chave: identificador.
@@ -674,6 +679,8 @@ impl Parse for SubscriberAttr {
                 if key_str == "fifo" && !input.peek(Token![=]) {
                     fifo = true;
                     fifo_span = Some(key.span());
+                } else if key_str == "asyncapi" && !input.peek(Token![=]) {
+                    asyncapi = true;
                 } else {
                     input.parse::<Token![=]>()?;
                     match key_str.as_str() {
@@ -740,7 +747,7 @@ impl Parse for SubscriberAttr {
                             return Err(syn::Error::new(
                                 key.span(),
                                 format!(
-                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo/retry/dlq)"
+                                    "chave desconhecida `{other}` em #[subscriber] (use driver/topic/queue/fifo/retry/dlq/asyncapi)"
                                 ),
                             ));
                         }
@@ -749,7 +756,7 @@ impl Parse for SubscriberAttr {
             } else {
                 return Err(syn::Error::new(
                     input.span(),
-                    "esperado identificador (driver/topic/queue/fifo/retry/dlq)",
+                    "esperado identificador (driver/topic/queue/fifo/retry/dlq/asyncapi)",
                 ));
             }
 
@@ -794,6 +801,7 @@ impl Parse for SubscriberAttr {
                     retry_max,
                     retry_base_ms,
                     dlq_queue,
+                    asyncapi,
                 })
             }
             "sqs" => {
@@ -818,6 +826,7 @@ impl Parse for SubscriberAttr {
                     retry_max,
                     retry_base_ms,
                     dlq_queue,
+                    asyncapi,
                 })
             }
             other => Err(syn::Error::new(
@@ -875,7 +884,11 @@ impl Parse for PublisherAttr {
 /// - `Self::SUBSCRIBE_TOPIC` — tópico de entrada;
 /// - `Self::PUBLISH_TOPIC` — `Option<&'static str>` com o tópico de saída
 ///   quando `#[publisher(topic = "...")]` é empilhado;
-/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`].
+/// - `Self::HAS_ASYNCAPI` — `bool` indicando se a flag `asyncapi` foi declarada;
+/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`];
+/// - `Self::register_asyncapi(builder)` — só existe com a flag `asyncapi`;
+///   adiciona `receive`/`send` no `AsyncApiBuilder` e exige
+///   `T: ::schemars::JsonSchema` (US-013).
 ///
 /// A função original é movida para dentro de `register`, eliminando colisão de
 /// nomes com a struct emitida (mesmo padrão de `#[get(...)]`).
@@ -919,6 +932,7 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let topic_lit = &attrs.subscribe_key;
     let driver_lit = &attrs.driver;
     let is_fifo = attrs.fifo;
+    let has_asyncapi = attrs.asyncapi;
     let retry_max_lit = LitInt::new(&attrs.retry_max.to_string(), Span::call_site());
     let retry_base_ms_lit = LitInt::new(&attrs.retry_base_ms.to_string(), Span::call_site());
     let dlq_const_expr = match &attrs.dlq_queue {
@@ -1006,6 +1020,34 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // Quando o flag `asyncapi` é declarado no atributo (opt-in por subscriber),
+    // emitimos um método associado `register_asyncapi(builder)` que adiciona
+    // uma operação `receive` no spec e, se houver `#[publisher(topic = ...)]`,
+    // também uma operação `send`. O tipo do evento precisa implementar
+    // `JsonSchema` (compile error caso não derive) e a feature
+    // `serverust-events/asyncapi` precisa estar ativa para o path resolver.
+    let asyncapi_impl = if attrs.asyncapi {
+        let send_branch = if let Some(pub_topic) = &publisher_topic {
+            quote! {
+                let builder = builder.add_send::<#event_ty>(#pub_topic);
+            }
+        } else {
+            quote! {}
+        };
+        quote! {
+            #[allow(clippy::needless_pass_by_value)]
+            pub fn register_asyncapi(
+                builder: ::serverust_events::asyncapi::AsyncApiBuilder,
+            ) -> ::serverust_events::asyncapi::AsyncApiBuilder {
+                let builder = builder.add_receive::<#event_ty>(Self::SUBSCRIBE_TOPIC);
+                #send_branch
+                builder
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     let expanded = quote! {
         #[allow(non_camel_case_types)]
         #vis struct #fn_name;
@@ -1014,6 +1056,7 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
             pub const SUBSCRIBE_TOPIC: &'static str = #topic_lit;
             pub const DRIVER: &'static str = #driver_lit;
             pub const IS_FIFO: bool = #is_fifo;
+            pub const HAS_ASYNCAPI: bool = #has_asyncapi;
             pub const PUBLISH_TOPIC: ::core::option::Option<&'static str> = #publish_const;
             pub const RETRY_MAX_ATTEMPTS: u32 = #retry_max_lit;
             pub const RETRY_BASE_MS: u64 = #retry_base_ms_lit;
@@ -1024,6 +1067,8 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
             ) -> ::serverust_events::router::EventRouter {
                 #register_body
             }
+
+            #asyncapi_impl
         }
     };
 

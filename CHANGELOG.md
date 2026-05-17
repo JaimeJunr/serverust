@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `KafkaBroker::dispatch(BrokerMessage)` em `serverust-events/src/broker/kafka.rs` — primitiva consumida pelo consumer loop long-running, testada de forma isolada sem broker físico (US-7)
 - Módulo `asyncapi` em `serverust-events/src/asyncapi.rs`: `AsyncApiBuilder` que gera spec [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0) com `channels` (tópicos), `operations` (`receive`/`send`) e `components` (messages + JSON Schema embarcado via `schemars`); `AsyncApiSpec::to_yaml()` serializa YAML válido (US-8)
 - Subcomando `serverust info --asyncapi [--out path]` em `serverust-cli` — spawna `cargo run -- --serverust-emit-asyncapi <out>` para extrair o spec do binário do projeto sem subir consumer/producer (US-8)
+- Flag opt-in `asyncapi` em `#[subscriber(...)]` — quando presente, a macro emite o método associado `register_asyncapi(builder)` que adiciona `receive` (e `send` se `#[publisher]` empilhado) no `AsyncApiBuilder` para o tipo do evento; `HAS_ASYNCAPI: bool` exposto como constante (US-013)
+- `serverust-events::asyncapi::emit_asyncapi_if_requested(builder, args)` detecta a flag `--serverust-emit-asyncapi <path>` em `args` e grava o spec em YAML; integra com `serverust info --asyncapi` ao ser chamado no `main` do projeto (US-013)
+- `serverust-events::asyncapi::__private::JsonSchema` re-export consumido pelas macros para evitar exigir `schemars` direto no Cargo.toml do projeto (US-013)
 
 ### Changed
 - Feature `kafka-producer` agora é alias de `kafka` — sem mudança de comportamento para usuários existentes

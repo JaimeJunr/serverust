@@ -15,6 +15,9 @@ description = "Suporte event-driven opt-in para serverust: extractors tipados pa
 [features]
 default = []
 # Geração de spec AsyncAPI 3.0. Puxa schemars + serde_yaml (leves, sem C deps).
+# A macro `#[subscriber(..., asyncapi)]` emite `register_asyncapi` quando o
+# flag é declarado — esse método referencia `::serverust_events::asyncapi::*`
+# e só compila com esta feature ativa.
 asyncapi = ["dep:schemars", "dep:serde_yaml"]
 # Habilita InMemoryBroker para testes sem broker físico.
 in-memory = []
@@ -87,6 +90,10 @@ serde_yaml = "0.9"
 [[test]]
 name = "asyncapi_spec"
 required-features = ["asyncapi"]
+
+[[test]]
+name = "asyncapi_from_macros"
+required-features = ["asyncapi", "sqs"]
 
 [[test]]
 name = "sqs_consumer"

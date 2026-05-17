@@ -28,9 +28,18 @@
 //! ```
 
 use std::collections::BTreeMap;
+use std::io;
+use std::path::Path;
 
 use schemars::JsonSchema;
 use serde::Serialize;
+
+/// Itens reexportados para uso pelas macros `serverust-macros`. Não é parte
+/// do contrato público — pode mudar sem bump de major.
+#[doc(hidden)]
+pub mod __private {
+    pub use schemars::JsonSchema;
+}
 
 /// Spec AsyncAPI 3.0 completo, pronto para serialização YAML/JSON.
 #[derive(Debug, Serialize)]
@@ -229,6 +238,58 @@ impl AsyncApiBuilder {
             components: self.components,
         }
     }
+}
+
+/// Flag CLI que o `serverust info --asyncapi` injeta no binário do projeto.
+pub const EMIT_FLAG: &str = "--serverust-emit-asyncapi";
+
+/// Erros possíveis ao gravar o spec a partir da CLI.
+#[derive(Debug, thiserror::Error)]
+pub enum EmitError {
+    #[error("flag `{flag}` requer um caminho de saída", flag = EMIT_FLAG)]
+    MissingPath,
+    #[error("falha ao serializar AsyncAPI YAML: {0}")]
+    Yaml(#[from] serde_yaml::Error),
+    #[error("falha ao gravar arquivo {path}: {source}")]
+    Io {
+        path: String,
+        #[source]
+        source: io::Error,
+    },
+}
+
+/// Detecta a flag [`EMIT_FLAG`] nos `args` e, se presente, grava o spec do
+/// `builder` em YAML no caminho indicado e retorna `Ok(true)`. Se ausente,
+/// devolve `Ok(false)` sem efeitos colaterais.
+///
+/// Use no `main` do projeto antes de qualquer setup pesado de runtime para
+/// suportar `serverust info --asyncapi` sem subir handlers.
+pub fn emit_asyncapi_if_requested<I, S>(
+    builder: AsyncApiBuilder,
+    args: I,
+) -> Result<bool, EmitError>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        if arg.as_ref() == EMIT_FLAG {
+            let out = iter.next().ok_or(EmitError::MissingPath)?;
+            let path = out.as_ref();
+            write_spec_to(builder, Path::new(path))?;
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn write_spec_to(builder: AsyncApiBuilder, path: &Path) -> Result<(), EmitError> {
+    let yaml = builder.build().to_yaml()?;
+    std::fs::write(path, yaml).map_err(|source| EmitError::Io {
+        path: path.display().to_string(),
+        source,
+    })
 }
 
 /// Nome do schema preferindo `JsonSchema::schema_name()` (geralmente o ident do tipo)
