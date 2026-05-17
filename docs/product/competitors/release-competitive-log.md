@@ -92,3 +92,26 @@ _Ratio LOC calculado pelo script `scripts/benchmark_competitive.sh` — fonte au
 - O exemplo `kafka-wallet` demonstra o ciclo completo Kafka→DynamoDB→Kafka em 16 LOC de handler.
 - O baseline `examples/baselines/axum-raw-kafka` é a implementação vanilla auditável equivalente (64 LOC handler, sem abstrações do framework).
 - hello-world HTTP-first preservado: zero deps de Kafka/DynamoDB, CI gate `quality_hello_world.sh` adicionado.
+
+---
+
+## v0.2.0 — 2026-05-16 (análise competitiva Axum)
+
+### Versões dos concorrentes (atualização)
+| Biblioteca | Versão | Fonte |
+|---|---|---|
+| axum | v0.8.x | https://github.com/tokio-rs/axum/releases |
+| actix-web | v4.13.0 | https://github.com/actix/actix-web/releases |
+
+### Análise Axum adicionada
+Criado `docs/product/competitors/axum.md` com:
+- Comparação de DX: extractors, middleware Tower, DI (axum não tem DI nativo).
+- Lambda support: axum via `lambda_http` (manual, cold start >100ms) vs serverust (automático, p95 <50ms).
+- OpenAPI: axum requer utoipa manualmente; serverust integra by default.
+- Kafka: axum HTTP-only; serverust cobre HTTP + Kafka/SQS com mesmo DI.
+- Seção "Por que serverust sobre axum" com argumentos honestos (incluindo quando Axum pode ser melhor).
+
+### Gap LOC (handler) — axum vs serverust
+| Cenário | serverust | axum-raw-kafka (baseline) | Ratio |
+|---|---|---|---|
+| Kafka handler completo | 16 LOC | 64 LOC | 4,0× menos LOC |
