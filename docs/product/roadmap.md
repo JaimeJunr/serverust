@@ -69,7 +69,29 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 - **Outbox pattern**: gravar evento na mesma transação do banco; worker dispara depois — sem perda mesmo com rollback
 - **Correlation IDs automáticos**: propagados em headers de cada mensagem, base para tracing distribuído
 
-### v0.4 — Observabilidade e contratos
+### v0.3.1 — Hardening do SqsBroker (follow-up review PR #5)
+
+Sugestões da review automática (Claude Code Action) agendadas para release de patch após v0.3.0:
+
+- **Structured logging completo**: padronizar `tracing::warn!` para `tracing::error!` quando o evento é falha de invariante. Campos consistentes: `queue`, `message_id`, `attempt`, `error`.
+- **Schema validation pós-deserialização**: validar campos obrigatórios em `Json<T>` extractor e em `SqsMetadata::from_message`.
+- **Graceful degradation**: contador `idempotency_bypass_total` quando `message_id` vazio; validação básica de formato em `receipt_handle` antes do heartbeat.
+- **Overflow protection no backoff**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por `saturating_pow` + `max_backoff: Duration` configurável (default 30s).
+- **Métricas EMF operacionais**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`.
+- **Circuit breaker no `StandaloneSqsBroker`**: trip após N falhas consecutivas de `ReceiveMessage` para evitar storm em incidente AWS.
+
+### v0.4 — Multi-Lambda scaffolding + transport abstraction completa
+
+Inspiração: SST, AWS SAM, Encore.ts, Cargo Lambda. Pesquisa em `docs/research/multi-lambda-tier-list.md` (a criar).
+
+- **`serverust new project <name> --multi-lambda`**: scaffold canônico `functions/<name>/` + `crates/shared/` + `crates/events/` + `infra/` + `serverust.toml` (manifesto) + Dockerfile único.
+- **Manifesto `serverust.toml`**: source-of-truth para queues, topics, buckets, schedules (Encore-style); macros `#[subscriber]/#[publisher]/#[get]` declaram handlers que consomem (híbrido manifest + decorator).
+- **Geradores IaC plugáveis** via trait `IaCGenerator`: Terraform + SAM + SST como built-in v1; CDK, Pulumi, Serverless Framework como extension points entregues em v0.4.x.
+- **CLI commands**: `serverust new lambda <name> --trigger sqs|http|sns|s3|schedule`, `serverust list`, `serverust diagram` (gera excalidraw da topologia), `serverust dev` (watch + invoke local), `serverust deploy --stage <env>`.
+- **LMI (Lambda Managed Instances)**: flag `lmi = true` no manifesto — Rust é particularmente bom para LMI (persistent warm instances).
+- **AsyncAPI como contract registry inter-lambda**: schemas em `crates/events/` viram source-of-truth tipado.
+
+### v0.5 — Observabilidade e contratos
 - **Sagas como crate separado** (`serverust-sagas`): state machines para workflows de longa duração
 - **Topology declarativa** (inspiração Kafka Streams): `source → filter → map → sink` descritivo
 
