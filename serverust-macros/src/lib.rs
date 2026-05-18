@@ -643,6 +643,9 @@ struct SubscriberAttr {
     retry_max: u32,
     /// Base do backoff exponencial em milissegundos. Default 0 (sem espera).
     retry_base_ms: u64,
+    /// `true` quando o usuário declarou `retry = exponential(...)` (distinto do
+    /// default implícito) — controla se [`EventRouter::with_retry`] é emitido.
+    retry_specified: bool,
     /// Nome da fila DLQ (US-008). `None` quando o subscriber não declara DLQ.
     dlq_queue: Option<LitStr>,
     /// `true` quando o flag `asyncapi` foi declarado. Faz a macro emitir um
@@ -667,6 +670,7 @@ impl Parse for SubscriberAttr {
         let mut fifo_span: Option<proc_macro2::Span> = None;
         let mut retry_max: u32 = 1;
         let mut retry_base_ms: u64 = 0;
+        let mut retry_specified = false;
         let mut dlq_queue: Option<LitStr> = None;
         let mut asyncapi = false;
 
@@ -742,6 +746,7 @@ impl Parse for SubscriberAttr {
                                     "exponential requer `base = \"<N>ms\"`",
                                 )
                             })?;
+                            retry_specified = true;
                         }
                         other => {
                             return Err(syn::Error::new(
@@ -800,6 +805,7 @@ impl Parse for SubscriberAttr {
                     fifo_span: None,
                     retry_max,
                     retry_base_ms,
+                    retry_specified,
                     dlq_queue,
                     asyncapi,
                 })
@@ -825,6 +831,7 @@ impl Parse for SubscriberAttr {
                     fifo_span,
                     retry_max,
                     retry_base_ms,
+                    retry_specified,
                     dlq_queue,
                     asyncapi,
                 })
@@ -902,6 +909,46 @@ impl Parse for PublisherAttr {
 ///
 /// Ambas as macros emitem código do builder `EventRouter` — não há registro
 /// global mágico em runtime.
+///
+/// Quando `#[subscriber(...)]` declara `retry = exponential(...)` e/ou
+/// `dlq = "..."`, este trecho é emitido após `subscribe_with` /
+/// `subscribe_publish` para encadear `EventRouter::with_retry` /
+/// `EventRouter::with_dlq` na última inscrição (comportamento esperado em
+/// US-008).
+fn subscriber_router_post_chain(attrs: &SubscriberAttr) -> proc_macro2::TokenStream {
+    let retry_max_lit = LitInt::new(&attrs.retry_max.to_string(), Span::call_site());
+    let retry_base_lit = LitInt::new(&attrs.retry_base_ms.to_string(), Span::call_site());
+
+    match (attrs.retry_specified, attrs.dlq_queue.as_ref()) {
+        (true, Some(dlq_lit)) => quote! {
+            let router = router.with_retry(
+                ::serverust_events::retry::RetryPolicy::exponential(
+                    #retry_max_lit,
+                    ::std::time::Duration::from_millis(#retry_base_lit),
+                )
+                .dead_letter(#dlq_lit),
+            );
+            router
+        },
+        (true, None) => quote! {
+            let router = router.with_retry(
+                ::serverust_events::retry::RetryPolicy::exponential(
+                    #retry_max_lit,
+                    ::std::time::Duration::from_millis(#retry_base_lit),
+                ),
+            );
+            router
+        },
+        (false, Some(dlq_lit)) => quote! {
+            let router = router.with_dlq(#dlq_lit);
+            router
+        },
+        (false, None) => quote! {
+            router
+        },
+    }
+}
+
 #[proc_macro_attribute]
 pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = parse_macro_input!(attr as SubscriberAttr);
@@ -1004,19 +1051,23 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! { ::core::option::Option::None }
     };
 
+    let post_registration = subscriber_router_post_chain(&attrs);
+
     let register_body = if let Some(pub_topic) = &publisher_topic {
         quote! {
             #func
-            router.subscribe_publish::<#event_ty, _, _, _>(
+            let router = router.subscribe_publish::<#event_ty, _, _, _>(
                 Self::SUBSCRIBE_TOPIC,
                 #pub_topic,
                 #fn_name,
-            )
+            );
+            #post_registration
         }
     } else {
         quote! {
             #func
-            router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
+            let router = router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name);
+            #post_registration
         }
     };
 
