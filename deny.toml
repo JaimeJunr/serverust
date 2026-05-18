@@ -1,0 +1,68 @@
+# Configuração para `cargo-deny` (https://crates.io/crates/cargo-deny).
+#
+# Verifica licenças, advisories de segurança, fontes confiáveis e bans de deps.
+# Rodar: cargo deny check
+# CI: .github/workflows/cargo-deny.yml
+
+[graph]
+all-features = true
+no-default-features = false
+
+[advisories]
+version = 2
+# Falha em advisories abertas no rustsec.org.
+yanked = "deny"
+# Ignores com justificativa explícita. Cada entrada deve ter comentário sobre
+# (a) por que não dá pra atualizar, (b) qual o impacto real no contexto,
+# (c) quando podemos remover.
+ignore = [
+    # rustls-webpki 0.101.7 (transitive via aws-smithy-http-client → AWS SDK).
+    # Impacto: TLS para AWS endpoints (DynamoDB, SQS, etc.). Risco real baixo
+    # porque a CA chain é a AWS Trust Services (controlada), não user-supplied.
+    # Remover quando aws-sdk-rust subir para rustls 0.23 (acompanhar
+    # https://github.com/awslabs/aws-sdk-rust/issues — atualmente pin 0.21).
+    "RUSTSEC-2026-0098",  # name constraints for URI names incorretas
+    "RUSTSEC-2026-0099",  # wildcard name em name constraints
+    "RUSTSEC-2026-0104",  # reachable panic em CRL parsing
+]
+
+[licenses]
+version = 2
+# Allowlist baseada em SPDX. Restritivo de propósito — uma license nova só
+# entra com PR explícito justificando.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "Zlib",
+    "MPL-2.0",  # weak copyleft, compatível com Apache/MIT
+    "0BSD",
+]
+# License que não constam no SPDX mas são triviais para crates comuns.
+exceptions = []
+# Crates com declaração ambígua mas conhecidas como OK. Vazio por agora.
+private = { ignore = true }
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path-deps em crates `publish = false` (examples internos) são tratadas como
+# wildcards pelo cargo-deny. Como os examples nunca vão pra crates.io, opt-in:
+allow-wildcard-paths = true
+highlight = "all"
+# Permitir versões duplicadas comuns no ecossistema (futures, syn, etc.) sem
+# encher de noise. Cada novo allow exige justificativa em PR.
+skip = []
+skip-tree = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

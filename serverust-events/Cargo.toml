@@ -150,3 +150,8 @@ required-features = ["sqs"]
 [[test]]
 name = "sqs_observability"
 required-features = ["sqs"]
+
+# cargo-machete false positives: aws-config é ativado por features que machete
+# não enumera; pin-project-lite é usado em codegen das macros Tower.
+[package.metadata.cargo-machete]
+ignored = ["aws-config", "pin-project-lite"]

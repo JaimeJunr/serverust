@@ -100,6 +100,7 @@ Inspiração: SST, AWS SAM, Encore.ts, Cargo Lambda. Pesquisa em `docs/research/
 - gRPC via tonic adapter
 - Suporte a outros brokers: RabbitMQ (`serverust-rabbitmq`), NATS (`serverust-nats`) — `Broker` trait já está pronta
 - Suporte a outros providers serverless (GCP Cloud Run, Azure Functions)
+- **Remover ignores de RUSTSEC em `deny.toml`** quando `aws-sdk-rust` subir para `rustls 0.23+`: RUSTSEC-2026-0098, 0099, 0104 (rustls-webpki 0.101.7 transitive via aws-smithy-http-client). Acompanhar https://github.com/awslabs/aws-sdk-rust/issues.
 
 ---
 

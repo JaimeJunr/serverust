@@ -54,3 +54,8 @@ dynamodb = ["dep:aws-sdk-dynamodb", "dep:aws-config"]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 serverust-macros = { path = "../serverust-macros", version = "0.3.0" }
+
+# cargo-machete false positives: aws-config e tracing-opentelemetry são ativados
+# por features (otel/dynamodb) que machete não enumera por padrão.
+[package.metadata.cargo-machete]
+ignored = ["aws-config", "tracing-opentelemetry"]

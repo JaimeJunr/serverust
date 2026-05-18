@@ -1,0 +1,61 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  nextest:
+    name: cargo nextest (${{ matrix.crate }} / features=${{ matrix.features }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # Rodamos por crate para isolar falhas e respeitar a regra "nunca workspace
+      # build inteiro de uma vez" (CLAUDE.md). nextest é mais rápido por design
+      # (parallelism + retry).
+      matrix:
+        include:
+          - crate: serverust-macros
+            features: ""
+          - crate: serverust-core
+            features: ""
+          - crate: serverust-telemetry
+            features: ""
+          - crate: serverust-events
+            features: ""
+          - crate: serverust-events
+            features: "sqs in-memory"
+          - crate: serverust-events
+            features: "kafka"
+          - crate: serverust-events
+            features: "asyncapi sqs"
+          - crate: serverust-lambda
+            features: ""
+          - crate: serverust-cli
+            features: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Cache key inclui matrix para isolar caches por crate+features.
+          shared-key: "tests-${{ matrix.crate }}-${{ matrix.features }}"
+      - name: Install librdkafka build deps (kafka feature)
+        if: contains(matrix.features, 'kafka')
+        # libcurl4-openssl-dev: rdkafka-sys >=4.10 requer curl/curl.h em build.
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev libcurl4-openssl-dev
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: Run tests
+        run: |
+          if [ -z "${{ matrix.features }}" ]; then
+            cargo nextest run -p ${{ matrix.crate }}
+          else
+            cargo nextest run -p ${{ matrix.crate }} --features "${{ matrix.features }}"
+          fi

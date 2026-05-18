@@ -1,0 +1,31 @@
+name: cargo-deny
+
+on:
+  pull_request:
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/cargo-deny.yml"
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+  schedule:
+    # Roda semanalmente para pegar advisories novas mesmo sem mudanças.
+    - cron: "23 5 * * 1"  # segunda 05:23 UTC
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          # `check all` = advisories + licenses + bans + sources.
+          command: check all
+          arguments: --workspace

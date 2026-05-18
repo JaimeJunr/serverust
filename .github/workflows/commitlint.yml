@@ -1,0 +1,35 @@
+name: commitlint
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  cog-check:
+    name: Conventional Commits (cocogitto)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # cog precisa histórico completo
+      - name: Install cocogitto
+        # cargo-binstall pega binary release oficial direto do GitHub releases.
+        # Mais confiável que install.sh (que retornou 404 em 2026-05).
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cocogitto
+      - name: Validate commit history
+        # Em PR: valida só os commits da PR (from-latest-tag = false).
+        # Em push para main: cog check valida tudo desde o último tag.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }}
+            cog check origin/${{ github.base_ref }}..HEAD
+          else
+            cog check
+          fi

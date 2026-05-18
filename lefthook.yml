@@ -11,6 +11,18 @@ pre-commit:
       run: ./scripts/quality_cycles.sh
     hello_world:
       run: ./scripts/quality_hello_world.sh
+    machete:
+      # Detecta deps não-usadas (cargo-machete). Skip silencioso se a tool
+      # não estiver instalada — sem força instalação compulsória.
+      run: command -v cargo-machete >/dev/null 2>&1 && cargo machete || echo "[skip] cargo-machete ausente (cargo install cargo-machete)"
+
+# Valida commit message contra Conventional Commits via cocogitto (cog.toml).
+commit-msg:
+  commands:
+    cog-verify:
+      # Skip silencioso se cog não estiver instalado. Instalação:
+      #   curl https://raw.githubusercontent.com/cocogitto/cocogitto/main/install.sh | bash
+      run: command -v cog >/dev/null 2>&1 && cog verify --file {1} || echo "[skip] cocogitto ausente"
 
 pre-push:
   parallel: false
