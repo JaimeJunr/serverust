@@ -10,10 +10,21 @@ no-default-features = false
 
 [advisories]
 version = 2
-# Falha em advisories abertas no rustsec.org. Sem ignores; quando uma advisory
-# aparecer, abrimos issue para tratar antes de mergear.
+# Falha em advisories abertas no rustsec.org.
 yanked = "deny"
-ignore = []
+# Ignores com justificativa explícita. Cada entrada deve ter comentário sobre
+# (a) por que não dá pra atualizar, (b) qual o impacto real no contexto,
+# (c) quando podemos remover.
+ignore = [
+    # rustls-webpki 0.101.7 (transitive via aws-smithy-http-client → AWS SDK).
+    # Impacto: TLS para AWS endpoints (DynamoDB, SQS, etc.). Risco real baixo
+    # porque a CA chain é a AWS Trust Services (controlada), não user-supplied.
+    # Remover quando aws-sdk-rust subir para rustls 0.23 (acompanhar
+    # https://github.com/awslabs/aws-sdk-rust/issues — atualmente pin 0.21).
+    "RUSTSEC-2026-0098",  # name constraints for URI names incorretas
+    "RUSTSEC-2026-0099",  # wildcard name em name constraints
+    "RUSTSEC-2026-0104",  # reachable panic em CRL parsing
+]
 
 [licenses]
 version = 2
