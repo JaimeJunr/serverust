@@ -32,6 +32,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
 - [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines), 0006 (rdkafka vs RSKafka), 0007 (event API design).
+- [**development/release-checklist.md**](development/release-checklist.md) — Checklist de release e runbook dos workflows de CI/release (`release-plz`, cocogitto, nextest, cargo-deny, cargo-machete).
 - [**development/ralph-progress.md**](development/ralph-progress.md) — Learnings de implementação por versão. Codebase Patterns + relato detalhado por user story com o que funcionou e o que não funcionou.
 
 ## Guia para Contribuidores e AI Agents

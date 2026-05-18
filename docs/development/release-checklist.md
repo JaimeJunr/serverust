@@ -20,7 +20,27 @@ A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada
 - [ ] `scripts/quality_cycles.sh` passa
 - [ ] `scripts/quality_changelog.sh` passa (versão em Cargo.toml tem entrada em CHANGELOG.md)
 - [ ] `scripts/quality_hello_world.sh` passa (hello-world sem deps Kafka/DynamoDB/SQS)
-- [ ] `cargo deny check` passa (CI: `.github/workflows/cargo-deny.yml`)
+- [ ] `cargo deny check all --workspace` passa (CI: `.github/workflows/cargo-deny.yml`)
+
+## Automação de CI e release
+
+Os workflows abaixo são a fonte operacional para releases e PRs. Use esta tabela para reproduzir falhas localmente antes de reexecutar CI:
+
+| Gate | Quando roda | Configuração | Reprodução local |
+|---|---|---|---|
+| Conventional Commits | PR (`opened`, `edited`, `reopened`, `synchronize`) e push em `main` | `.github/workflows/commitlint.yml`, `cog.toml` | PR: `git fetch origin <base>` e `cog check origin/<base>..HEAD`. Mensagem isolada: `cog verify "docs: atualizar runbook de release"` |
+| Testes por crate | PR e push em `main` | `.github/workflows/tests.yml` | `cargo nextest run -p <crate>` ou `cargo nextest run -p serverust-events --features "sqs in-memory"` |
+| Dependências seguras | PRs que tocam `Cargo.toml`, `Cargo.lock`, `deny.toml` ou workflow; push em `main`; cron semanal | `.github/workflows/cargo-deny.yml`, `deny.toml` | `cargo deny check all --workspace` |
+| Dependências não usadas | PRs que tocam `Cargo.toml`, `Cargo.lock`, Rust ou workflow; cron semanal | `.github/workflows/cargo-machete.yml`, `lefthook.yml` | `cargo machete` |
+| Release PR e publish | Push em `main`; trigger manual via Actions | `.github/workflows/release-plz.yml`, `release-plz.toml`, `cliff.toml` | Validar o Release PR gerado e logs do workflow; publish exige `CARGO_REGISTRY_TOKEN` |
+
+### Restrições importantes
+
+- A matriz de testes usa `cargo nextest` por crate para isolar falhas e evitar build/teste do workspace inteiro de uma vez.
+- Features Kafka instalam dependências nativas no CI (`cmake`, `build-essential`, `libssl-dev`, `libsasl2-dev`, `libcurl4-openssl-dev`) antes de rodar `cargo nextest`.
+- `release-plz.toml` lista explicitamente os crates publicáveis. Exemplos e baselines devem continuar com `publish = false` e `release = false`.
+- Licenças novas, advisories ignoradas ou fontes Git/registry novas devem ser justificadas em `deny.toml`; o default é falhar fechado.
+- `lefthook.yml` roda `cargo machete` no pre-commit apenas se a ferramenta estiver instalada; o CI semanal continua sendo o detector autoritativo de dependências órfãs.
 
 ## Versão e Changelog
 
