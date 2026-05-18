@@ -41,6 +41,9 @@ private = { ignore = true }
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Path-deps em crates `publish = false` (examples internos) são tratadas como
+# wildcards pelo cargo-deny. Como os examples nunca vão pra crates.io, opt-in:
+allow-wildcard-paths = true
 highlight = "all"
 # Permitir versões duplicadas comuns no ecossistema (futures, syn, etc.) sem
 # encher de noise. Cada novo allow exige justificativa em PR.
