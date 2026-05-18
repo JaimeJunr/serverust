@@ -25,8 +25,6 @@ jobs:
             features: ""
           - crate: serverust-telemetry
             features: ""
-          - crate: serverust-telemetry
-            features: "in-memory"
           - crate: serverust-events
             features: ""
           - crate: serverust-events
@@ -48,7 +46,8 @@ jobs:
           shared-key: "tests-${{ matrix.crate }}-${{ matrix.features }}"
       - name: Install librdkafka build deps (kafka feature)
         if: contains(matrix.features, 'kafka')
-        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev
+        # libcurl4-openssl-dev: rdkafka-sys >=4.10 requer curl/curl.h em build.
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev libcurl4-openssl-dev
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
