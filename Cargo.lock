@@ -1968,9 +1968,9 @@ checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.115"
+version = "0.9.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "158fe5b292746440aa6e7a7e690e55aeb72d41505e2804c23c6973ad0e9c9781"
+checksum = "f28a22dc7140cda5f096e5e7724a6962ca81a7f8bfd2979f9b18c11af56318c4"
 dependencies = [
  "cc",
  "libc",
@@ -2699,7 +2699,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "axum",
  "figment",
@@ -2718,7 +2718,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-events"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -2742,7 +2742,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-lambda"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aws_lambda_events",
  "axum",
@@ -2761,7 +2761,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-macros"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
@@ -2780,7 +2780,7 @@ dependencies = [
 
 [[package]]
 name = "serverust-telemetry"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "async-trait",
  "aws-config",
