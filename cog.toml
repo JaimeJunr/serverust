@@ -6,7 +6,26 @@
 # Validar histórico: cog check
 # Validar próximo commit message: cog verify "feat(scope): message"
 
-# Tipos permitidos (Conventional Commits v1.0 + Angular convention).
+# ─── Chaves globais (devem vir ANTES de qualquer [table]) ──────────────────
+
+# Política do tag — bate com release-plz.
+tag_prefix = ""
+
+# Permite merge commits e revert commits sem enforcement estrito.
+ignore_merge_commits = true
+
+# Branch base. cog check valida histórico contra a branch atual.
+branch_whitelist = ["main", "release-plz/*", "ralph/*", "ci/*", "chore/*", "fix/*", "feat/*", "docs/*"]
+
+# Hooks pós-bump (vazio = sem hooks customizados).
+post_bump_hooks = []
+
+# Scopes recomendados (monorepo). Lista vazia = qualquer scope aceito;
+# descomente para enforcement estrito.
+# scopes = ["core", "macros", "events", "telemetry", "lambda", "cli", "examples", "docs", "ci"]
+
+# ─── Tipos de commit ───────────────────────────────────────────────────────
+# Conventional Commits v1.0 + Angular convention.
 [commit_types]
 feat = { changelog_title = "Features" }
 fix = { changelog_title = "Bug Fixes" }
@@ -20,20 +39,7 @@ chore = { changelog_title = "Chores" }
 revert = { changelog_title = "Reverts" }
 style = { changelog_title = "Style" }
 
-# Scopes recomendados (monorepo). cog verify warns se scope desconhecido.
-# Lista vazia = qualquer scope aceito; descomente para enforcement estrito futuro.
-# scopes = ["core", "macros", "events", "telemetry", "lambda", "cli", "examples", "docs", "ci"]
-
-# Política do tag — bate com release-plz.
-tag_prefix = ""
-post_bump_hooks = []
-
-# Branch base. cog check valida histórico contra a branch atual.
-branch_whitelist = ["main", "release-plz/*", "ralph/*", "ci/*", "chore/*", "fix/*", "feat/*", "docs/*"]
-
-# Permite merge commits e revert commits sem enforcement estrito.
-ignore_merge_commits = true
-
+# ─── Changelog (usado pelo `cog changelog`) ────────────────────────────────
 [changelog]
 authors = []
 template = "remote"
