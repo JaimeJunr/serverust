@@ -119,13 +119,25 @@ async fn handle_sqs_event_todas_falhas_aparecem_em_batch_item_failures() {
 }
 
 #[tokio::test]
-async fn handle_sqs_event_ignora_fila_sem_subscriber_sem_falhar() {
+async fn handle_sqs_event_sem_subscriber_reporta_falhas_para_nao_ack_silencioso() {
     let broker = Arc::new(SqsBroker::new());
-    // Nenhum subscriber registrado para "orders" — mensagens sao silenciosamente
-    // ignoradas (nao geram batch_item_failures). Em producao isso seria uma
-    // misconfiguracao do ESM, mas o broker nao tem como saber.
+    // Sem subscriber: com ReportBatchItemFailures, retornar batch vazio faria a
+    // Lambda remover as mensagens como sucesso (perda silenciosa). Deve haver
+    // uma entrada por messageId para retry/DLQ.
     let resp = broker.handle_sqs_event(&fixture()).await;
-    assert!(resp.batch_item_failures.is_empty());
+    assert_eq!(resp.batch_item_failures.len(), 3);
+    let ids: std::collections::HashSet<String> = resp
+        .batch_item_failures
+        .iter()
+        .map(|f| f.item_identifier.clone())
+        .collect();
+    for expected in [
+        "11d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+        "22d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+        "33d6ee51-4cc7-4302-9e22-7cd8afdaadf5",
+    ] {
+        assert!(ids.contains(expected), "esperava {expected} em {:?}", ids);
+    }
 }
 
 #[tokio::test]
@@ -137,7 +149,7 @@ async fn sqs_broker_publish_falha_indicando_sink_only() {
 }
 
 #[tokio::test]
-async fn handle_sqs_event_ignora_mensagem_sem_event_source_arn() {
+async fn handle_sqs_event_sem_event_source_arn_reporta_falha_quando_ha_message_id() {
     let broker = Arc::new(SqsBroker::new());
     let called: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));
 
@@ -165,7 +177,8 @@ async fn handle_sqs_event_ignora_mensagem_sem_event_source_arn() {
     }"#;
     let event: SqsEvent = serde_json::from_str(raw).unwrap();
     let resp = broker.handle_sqs_event(&event).await;
-    assert!(resp.batch_item_failures.is_empty());
+    assert_eq!(resp.batch_item_failures.len(), 1);
+    assert_eq!(resp.batch_item_failures[0].item_identifier, "no-arn-1");
     assert_eq!(
         *called.lock().unwrap(),
         0,
