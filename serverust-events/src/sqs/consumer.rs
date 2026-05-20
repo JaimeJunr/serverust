@@ -55,7 +55,8 @@ pub(crate) const SQS_METADATA_HEADER: &str = "__serverust_sqs_message";
 /// - [`Self::subscribe`] registra handlers em memória por nome de fila.
 /// - [`Self::handle_sqs_event`] despacha cada [`SqsMessage`] do batch para os
 ///   handlers inscritos e devolve uma [`SqsBatchResponse`] com `batch_item_failures`
-///   contendo o `message_id` de cada mensagem cujo handler retornou `Err`.
+///   para falhas do handler e para registros não despacháveis (sem handler, ARN
+///   inválido), evitando ack silencioso pela Lambda.
 /// - [`Self::publish`] erra com mensagem clara: este broker é sink-only — para
 ///   publicar use o `SqsProducer` (US-004) ou outro driver dedicado.
 pub struct SqsBroker {
@@ -91,7 +92,8 @@ impl SqsBroker {
     /// Comportamento:
     ///
     /// 1. Para cada [`SqsMessage`], identifica a fila via segmento final do
-    ///    ARN. Mensagens sem ARN são ignoradas (configuração inválida).
+    ///    ARN. Sem ARN válido não há despacho; com `message_id`, registra-se
+    ///    falha no batch (configuração inválida — evita remoção silenciosa).
     /// 2. Se houver handler inscrito, monta um [`BrokerMessage`] com o body
     ///    em `payload` e a SqsMessage original serializada em
     ///    `headers[SQS_METADATA_HEADER]`, depois invoca o handler.
@@ -99,48 +101,71 @@ impl SqsBroker {
     ///    `batch_item_failures` (modelo de partial batch failure do Lambda ESM).
     /// 4. Mensagens sem `message_id` em erro não podem ser reportadas — o erro
     ///    é logado em stderr; nesse cenário Lambda retentará o batch inteiro.
-    /// 5. Mensagens sem handler inscrito são ignoradas (sem falha — em
-    ///    Lambda ESM uma fila sem subscriber é misconfiguração).
+    /// 5. Mensagens sem handler inscrito para a fila do ARN, ou sem
+    ///    `event_source_arn` parseável, **não** podem ser tratadas como sucesso:
+    ///    com `ReportBatchItemFailures`, ausência em `batch_item_failures`
+    ///    faria a Lambda remover a mensagem da fila sem processamento. Quando
+    ///    houver `message_id`, registra-se falha no batch para retry/DLQ; sem
+    ///    `message_id` apenas loga (mesmo limite do item 4).
     pub async fn handle_sqs_event(&self, event: &SqsEvent) -> SqsBatchResponse {
         let mut response = SqsBatchResponse::default();
 
         for raw in &event.records {
-            let Some(queue) = extract_queue_name(raw) else {
-                continue;
-            };
-
-            let handlers: Vec<BoxedHandler> = self
-                .subscriptions
-                .lock()
-                .expect("sqs subscriptions mutex poisoned")
-                .iter()
-                .filter(|s| s.queue == queue)
-                .map(|s| s.handler.clone())
-                .collect();
-
-            if handlers.is_empty() {
-                continue;
-            }
-
-            let msg = build_broker_message(&queue, raw);
-
-            let mut handler_err: Option<BrokerError> = None;
-            for handler in handlers {
-                if let Err(e) = handler(msg.clone()).await {
-                    handler_err = Some(e);
-                    break;
+            match extract_queue_name(raw) {
+                None => {
+                    if let Some(id) = raw.message_id.clone() {
+                        response.add_failure(id);
+                    } else {
+                        warn!(
+                            "sqs record missing event_source_arn and message_id; \
+                             Lambda may ack this record as success",
+                        );
+                    }
                 }
-            }
+                Some(queue) => {
+                    let handlers: Vec<BoxedHandler> = self
+                        .subscriptions
+                        .lock()
+                        .expect("sqs subscriptions mutex poisoned")
+                        .iter()
+                        .filter(|s| s.queue == queue)
+                        .map(|s| s.handler.clone())
+                        .collect();
 
-            if let Some(e) = handler_err {
-                if let Some(id) = raw.message_id.clone() {
-                    response.add_failure(id);
-                } else {
-                    warn!(
-                        queue = %queue,
-                        error = %e,
-                        "sqs message failed but has no message_id; Lambda will retry the whole batch",
-                    );
+                    if handlers.is_empty() {
+                        if let Some(id) = raw.message_id.clone() {
+                            response.add_failure(id);
+                        } else {
+                            warn!(
+                                queue = %queue,
+                                "sqs record has no handler and no message_id; \
+                                 Lambda may ack this record as success",
+                            );
+                        }
+                        continue;
+                    }
+
+                    let msg = build_broker_message(&queue, raw);
+
+                    let mut handler_err: Option<BrokerError> = None;
+                    for handler in handlers {
+                        if let Err(e) = handler(msg.clone()).await {
+                            handler_err = Some(e);
+                            break;
+                        }
+                    }
+
+                    if let Some(e) = handler_err {
+                        if let Some(id) = raw.message_id.clone() {
+                            response.add_failure(id);
+                        } else {
+                            warn!(
+                                queue = %queue,
+                                error = %e,
+                                "sqs message failed but has no message_id; Lambda will retry the whole batch",
+                            );
+                        }
+                    }
                 }
             }
         }
