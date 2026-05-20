@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `SqsBroker::handle_sqs_event` (Lambda ESM + `ReportBatchItemFailures`): mensagens sem handler para a fila do ARN ou sem `event_source_arn` válido passam a entrar em `batchItemFailures` quando há `messageId`, em vez de serem tratadas como sucesso implícito (a Lambda removia da fila sem processamento).
+
 ## [0.3.0] - 2026-05-17
 
 `serverust-events 0.3.0` — SqsBroker maduro: Lambda ESM + Standalone worker, FIFO type-safe, Tower pipeline, idempotency, DLQ declarativo, transport abstraction SQS↔Kafka, AsyncAPI, EMF, X-Ray e CLI inspector. 14 user stories (US-001..US-014) entregues.
