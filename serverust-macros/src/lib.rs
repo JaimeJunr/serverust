@@ -885,7 +885,9 @@ impl Parse for PublisherAttr {
 /// - `Self::PUBLISH_TOPIC` — `Option<&'static str>` com o tópico de saída
 ///   quando `#[publisher(topic = "...")]` é empilhado;
 /// - `Self::HAS_ASYNCAPI` — `bool` indicando se a flag `asyncapi` foi declarada;
-/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`];
+/// - `Self::register(router)` — empurra a inscrição no [`EventRouter`], encadeando
+///   [`EventRouter::with_retry`] / [`EventRouter::with_dlq`] quando `retry` / `dlq`
+///   aparecem no atributo (além das constantes de introspecção);
 /// - `Self::register_asyncapi(builder)` — só existe com a flag `asyncapi`;
 ///   adiciona `receive`/`send` no `AsyncApiBuilder` e exige
 ///   `T: ::schemars::JsonSchema` (US-013).
@@ -1004,6 +1006,36 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
         quote! { ::core::option::Option::None }
     };
 
+    // US-008: `retry` / `dlq` no atributo precisam refletir em `EventRouter` —
+    // não basta expor constantes; `attach` só vê `Subscription.retry` / `.dlq`.
+    let router_policy_suffix: proc_macro2::TokenStream = {
+        let non_default_exponential = attrs.retry_max > 1 || attrs.retry_base_ms > 0;
+        if non_default_exponential {
+            let max = attrs.retry_max;
+            let base_ms = attrs.retry_base_ms;
+            match &attrs.dlq_queue {
+                Some(dlq) => quote! {
+                    .with_retry(
+                        ::serverust_events::retry::RetryPolicy::exponential(
+                            #max,
+                            ::std::time::Duration::from_millis(#base_ms),
+                        )
+                        .dead_letter(#dlq))
+                },
+                None => quote! {
+                    .with_retry(::serverust_events::retry::RetryPolicy::exponential(
+                        #max,
+                        ::std::time::Duration::from_millis(#base_ms),
+                    ))
+                },
+            }
+        } else if let Some(dlq) = &attrs.dlq_queue {
+            quote! { .with_dlq(#dlq) }
+        } else {
+            quote! {}
+        }
+    };
+
     let register_body = if let Some(pub_topic) = &publisher_topic {
         quote! {
             #func
@@ -1011,12 +1043,12 @@ pub fn subscriber(attr: TokenStream, item: TokenStream) -> TokenStream {
                 Self::SUBSCRIBE_TOPIC,
                 #pub_topic,
                 #fn_name,
-            )
+            )#router_policy_suffix
         }
     } else {
         quote! {
             #func
-            router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)
+            router.subscribe_with::<#event_ty, _, _>(Self::SUBSCRIBE_TOPIC, #fn_name)#router_policy_suffix
         }
     };
 

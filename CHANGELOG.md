@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `SqsBroker::handle_sqs_event` (Lambda ESM + `ReportBatchItemFailures`): mensagens sem handler para a fila do ARN ou sem `event_source_arn` válido passam a entrar em `batchItemFailures` quando há `messageId`, em vez de serem tratadas como sucesso implícito (a Lambda removia da fila sem processamento).
+- `#[subscriber(..., retry = exponential(...), dlq = "...")]` (`serverust-macros`): `register()` agora encadeia `EventRouter::with_retry` / `with_dlq` (ou `RetryPolicy::dead_letter` combinado ao exponential), em vez de expor só constantes — `EventRouter::attach` aplicava retry/DLQ apenas quando configurado pelo builder fluente, deixando os atributos da macro sem efeito. **Nota:** a publicação na DLQ do router usa `Broker::publish`; com `SqsBroker` (sink-only) o envio à DLQ ainda falha — use `DlqLayer` na pipeline Tower ou redrive/DLQ configurada na fila AWS.
 
 ## [0.3.0] - 2026-05-17
 
