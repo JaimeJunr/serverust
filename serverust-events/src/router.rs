@@ -28,6 +28,7 @@
 
 use std::any::Any;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -62,6 +63,16 @@ pub(crate) struct Subscription {
     pub(crate) dlq: Option<String>,
 }
 
+/// Atraso entre tentativas com backoff exponencial (`base * 2^n`).
+///
+/// O expoente é limitado a 31 para não estourar `2u32.pow`. O produto usa
+/// [`Duration::saturating_mul`] porque `Duration * u32` em overflow faz panic
+/// em runtime (ex.: `base_delay` grande e muitas retentativas).
+fn exponential_backoff_delay(base_delay: Duration, attempt_after_first: u32) -> Duration {
+    let exponent = attempt_after_first.min(31);
+    base_delay.saturating_mul(2u32.pow(exponent))
+}
+
 /// Envolve `handler` com loop de retry e publicação em DLQ após esgotamento.
 fn wrap_with_retry<B>(
     handler: BoxedHandler,
@@ -84,9 +95,8 @@ where
             for attempt in 0..max_attempts {
                 if attempt > 0 {
                     if let Some(RetryPolicy::Exponential { base_delay, .. }) = &retry {
-                        // Saturate exponent at 31 to avoid u32 overflow (2^32 panics in debug).
-                        let exponent = (attempt - 1).min(31);
-                        let delay = *base_delay * 2u32.pow(exponent);
+                        let delay =
+                            exponential_backoff_delay(*base_delay, attempt.saturating_sub(1));
                         tokio::time::sleep(delay).await;
                     }
                 }
@@ -336,5 +346,33 @@ impl EventRouter {
                 .as_deref()
                 .or_else(|| s.retry.as_ref().and_then(|r| r.dlq_topic()))
         })
+    }
+}
+
+#[cfg(test)]
+mod exponential_backoff_delay_tests {
+    use super::exponential_backoff_delay;
+    use std::time::Duration;
+
+    #[test]
+    fn saturates_instead_of_panic_when_product_would_overflow_duration() {
+        let base = Duration::new(u64::MAX / 4, 0);
+        assert_eq!(
+            exponential_backoff_delay(base, 31),
+            Duration::MAX,
+            "produto base * 2^31 não cabe em Duration; deve saturar"
+        );
+    }
+
+    #[test]
+    fn small_base_matches_powers_of_two_seconds() {
+        assert_eq!(
+            exponential_backoff_delay(Duration::from_secs(1), 0),
+            Duration::from_secs(1)
+        );
+        assert_eq!(
+            exponential_backoff_delay(Duration::from_secs(1), 2),
+            Duration::from_secs(4)
+        );
     }
 }
