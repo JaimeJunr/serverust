@@ -1,6 +1,6 @@
 # Roadmap — serverust
 
-> Última atualização: 2026-05-25  
+> Última atualização: 2026-05-25
 > Para o histórico detalhado de mudanças por versão, veja [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
