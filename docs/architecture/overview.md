@@ -4,7 +4,7 @@
 
 ## Workspace
 
-O framework é um Cargo workspace com 5 crates principais e 2 exemplos:
+O framework é um Cargo workspace com 6 crates principais e exemplos de referência:
 
 | Crate | Responsabilidade |
 |---|---|
@@ -12,9 +12,11 @@ O framework é um Cargo workspace com 5 crates principais e 2 exemplos:
 | `serverust-macros` | Proc-macros: `#[get]`/`#[post]`/`#[put]`/`#[patch]`/`#[delete]`, `#[derive(Validate)]`, `#[derive(ApiError)]`, `#[injectable]`, `#[guard]`, `#[metric]`. |
 | `serverust-lambda` | Adapter `lambda_http`, detecção de runtime (Lambda vs HTTP local), trait `AppRuntime` para dot-chain (`App::new().run().await`). |
 | `serverust-telemetry` | Logger JSON estruturado, middleware de correlation-id (X-Ray), métricas EMF, `IdempotencyStore` trait, feature opcional `otel` (OpenTelemetry + X-Ray propagator). |
-| `serverust-cli` | CLI `serverust` com clap: `new`/`generate`/`dev`/`build`/`deploy`/`info`/`openapi`. |
+| `serverust-events` | Event-driven opt-in: `Broker`, `EventRouter`, Kafka, SQS Lambda ESM, worker SQS standalone, producers SQS/FIFO e AsyncAPI. |
+| `serverust-cli` | CLI `serverust` com clap: `new`/`generate`/`dev`/`build`/`deploy`/`info`/`openapi`/`queue`/`doctor`. |
 | `examples/hello-world` | Binário mínimo para benchmark de cold start. |
 | `examples/funds-api` | CRUD completo (validação, OpenAPI, DI, integration tests). |
+| `examples/kafka-wallet` | Fluxo Kafka -> DynamoDB -> Kafka com `serverust-events`. |
 
 ## Diagramas
 
@@ -42,36 +44,37 @@ Definida em [`development/decisions.md`](../development/decisions.md) (decisão 
 - **OpenAPI**: utoipa 5.
 - **Tracing/logs**: tracing 0.1 · tracing-subscriber 0.3 · (opcional) opentelemetry-sdk 0.26 + opentelemetry-aws.
 - **Lambda**: lambda_http 1.2 · aws_lambda_events 1.2.
-- **AWS SDK**: aws-sdk-rust (DynamoDB para idempotência, atrás de feature).
+- **Eventos**: rust-rdkafka (feature `kafka`) · aws_lambda_events SQS (feature `sqs`) · Tower layers para pipeline SQS.
+- **Contratos**: schemars + serde_yaml para AsyncAPI 3.0 (feature `asyncapi`).
+- **AWS SDK**: aws-sdk-rust (DynamoDB para idempotência e SQS para CLI/integrações, atrás de features/crates opt-in).
 - **Config**: figment.
 - **Erros**: thiserror.
 - **CLI**: clap (derive).
 
-## Multi-trigger Dispatcher
+## Event-driven
 
-A partir de v0.2.0, o serverust suporta event sources não-HTTP (Kafka, SQS, EventBridge, S3) com a mesma DI e pipeline do roteador HTTP.
+A partir de v0.2.0, o serverust suporta event sources não-HTTP via `serverust-events`, mantendo os transportes concretos fora de `serverust-core`. Kafka chegou em v0.2.0; SQS Lambda ESM, worker standalone, FIFO, Tower layers e AsyncAPI foram adicionados em v0.3.0.
 
 ### Como funciona
 
-```
-App::new()
-  .provide::<dyn MyService>(Arc::new(impl))   ← Container compartilhado
-  .event::<KafkaEvent, _>(handler)             ← EventHandler<E> registrado
-  .run_event_lambda::<KafkaEvent>()            ← lambda_runtime::run (não lambda_http)
+```text
+#[subscriber(topic = "wallet.events")]         # Kafka por compatibilidade
+#[subscriber(driver = "sqs", queue = "orders")] # SQS explícito
+EventRouter::new().attach(broker).await
 ```
 
-1. `App::event<E, H>(handler)` registra handlers tipados por tipo de evento `E`.
-2. `App::into_event_dispatcher<E>()` constrói um `EventDispatcher<E>` que compartilha o mesmo `Container`.
-3. `run_event_lambda<E>(app)` sobe `lambda_runtime::run` com um `service_fn` que desserializa `LambdaEvent<E>` e despacha para todos os handlers em sequência.
-4. O tipo `E` pode ser qualquer `serde::Deserialize + Clone + Send` — `KafkaEvent`, `SqsEvent`, `S3Event`, ou um tipo customizado.
+1. `Broker` abstrai `subscribe`/`publish` para Kafka, SQS e testes in-memory.
+2. `EventRouter` registra handlers tipados e anexa um broker concreto.
+3. `#[subscriber]` gera metadados e `register(router)` para reduzir boilerplate.
+4. `SqsBroker` roda dentro de Lambda ESM e devolve `SqsBatchResponse` com `batch_item_failures`.
+5. `StandaloneSqsBroker` faz long-poll em SQS fora da Lambda e apaga mensagens bem-sucedidas com `DeleteMessageBatch`.
 
 ### Detecção automática
 
-`current_runtime_for_app(&app)` retorna:
-- `Runtime::Lambda` → sem handlers de evento, usa `lambda_http`.
-- `Runtime::LambdaEvent` → há handlers de evento, usar `run_event_lambda::<E>()` explicitamente.
-- `Runtime::Http` → sem `AWS_LAMBDA_RUNTIME_API`, sobe HTTP local.
+`serverust-events::runtime::Runtime::detect()` inspeciona `AWS_LAMBDA_FUNCTION_NAME`:
+- `Runtime::Lambda` -> use brokers sink-only para eventos entregues pela Lambda, como `LambdaBroker`/`SqsBroker`.
+- `Runtime::LongRunning` -> use brokers que dirigem o loop de consumo, como `KafkaBroker` ou `StandaloneSqsBroker`.
 
 ### Garantia de invariante
 
-`serverust-core` não depende de Kafka/eventos — a abstração `EventHandler<E>` usa apenas `serde` e `std`. Os adaptadores concretos ficam em `serverust-events` (feature opt-in).
+`serverust-core` não depende de Kafka/SQS/eventos. Os adaptadores concretos ficam em `serverust-events` e exigem features opt-in (`kafka`, `sqs`, `asyncapi`, `in-memory`).

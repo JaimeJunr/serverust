@@ -1,6 +1,6 @@
 # Roadmap — serverust
 
-> Última atualização: 2026-05-16  
+> Última atualização: 2026-05-25  
 > Para o histórico detalhado de mudanças por versão, veja [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
@@ -52,22 +52,38 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 - `#[publisher(topic = "...")]` — empilhável sobre subscriber, publica o valor de retorno
 - Detecção automática Lambda vs long-running via `AWS_LAMBDA_FUNCTION_NAME`
 
-### AsyncAPI e docs
-- Feature `asyncapi`: schema AsyncAPI 3.0 gerado dos tipos Rust
-- `serverust info --asyncapi` emite YAML AsyncAPI sem subir o consumer
-- `serverust-cli`: novo subcomando `asyncapi export --out asyncapi.yaml`
+### Docs e decisões
 - ADRs: [0006 — rust-rdkafka vs RSKafka](../development/decisions/0006-rdkafka-vs-rskafka.md), [0007 — design da API event-driven](../development/decisions/0007-event-api-design-macro-builder.md)
 - Guias: [event-driven.md](../guides/event-driven.md), [dynamodb.md](../guides/dynamodb.md)
 - Análises competitivas: [axum.md](competitors/axum.md), [actix.md](competitors/actix.md) (atualizado v4.13.0)
 
 ---
 
-## Próximas versões (planejamento)
+## v0.3.0 — SqsBroker maduro (entregue)
 
-### v0.3 — Confiabilidade event-driven
-- **Retry topics físicos**: tópicos Kafka de retry com backoff configurável (padrão Spring Kafka enterprise)
-- **Outbox pattern**: gravar evento na mesma transação do banco; worker dispara depois — sem perda mesmo com rollback
-- **Correlation IDs automáticos**: propagados em headers de cada mensagem, base para tracing distribuído
+Confiabilidade event-driven com SQS sem quebrar o pitch HTTP-first: tudo atrás de feature `sqs` em `serverust-events`.
+
+**Entregue:**
+
+- `SqsBroker` para Lambda Event Source Mapping com `SqsBatchResponse.batchItemFailures`
+- `StandaloneSqsBroker` para workers ECS/EC2/bare-metal com long-poll, delete batch e graceful shutdown
+- Extractors SQS: `SqsMetadata` e `SqsFifoMetadata`
+- `SqsProducer` com batching, retry em falhas parciais e shutdown gracioso
+- `SqsFifoProducer` com builder type-state exigindo `message_group_id` antes de `send()`
+- Macro `#[subscriber(driver = "sqs", queue = "...")]`, incluindo `fifo`, `retry`, `dlq` e `asyncapi`
+- Tower pipeline SQS: tracing, idempotência, DLQ e retry
+- AsyncAPI 3.0 via `AsyncApiBuilder`, `#[subscriber(..., asyncapi)]` e `serverust info --asyncapi`
+- CLI `serverust queue inspect/tail` para diagnóstico básico de filas SQS
+
+**Preservado:**
+
+- `serverust-core` continua sem deps de SQS/Kafka/eventos
+- `examples/hello-world` continua sem deps transitivas de SQS
+- SQS e AsyncAPI continuam opt-in por feature
+
+---
+
+## Próximas versões (planejamento)
 
 ### v0.3.1 — Hardening do SqsBroker (follow-up review PR #5)
 
@@ -90,6 +106,8 @@ Inspiração: SST, AWS SAM, Encore.ts, Cargo Lambda. Pesquisa em `docs/research/
 - **CLI commands**: `serverust new lambda <name> --trigger sqs|http|sns|s3|schedule`, `serverust list`, `serverust diagram` (gera excalidraw da topologia), `serverust dev` (watch + invoke local), `serverust deploy --stage <env>`.
 - **LMI (Lambda Managed Instances)**: flag `lmi = true` no manifesto — Rust é particularmente bom para LMI (persistent warm instances).
 - **AsyncAPI como contract registry inter-lambda**: schemas em `crates/events/` viram source-of-truth tipado.
+- **Retry topics físicos / outbox pattern**: confiabilidade para fluxos Kafka e workflows cross-service.
+- **Correlation IDs automáticos**: propagados em headers de cada mensagem, base para tracing distribuído.
 
 ### v0.5 — Observabilidade e contratos
 - **Sagas como crate separado** (`serverust-sagas`): state machines para workflows de longa duração
@@ -107,5 +125,6 @@ Inspiração: SST, AWS SAM, Encore.ts, Cargo Lambda. Pesquisa em `docs/research/
 ## Referências de design
 
 - [Tier list de inspirações Kafka](../research/kafka-inspiration-tier-list.md) — FastStream, MassTransit, NestJS Microservices, Spring Kafka
+- [Tier list de inspirações SQS](../research/sqs-inspiration-tier-list.md) — Lambda ESM, workers standalone, DLQ, idempotência e FIFO
 - [ADRs](../development/decisions/) — decisões arquiteturais registradas
 - [Análises competitivas](competitors/) — Axum, actix-web, Rocket, Loco

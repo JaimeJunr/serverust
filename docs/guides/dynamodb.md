@@ -13,8 +13,8 @@ Adicione `serverust-telemetry` com a feature `dynamodb` no seu `Cargo.toml`:
 
 ```toml
 [dependencies]
-serverust-telemetry = { version = "0.2", features = ["dynamodb"] }
-serverust-macros = { version = "0.2" }
+serverust-telemetry = { version = "0.3", features = ["dynamodb"] }
+serverust-macros = { version = "0.3" }
 serde = { version = "1", features = ["derive"] }
 ```
 

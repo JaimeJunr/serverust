@@ -27,7 +27,7 @@ O único framework Rust que cobre todo o ciclo — do `serverust new` ao `server
 |---|:---:|:---:|:---:|:---:|:---:|
 | AWS Lambda nativo | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Runtime dual HTTP ↔ Lambda | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Kafka event source nativo (opt-in) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Kafka/SQS event sources nativos (opt-in) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | OpenAPI 3.1 automático | ✅ | via plugin | via plugin | via plugin | ❌ |
 | Scalar / Swagger UI embutido | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Validação → HTTP 422 | ✅ | via plugin | ✅ | via plugin | ❌ |
@@ -45,7 +45,9 @@ O único framework Rust que cobre todo o ciclo — do `serverust new` ao `server
 - Guards, Pipes e Interceptors para cross-cutting concerns
 - Runtime dual: detecta automaticamente HTTP local vs AWS Lambda
 - Telemetria nativa: logs JSON, tracing X-Ray, métricas EMF
-- CLI: `serverust new/generate/dev/build/deploy/info/openapi`
+- Event-driven opt-in: Kafka, SQS Lambda ESM, worker SQS standalone, FIFO type-safe
+- AsyncAPI 3.0 para contratos de eventos via `serverust info --asyncapi`
+- CLI: `serverust new/generate/dev/build/deploy/info/openapi/queue/doctor`
 - Configuração via `serverust.toml` + env vars (figment)
 
 ## Requisitos
@@ -61,9 +63,11 @@ serverust-macros/     # Proc-macros: #[get], #[post], #[injectable], etc.
 serverust-cli/        # CLI serverust com clap
 serverust-lambda/     # Runtime dual Lambda + HTTP via AppRuntime trait
 serverust-telemetry/  # Logger JSON, tracing, métricas EMF
+serverust-events/     # Event-driven opt-in: Kafka, SQS, AsyncAPI
 examples/
   hello-world/      # Mínimo para benchmark de cold start
   funds-api/        # CRUD completo: validação, OpenAPI, DI
+  kafka-wallet/     # Kafka -> DynamoDB -> Kafka
 scripts/
   bench.sh          # Benchmark de tamanho e cold start
 ```
@@ -146,6 +150,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 ```
 
+### Event-driven com SQS
+
+```rust
+use serverust_events::broker::BrokerError;
+use serverust_macros::subscriber;
+
+#[subscriber(driver = "sqs", queue = "orders")]
+async fn handle_order(event: OrderCreated) -> Result<(), BrokerError> {
+    // Registre com EventRouter e SqsBroker em Lambda ESM ou StandaloneSqsBroker em worker.
+    Ok(())
+}
+```
+
+Veja o fluxo completo em [`docs/guides/event-driven.md`](docs/guides/event-driven.md).
+
 ## Configuração (serverust.toml)
 
 Usa [figment](https://docs.rs/figment) com suporte a profiles e override por env vars:
@@ -216,10 +235,11 @@ cargo run
 cargo install cargo-lambda
 
 # Deploy do funds-api (ARM64)
-serverust deploy lambda --arch arm64 -p funds-api
+cd examples/funds-api
+serverust deploy lambda --arch arm64
 
 # Ou manualmente:
-cargo lambda build --release --arm64 -p funds-api
+cargo lambda build --release --arm64
 cargo lambda deploy funds-api --memory-size 128
 ```
 
