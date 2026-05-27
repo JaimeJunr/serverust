@@ -66,7 +66,7 @@ tower = { version = "0.5", features = ["util"], optional = true }
 pin-project-lite = { version = "0.2", optional = true }
 # Telemetria reusada pelos Tower layers (feature `sqs`). Default features mantém
 # o build leve (sem otel/dynamodb).
-serverust-telemetry = { path = "../serverust-telemetry", version = "0.3.0", optional = true }
+serverust-telemetry = { path = "../serverust-telemetry", version = "0.3.1", optional = true }
 # Tracing usado no `ObservabilityLayer` (feature `sqs`) para abrir spans com
 # trace_id no formato AWS X-Ray.
 tracing = { version = "0.1", optional = true }
