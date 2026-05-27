@@ -73,10 +73,15 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 
 Sugestões da review automática (Claude Code Action) agendadas para release de patch após v0.3.0:
 
+**Entregue (2026-05-25..27):**
+
+- **Partial batch failure sem handler** (`SqsBroker::handle_sqs_event`): mensagens sem ARN/handler registrado entram em `batchItemFailures` em vez de ack silencioso (PR #12).
+- **Overflow protection no backoff do `EventRouter`**: `RetryPolicy::Exponential` usa `Duration::saturating_mul` e expoente cap 31 (PR #13). Pendente o mesmo padrão em `SqsProducer` / `DeleteManager` / `RetryLayer` (camadas SQS).
+
 - **Structured logging completo**: padronizar `tracing::warn!` para `tracing::error!` quando o evento é falha de invariante. Campos consistentes: `queue`, `message_id`, `attempt`, `error`.
 - **Schema validation pós-deserialização**: validar campos obrigatórios em `Json<T>` extractor e em `SqsMetadata::from_message`.
 - **Graceful degradation**: contador `idempotency_bypass_total` quando `message_id` vazio; validação básica de formato em `receipt_handle` antes do heartbeat.
-- **Overflow protection no backoff**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por `saturating_pow` + `max_backoff: Duration` configurável (default 30s).
+- **Overflow protection no backoff (SQS layers)**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por saturação + `max_backoff: Duration` configurável (default 30s) em producer/delete/retry layers.
 - **Métricas EMF operacionais**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`.
 - **Circuit breaker no `StandaloneSqsBroker`**: trip após N falhas consecutivas de `ReceiveMessage` para evitar storm em incidente AWS.
 
