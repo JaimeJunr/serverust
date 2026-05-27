@@ -1,6 +1,6 @@
 # Roadmap — serverust
 
-> Última atualização: 2026-05-16  
+> Última atualização: 2026-05-27  
 > Para o histórico detalhado de mudanças por versão, veja [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
@@ -62,23 +62,42 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 
 ---
 
+## v0.3.0 — SQS maduro (entregue)
+
+`serverust-events 0.3.0` — adapter SQS com paridade de DX ao Kafka: mesma macro `#[subscriber]`, mesmo `EventRouter`, transport abstraction.
+
+**Entregue:**
+
+- `SqsBroker` — Lambda ESM com `ReportBatchItemFailures`; routing por nome de fila no ARN
+- `StandaloneSqsBroker` — long-poll ECS/EC2 com graceful shutdown
+- `#[subscriber(driver = "sqs", queue = "...")]` + `retry`/`dlq`/`fifo` declarativos
+- Extractors `SqsMetadata`, `SqsFifoMetadata`, pipeline Tower (idempotency, heartbeat, EMF/X-Ray)
+- `SqsProducer` / FIFO type-state; `serverust queue inspect|tail`
+- Guia: [event-driven.md](../guides/event-driven.md) (secção SQS); pesquisa: [sqs-inspiration-tier-list.md](../research/sqs-inspiration-tier-list.md)
+
+**Patches pós-0.3.0 (entregues em `main`):**
+
+- Ack silencioso corrigido: fila sem handler ou ARN inválido → `batch_item_failures` quando há `message_id`
+- Backoff exponencial no `EventRouter`: expoente limitado + `Duration::saturating_mul` (sem panic em overflow)
+
+---
+
 ## Próximas versões (planejamento)
 
-### v0.3 — Confiabilidade event-driven
-- **Retry topics físicos**: tópicos Kafka de retry com backoff configurável (padrão Spring Kafka enterprise)
-- **Outbox pattern**: gravar evento na mesma transação do banco; worker dispara depois — sem perda mesmo com rollback
-- **Correlation IDs automáticos**: propagados em headers de cada mensagem, base para tracing distribuído
+### v0.3.x — Confiabilidade event-driven (restante)
+- **Retry topics físicos** (Kafka): tópicos de retry com backoff configurável
+- **Outbox pattern**: gravar evento na mesma transação do banco; worker dispara depois
+- **Correlation IDs automáticos**: propagados em headers de cada mensagem
 
-### v0.3.1 — Hardening do SqsBroker (follow-up review PR #5)
+### v0.3.1 — Hardening do SqsBroker (follow-up)
 
-Sugestões da review automática (Claude Code Action) agendadas para release de patch após v0.3.0:
+Itens ainda abertos da review inicial:
 
-- **Structured logging completo**: padronizar `tracing::warn!` para `tracing::error!` quando o evento é falha de invariante. Campos consistentes: `queue`, `message_id`, `attempt`, `error`.
-- **Schema validation pós-deserialização**: validar campos obrigatórios em `Json<T>` extractor e em `SqsMetadata::from_message`.
-- **Graceful degradation**: contador `idempotency_bypass_total` quando `message_id` vazio; validação básica de formato em `receipt_handle` antes do heartbeat.
-- **Overflow protection no backoff**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por `saturating_pow` + `max_backoff: Duration` configurável (default 30s).
-- **Métricas EMF operacionais**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`.
-- **Circuit breaker no `StandaloneSqsBroker`**: trip após N falhas consecutivas de `ReceiveMessage` para evitar storm em incidente AWS.
+- **Structured logging**: `tracing::error!` para falhas de invariante com campos `queue`, `message_id`, `attempt`, `error`
+- **Schema validation pós-deserialização** em `Json<T>` e `SqsMetadata`
+- **Métricas EMF**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`
+- **Circuit breaker** no `StandaloneSqsBroker` após falhas consecutivas de `ReceiveMessage`
+- **`max_backoff` configurável** no retry da macro (hoje: cap de expoente em 31 no router programático)
 
 ### v0.4 — Multi-Lambda scaffolding + transport abstraction completa
 

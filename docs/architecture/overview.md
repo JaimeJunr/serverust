@@ -4,17 +4,19 @@
 
 ## Workspace
 
-O framework é um Cargo workspace com 5 crates principais e 2 exemplos:
+O framework é um Cargo workspace com 6 crates publicáveis e exemplos em `examples/`:
 
 | Crate | Responsabilidade |
 |---|---|
 | `serverust-core` | `App` builder, `Route`/`IntoRoute`, DI Container, extractors validantes, pipeline (Guard/Pipe/Interceptor), geração OpenAPI, config (figment). |
-| `serverust-macros` | Proc-macros: `#[get]`/`#[post]`/`#[put]`/`#[patch]`/`#[delete]`, `#[derive(Validate)]`, `#[derive(ApiError)]`, `#[injectable]`, `#[guard]`, `#[metric]`. |
+| `serverust-macros` | Proc-macros HTTP + eventos: `#[get]`…, `#[subscriber]`/`#[publisher]`, `#[derive(Validate)]`, `#[injectable]`, … |
 | `serverust-lambda` | Adapter `lambda_http`, detecção de runtime (Lambda vs HTTP local), trait `AppRuntime` para dot-chain (`App::new().run().await`). |
-| `serverust-telemetry` | Logger JSON estruturado, middleware de correlation-id (X-Ray), métricas EMF, `IdempotencyStore` trait, feature opcional `otel` (OpenTelemetry + X-Ray propagator). |
-| `serverust-cli` | CLI `serverust` com clap: `new`/`generate`/`dev`/`build`/`deploy`/`info`/`openapi`. |
-| `examples/hello-world` | Binário mínimo para benchmark de cold start. |
+| `serverust-telemetry` | Logger JSON, X-Ray, métricas EMF, `IdempotencyStore`; features `dynamodb`, `otel`. |
+| `serverust-events` | Opt-in: `Broker`, `EventRouter`, Kafka (`kafka`), SQS (`sqs`), `InMemoryBroker` (`in-memory`). Sem dep em `serverust-core`. |
+| `serverust-cli` | CLI `serverust`: scaffold, `dev`/`build`/`deploy`, `openapi`/`asyncapi`, `queue inspect`/`tail`. |
+| `examples/hello-world` | Binário mínimo para benchmark de cold start (sem Kafka/SQS). |
 | `examples/funds-api` | CRUD completo (validação, OpenAPI, DI, integration tests). |
+| `examples/kafka-wallet` | Pipeline Kafka → DynamoDB → Kafka. |
 
 ## Diagramas
 
