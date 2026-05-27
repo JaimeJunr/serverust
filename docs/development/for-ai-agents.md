@@ -31,6 +31,7 @@ Estes comandos são somente-leitura ou não destrutivos — podem ser executados
 ```bash
 cargo check -p <crate>          # typecheck isolado, não faz build completo
 cargo test -p <crate>           # testes de um único crate
+# serverust-events SQS: cargo test -p serverust-events --features sqs,in-memory
 cargo tree -p <crate>           # visualiza árvore de dependências
 scripts/quality_changelog.sh    # valida CHANGELOG.md
 scripts/quality_kpi_gate.sh     # valida KPIs contra baseline histórico
@@ -82,10 +83,11 @@ Se uma regressão for inevitável, crie uma ADR em `docs/development/decisions/`
 ```bash
 # 1. Ler o estado atual do crate
 cargo check -p serverust-events
-cat crates/serverust-events/src/lib.rs
+cat serverust-events/src/lib.rs
 
 # 2. Verificar ADRs relacionadas a eventos
-cat docs/development/decisions/0003-event-driven-separate-crate.md
+cat docs/development/decisions/0003-event-driven-crate-separada-serverust-events.md
+cat docs/guides/event-driven.md   # Kafka + SQS
 
 # 3. Escrever o teste ANTES do código (TDD obrigatório)
 # Arquivo: crates/serverust-events/tests/minha_feature.rs
