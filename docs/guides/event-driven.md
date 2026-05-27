@@ -1,6 +1,6 @@
 # Guia de Uso: Event-Driven com serverust-events
 
-Este guia cobre as APIs event-driven do `serverust-events` introduzidas no v0.2.0, com exemplos de US-1 a US-7.
+Este guia cobre as APIs event-driven do `serverust-events`: **Kafka** (v0.2.0) e **SQS** (v0.3.0). O crate permanece opt-in — `serverust-core` e `hello-world` não puxam Kafka nem SQS por padrão.
 
 ## Conceitos centrais
 
@@ -8,10 +8,12 @@ Este guia cobre as APIs event-driven do `serverust-events` introduzidas no v0.2.
 |---|---|---|
 | `Broker` | trait | Abstração de transporte: `subscribe` + `publish` |
 | `EventRouter` | struct | Builder que compõe subscriptions e publica |
-| `#[subscriber]` | macro | Declara um handler de eventos em uma função async |
+| `#[subscriber]` | macro | Handler de eventos; `driver = "kafka"` ou `driver = "sqs"` |
 | `#[publisher]` | macro | Empilhado em `#[subscriber]`, publica o valor de retorno |
-| `LambdaBroker` | struct | Broker sink-only para modo AWS Lambda |
+| `LambdaBroker` | struct | Broker sink-only para trigger MSK em Lambda |
 | `KafkaBroker` | struct (feat `kafka`) | Broker bidirecional via rust-rdkafka |
+| `SqsBroker` | struct (feat `sqs`) | Broker sink-only para SQS em Lambda ESM |
+| `StandaloneSqsBroker` | struct (feat `sqs`) | Long-poll worker para ECS/EC2 |
 | `InMemoryBroker` | struct (feat `in-memory`) | Broker em memória para testes |
 
 ---
@@ -35,7 +37,7 @@ impl Broker for MeuBroker {
 `KafkaBroker` usa `rust-rdkafka` atrás da feature `kafka`:
 
 ```toml
-serverust-events = { version = "0.2", features = ["kafka"] }
+serverust-events = { version = "0.3", features = ["kafka"] }
 ```
 
 ```rust
@@ -52,7 +54,7 @@ Sem Kafka rodando, use `InMemoryBroker` (feature `in-memory`):
 
 ```toml
 [dev-dependencies]
-serverust-events = { version = "0.2", features = ["in-memory"] }
+serverust-events = { version = "0.3", features = ["in-memory"] }
 ```
 
 ```rust
@@ -233,3 +235,160 @@ match Runtime::detect() {
 
 Veja [`examples/kafka-wallet/`](../../examples/kafka-wallet/) para o exemplo end-to-end
 **wallet.events → DynamoDB → wallet.results** usando `#[subscriber]` + `#[publisher]` + `EventRouter`.
+
+---
+
+## v0.3 — SQS (feature `sqs`)
+
+A feature `sqs` ativa o módulo `serverust_events::sqs` e `aws_lambda_events/sqs`. Não adiciona dependências C — apenas deserialização de `SqsEvent`/`SqsBatchResponse` e pipeline Tower (idempotency, retry, métricas EMF).
+
+```toml
+serverust-events = { version = "0.3", features = ["sqs"] }
+# Testes locais sem AWS:
+# serverust-events = { version = "0.3", features = ["sqs", "in-memory"] }
+```
+
+### Macro `#[subscriber(driver = "sqs", queue = "...")]`
+
+A mesma macro usada para Kafka aceita `driver = "sqs"` e roteia pelo **nome da fila** (segmento final do ARN em Lambda, ou tópico lógico no `InMemoryBroker` em testes):
+
+```rust
+use serverust_macros::subscriber;
+use serverust_events::broker::BrokerError;
+
+#[subscriber(driver = "sqs", queue = "orders")]
+async fn handle_order(event: OrderCreated) -> Result<(), BrokerError> {
+    Ok(())
+}
+```
+
+Constantes geradas (úteis em testes e no CLI):
+
+| Constante | Significado |
+|---|---|
+| `handle_order::SUBSCRIBE_TOPIC` | Nome da fila (`"orders"`) |
+| `handle_order::DRIVER` | `"sqs"` ou `"kafka"` |
+| `handle_order::register(router)` | Inscreve no `EventRouter` |
+
+`topic = "..."` sem `driver` continua sendo **Kafka** (compatibilidade v0.2).
+
+Retry e DLQ declarativos na macro (US-008):
+
+```rust
+#[subscriber(
+    driver = "sqs",
+    queue = "orders",
+    retry = exponential(max = 5, base = "100ms"),
+    dlq = "orders-dlq"
+)]
+async fn process_order(event: OrderCreated) -> Result<(), BrokerError> { ... }
+```
+
+Filas **FIFO** exigem `fifo` na macro e o extractor `SqsFifoMetadata` no handler:
+
+```rust
+use serverust_events::sqs::extract::SqsFifoMetadata;
+
+#[subscriber(driver = "sqs", queue = "orders.fifo", fifo)]
+async fn handle_fifo(event: OrderCreated, meta: SqsFifoMetadata) -> Result<(), BrokerError> {
+    let _group = meta.message_group_id;
+    Ok(())
+}
+```
+
+### Lambda ESM — `SqsBroker`
+
+Em Lambda com event source mapping SQS, o runtime AWS entrega um `SqsEvent` por invocação. O `SqsBroker` é **sink-only**: não faz `ReceiveMessage`; despacha registros e devolve `SqsBatchResponse` com `batch_item_failures` para partial batch failure (`ReportBatchItemFailures`).
+
+```rust
+use std::sync::Arc;
+use aws_lambda_events::event::sqs::SqsEvent;
+use lambda_runtime::{service_fn, LambdaEvent};
+use serverust_events::router::EventRouter;
+use serverust_events::sqs::consumer::SqsBroker;
+
+let broker = Arc::new(SqsBroker::new());
+handle_order::register(EventRouter::new())
+    .attach(broker.clone())
+    .await?;
+
+lambda_runtime::run(service_fn(move |event: LambdaEvent<SqsEvent>| {
+    let broker = broker.clone();
+    async move { Ok(broker.handle_sqs_event(&event.payload).await) }
+}))
+.await?;
+```
+
+**Routing:** a fila é o último segmento de `event_source_arn` (`arn:aws:sqs:region:account:queue-name`). O handler deve estar inscrito nesse nome via `queue = "..."` na macro.
+
+**Invariante (v0.3+):** mensagens sem handler para a fila do ARN, ou sem ARN válido, entram em `batch_item_failures` quando há `message_id` — evita ack silencioso pela Lambda. Sem `message_id`, apenas log (`tracing::warn`); o batch inteiro pode ser retentado.
+
+### Standalone — `StandaloneSqsBroker`
+
+Em ECS/EC2, use long-poll com traits mockáveis `ReceiveClient` e `DeleteClient` (integração típica com `aws-sdk-sqs`):
+
+```rust
+use serverust_events::sqs::standalone::{StandaloneSqsBroker, StandaloneConfig};
+
+let broker = Arc::new(StandaloneSqsBroker::new(
+    receive_client,
+    delete_client,
+    queue_url,
+    "orders".into(), // nome lógico = SUBSCRIBE_TOPIC
+));
+
+handle_order::register(EventRouter::new())
+    .attach(broker.clone())
+    .await?;
+
+// SIGTERM → broker.signal_shutdown(); depois:
+broker.run().await?;
+```
+
+Mesmos handlers `#[subscriber(driver = "sqs")]` funcionam em Lambda ESM e standalone. Ack no standalone: `DeleteMessageBatch` após sucesso; em Lambda ESM o ack é via ausência em `batch_item_failures`.
+
+### Extractors SQS
+
+| Extractor | Dado exposto |
+|---|---|
+| `Json<T>` | Body deserializado (serde) |
+| `SqsMetadata` | `message_id`, `receipt_handle`, attributes |
+| `SqsFifoMetadata` | `message_group_id`, deduplication, sequence (FIFO) |
+| `State<S>` | Estado compartilhado via `EventRouter::with_state` |
+
+`SqsMetadata` exige que a mensagem tenha passado por `SqsBroker` ou `StandaloneSqsBroker` (header interno `__serverust_sqs_message`).
+
+### Publicação — `SqsProducer`
+
+`SqsBroker::publish` retorna erro — use `serverust_events::sqs::producer::SqsProducer` para envio com batching (até 10 msgs / linger configurável) e retry em partial failure. FIFO: `FifoSendBuilder` type-state — `send()` só compila após `.message_group_id(...)`.
+
+### Pipeline Tower (opcional em handlers avançados)
+
+`SqsSubscriber` implementa `tower::Service<SqsMessage>` com camadas: tracing → métricas EMF → idempotency (`IdempotencyStore`, DynamoDB opcional) → retry → handler. Heartbeat (`ChangeMessageVisibility`) ativo por padrão no standalone; opt-in em Lambda ESM (`serverust_events::sqs::heartbeat`).
+
+### Transport abstraction (Kafka ↔ SQS)
+
+`EventRouter::attach` aceita qualquer `impl Broker`. O mesmo handler pode ser testado com `InMemoryBroker` e implantado com `SqsBroker` ou `KafkaBroker`. Testes de paridade: `serverust-events/tests/transport_parity.rs`.
+
+### CLI operacional
+
+```bash
+serverust queue inspect <queue-url>   # atributos da fila (IAM na conta AWS)
+serverust queue tail <queue-url>      # amostra de mensagens (--max N)
+```
+
+Requer credenciais AWS (env vars ou role). Não substitui o consumer — útil para troubleshooting em dev/staging.
+
+### Troubleshooting SQS
+
+| Sintoma | Causa provável | Ação |
+|---|---|---|
+| Mensagem some sem processar | Handler não registrado para o nome da fila do ARN | Conferir `queue =` vs ARN; ver logs `sqs record with no handler` |
+| Batch inteiro retenta | Erro sem `message_id` reportável | Garantir `ReportBatchItemFailures` + IDs nas mensagens |
+| FIFO falha em runtime | Handler sem `SqsFifoMetadata` com `fifo` | Adicionar macro `fifo` + extractor |
+| Idempotency não deduplica | `message_id` vazio | Log `idempotency bypass`; corrigir produtor |
+| Cold start regressou | Feature `sqs` no binário mínimo | Manter `hello-world` sem feature `sqs` |
+
+Testes de referência (comportamento verificável): `serverust-events/tests/macros_sqs*.rs`, `sqs_consumer.rs`, `sqs_fifo.rs`, `sqs_idempotency.rs`, `sqs_dlq.rs`.
+
+Pesquisa de design: [`docs/research/sqs-inspiration-tier-list.md`](../research/sqs-inspiration-tier-list.md).
