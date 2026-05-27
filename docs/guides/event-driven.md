@@ -143,6 +143,8 @@ RetryPolicy::immediate(3)
 RetryPolicy::exponential(3, Duration::from_secs(1))
 ```
 
+**Comportamento do backoff:** cada atraso é `base_delay * 2^n` com `n` limitado a 31 e multiplicação saturante em [`Duration`](https://doc.rust-lang.org/std/time/struct.Duration.html) — o produto nunca faz panic por overflow; valores acima do máximo de `Duration` saturam em `Duration::MAX`.
+
 Encadeie na subscrição:
 
 ```rust

@@ -91,10 +91,12 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 
 ### v0.3.1 — Hardening do SqsBroker (follow-up)
 
-Itens ainda abertos da review inicial:
+Itens ainda abertos da review inicial (patches de ack/backoff no router já entregues — ver **Patches pós-0.3.0** acima):
 
 - **Structured logging**: `tracing::error!` para falhas de invariante com campos `queue`, `message_id`, `attempt`, `error`
-- **Schema validation pós-deserialização** em `Json<T>` e `SqsMetadata`
+- **Schema validation pós-deserialização** em `Json<T>` e `SqsMetadata::from_message`
+- **Graceful degradation**: contador `idempotency_bypass_total` quando `message_id` vazio; validação básica de formato em `receipt_handle` antes do heartbeat
+- **Overflow protection no backoff (SQS layers)**: saturação + `max_backoff: Duration` configurável (default 30s) em `SqsProducer` / `DeleteManager` / `RetryLayer`
 - **Métricas EMF**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`
 - **Circuit breaker** no `StandaloneSqsBroker` após falhas consecutivas de `ReceiveMessage`
 - **`max_backoff` configurável** no retry da macro (hoje: cap de expoente em 31 no router programático)
