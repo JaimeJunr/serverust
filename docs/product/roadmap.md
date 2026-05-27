@@ -76,7 +76,10 @@ Sugestões da review automática (Claude Code Action) agendadas para release de 
 - **Structured logging completo**: padronizar `tracing::warn!` para `tracing::error!` quando o evento é falha de invariante. Campos consistentes: `queue`, `message_id`, `attempt`, `error`.
 - **Schema validation pós-deserialização**: validar campos obrigatórios em `Json<T>` extractor e em `SqsMetadata::from_message`.
 - **Graceful degradation**: contador `idempotency_bypass_total` quando `message_id` vazio; validação básica de formato em `receipt_handle` antes do heartbeat.
-- **Overflow protection no backoff**: trocar `config.base_backoff * 2u32.pow(attempt - 1)` por `saturating_pow` + `max_backoff: Duration` configurável (default 30s).
+- **Overflow protection no backoff**:
+  - ✅ `EventRouter` (`RetryPolicy::Exponential`): `saturating_mul` + expoente cap 31 ([#13](https://github.com/JaimeJunr/serverust/pull/13), 2026-05-25).
+  - Pendente: `max_backoff: Duration` configurável (default 30s) em `SqsProducer`, `DeleteManager` e fila vazia do `StandaloneSqsBroker` (ainda usam `base_backoff * 2u32.pow(...)`).
+- **Partial batch sem ack silencioso**: ✅ registros sem handler ou ARN inválido entram em `batchItemFailures` quando há `messageId` ([#12](https://github.com/JaimeJunr/serverust/pull/12), 2026-05-20).
 - **Métricas EMF operacionais**: `idempotency_bypass_total`, `metadata_serialize_failures_total`, `heartbeat_invalid_receipt_total`.
 - **Circuit breaker no `StandaloneSqsBroker`**: trip após N falhas consecutivas de `ReceiveMessage` para evitar storm em incidente AWS.
 

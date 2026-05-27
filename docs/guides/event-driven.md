@@ -1,6 +1,6 @@
 # Guia de Uso: Event-Driven com serverust-events
 
-Este guia cobre as APIs event-driven do `serverust-events` introduzidas no v0.2.0, com exemplos de US-1 a US-7.
+Este guia cobre as APIs event-driven do `serverust-events` (v0.2.0 Kafka; v0.3.0 SQS), com exemplos de US-1 a US-7 e notas operacionais de SQS Lambda ESM.
 
 ## Conceitos centrais
 
@@ -12,6 +12,7 @@ Este guia cobre as APIs event-driven do `serverust-events` introduzidas no v0.2.
 | `#[publisher]` | macro | Empilhado em `#[subscriber]`, publica o valor de retorno |
 | `LambdaBroker` | struct | Broker sink-only para modo AWS Lambda |
 | `KafkaBroker` | struct (feat `kafka`) | Broker bidirecional via rust-rdkafka |
+| `SqsBroker` | struct (feat `sqs`) | Broker sink-only para SQS em Lambda ESM (`handle_sqs_event`) |
 | `InMemoryBroker` | struct (feat `in-memory`) | Broker em memória para testes |
 
 ---
@@ -141,6 +142,8 @@ RetryPolicy::immediate(3)
 RetryPolicy::exponential(3, Duration::from_secs(1))
 ```
 
+Com `RetryPolicy::Exponential`, o `EventRouter` calcula o atraso como `base_delay.saturating_mul(2^n)` com `n` limitado a 31. Valores que excederiam o máximo de `Duration` saturam em `Duration::MAX` em vez de panicar (regressão coberta em `router.rs`).
+
 Encadeie na subscrição:
 
 ```rust
@@ -224,6 +227,23 @@ match Runtime::detect() {
     }
 }
 ```
+
+---
+
+## SQS Lambda ESM — `SqsBroker` e partial batch failure
+
+Com a feature `sqs`, `SqsBroker` despacha registros de `SqsEvent` por nome de fila (último segmento do `event_source_arn`). A resposta deve incluir `batchItemFailures` para mensagens que falharam ou não puderam ser despachadas — caso contrário a Lambda as remove como sucesso.
+
+Comportamento atual (`handle_sqs_event`):
+
+| Situação | Resultado |
+|---|---|
+| Handler inscrito e `Ok(())` | Mensagem não entra em `batchItemFailures` (ack implícito) |
+| Handler retorna erro | `messageId` em `batchItemFailures` |
+| Sem handler para a fila do ARN | `messageId` em `batchItemFailures` (quando presente) |
+| `event_source_arn` ausente ou não parseável | `messageId` em `batchItemFailures` (quando presente) |
+
+Routing: use o mesmo nome de fila em `EventRouter::subscribe` / `#[subscriber(driver = "sqs", queue = "...")]` que o segmento final do ARN da fila no event source mapping.
 
 ---
 
