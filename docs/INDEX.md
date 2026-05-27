@@ -8,7 +8,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 - [**guides/lambda-tutorial.md**](guides/lambda-tutorial.md) — Tutorial completo: construir uma API de tarefas (CRUD com validação, OpenAPI, DI), rodar local e fazer **deploy em AWS Lambda**. Tempo: 30-45 min.
 - [**guides/iac-compatibility.md**](guides/iac-compatibility.md) — Contrato oficial de compatibilidade com Serverless Framework, SST, Terraform, SAM/CDK e como validamos isso em testes/CI.
 - [**guides/dynamodb.md**](guides/dynamodb.md) — Guia prático de DynamoDB: setup de deps, CRUD com `DynamoRepo<T>` e `#[dynamo_table]`, credenciais (env vars, IAM role em Lambda), testes locais com DynamoDB Local e troubleshooting.
-- [**guides/event-driven.md**](guides/event-driven.md) — Guia event-driven (Kafka + SQS): `Broker` trait, `EventRouter`, `SqsBroker` (Lambda ESM), macros `#[subscriber]`/`#[publisher]`, retry policies e detecção de runtime Lambda vs long-running.
+- [**guides/event-driven.md**](guides/event-driven.md) — Guia event-driven: Kafka (`KafkaBroker`, MSK Lambda) e SQS v0.3 (`SqsBroker` ESM, `StandaloneSqsBroker`, FIFO, idempotency, partial batch failure, `serverust queue inspect/tail`).
 
 ## Produto
 
