@@ -90,13 +90,13 @@ cat docs/development/decisions/0003-event-driven-crate-separada-serverust-events
 cat docs/guides/event-driven.md   # Kafka + SQS
 
 # 3. Escrever o teste ANTES do código (TDD obrigatório)
-# Arquivo: crates/serverust-events/tests/minha_feature.rs
+# Arquivo: serverust-events/tests/minha_feature.rs
 
 # 4. Confirmar que o teste FALHA (RED)
 cargo test -p serverust-events -- minha_feature
 
 # 5. Implementar o mínimo para passar (GREEN)
-# Editar: crates/serverust-events/src/lib.rs (ou novo módulo)
+# Editar: serverust-events/src/lib.rs (ou novo módulo)
 
 # 6. Confirmar que o teste PASSA
 cargo test -p serverust-events
