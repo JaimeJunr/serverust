@@ -108,10 +108,17 @@ where
 
             // Todas as tentativas falharam — publicar no DLQ se configurado.
             if let Some(dlq_topic) = &dlq {
-                if let Err(dlq_err) = broker.publish(dlq_topic, &msg.payload).await {
-                    // DLQ write failure: log to stderr so operators can detect it.
-                    // The original handler error is returned regardless.
-                    eprintln!("[serverust-events] DLQ publish to '{dlq_topic}' failed: {dlq_err}");
+                match broker.publish(dlq_topic, &msg.payload).await {
+                    Ok(()) => {
+                        // Alinha com `DlqLayer`: DLQ aceito => ack da mensagem original
+                        // (ex.: Lambda SQS sem entrada em batchItemFailures).
+                        return Ok(());
+                    }
+                    Err(dlq_err) => {
+                        eprintln!(
+                            "[serverust-events] DLQ publish to '{dlq_topic}' failed: {dlq_err}"
+                        );
+                    }
                 }
             }
             Err(last_err.unwrap_or_else(|| BrokerError::Subscribe("sem tentativas".to_string())))

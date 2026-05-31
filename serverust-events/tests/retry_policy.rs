@@ -133,7 +133,7 @@ async fn dead_letter_publica_no_dlq_apos_esgotamento_via_policy() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);
@@ -159,7 +159,7 @@ async fn with_dlq_publica_no_dlq_apos_esgotamento_via_router() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);
@@ -218,7 +218,7 @@ async fn exponential_dead_letter_publica_no_dlq() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);

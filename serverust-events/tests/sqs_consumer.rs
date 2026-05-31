@@ -376,3 +376,64 @@ async fn handler_pode_extrair_state_compartilhado() {
         ]
     );
 }
+
+/// Broker composto: subscribe no `SqsBroker`, captura publishes de DLQ.
+struct DlqRoutingBroker {
+    sqs: Arc<SqsBroker>,
+    dlq_topic: String,
+    dlq_payloads: Arc<Mutex<Vec<Vec<u8>>>>,
+}
+
+#[async_trait::async_trait]
+impl Broker for DlqRoutingBroker {
+    async fn subscribe(
+        &self,
+        topic: &str,
+        handler: serverust_events::broker::BoxedHandler,
+    ) -> Result<(), BrokerError> {
+        self.sqs.subscribe(topic, handler).await
+    }
+
+    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), BrokerError> {
+        if topic == self.dlq_topic {
+            self.dlq_payloads.lock().unwrap().push(payload.to_vec());
+            Ok(())
+        } else {
+            Err(BrokerError::Publish(format!(
+                "DlqRoutingBroker only publishes to {}",
+                self.dlq_topic
+            )))
+        }
+    }
+}
+
+#[tokio::test]
+async fn event_router_dlq_ack_apos_publicar_dlq_em_lambda_sqs() {
+    use serverust_events::retry::RetryPolicy;
+
+    let sqs_broker = Arc::new(SqsBroker::new());
+    let dlq_payloads = Arc::new(Mutex::new(Vec::new()));
+    let broker = Arc::new(DlqRoutingBroker {
+        sqs: sqs_broker.clone(),
+        dlq_topic: "orders-dlq".to_string(),
+        dlq_payloads: dlq_payloads.clone(),
+    });
+
+    EventRouter::new()
+        .subscribe::<Order, _, _>("orders", |_: Order| async move {
+            Err(BrokerError::Subscribe("falha".to_string()))
+        })
+        .with_retry(RetryPolicy::immediate(1))
+        .with_dlq("orders-dlq")
+        .attach(broker)
+        .await
+        .unwrap();
+
+    let resp = sqs_broker.handle_sqs_event(&fixture()).await;
+    assert!(
+        resp.batch_item_failures.is_empty(),
+        "DLQ aceito => ack na Lambda, got: {:?}",
+        resp.batch_item_failures
+    );
+    assert_eq!(dlq_payloads.lock().unwrap().len(), 3);
+}

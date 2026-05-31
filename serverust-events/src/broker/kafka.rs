@@ -171,6 +171,13 @@ impl KafkaBroker {
             .map(|s| s.handler.clone())
             .collect();
 
+        if handlers.is_empty() {
+            return Err(BrokerError::Subscribe(format!(
+                "no handler subscribed for kafka topic '{}'",
+                msg.topic
+            )));
+        }
+
         for handler in handlers {
             handler(msg.clone()).await?;
         }

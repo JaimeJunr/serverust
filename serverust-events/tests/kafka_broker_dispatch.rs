@@ -59,7 +59,7 @@ async fn dispatch_invoca_handlers_inscritos_no_topico() {
 }
 
 #[tokio::test]
-async fn dispatch_em_topico_sem_subscriber_e_no_op() {
+async fn dispatch_erro_quando_topico_sem_subscriber() {
     let broker = make_broker();
     let msg = BrokerMessage {
         topic: "topico.sem.subscriber".to_string(),
@@ -70,7 +70,11 @@ async fn dispatch_em_topico_sem_subscriber_e_no_op() {
         headers: HashMap::new(),
         timestamp: None,
     };
-    broker.dispatch(msg).await.unwrap();
+    let err = broker.dispatch(msg).await.unwrap_err();
+    assert!(
+        format!("{err}").contains("no handler subscribed"),
+        "erro foi: {err}"
+    );
 }
 
 #[tokio::test]

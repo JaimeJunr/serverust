@@ -68,7 +68,9 @@ impl LambdaBroker {
     /// 1. Identifica o tópico via `record.topic` (campo do próprio registro).
     /// 2. Se houver handlers inscritos, decodifica `value` (Base64) e
     ///    despacha como [`BrokerMessage`].
-    /// 3. Se não houver handlers inscritos para o tópico, ignora o registro.
+    /// 3. Se não houver handlers inscritos para o tópico, retorna erro para que a
+    ///    invocação Lambda falhe e os offsets não sejam commitados como sucesso
+    ///    (evita perda silenciosa de mensagens).
     ///
     /// O primeiro erro encontrado interrompe o despacho e propaga.
     pub async fn handle_kafka_event(&self, event: &KafkaEvent) -> Result<(), BrokerError> {
@@ -86,7 +88,9 @@ impl LambdaBroker {
                     .collect();
 
                 if handlers.is_empty() {
-                    continue;
+                    return Err(BrokerError::Subscribe(format!(
+                        "no handler subscribed for kafka topic '{topic}'"
+                    )));
                 }
 
                 let value_b64 = raw.value.as_deref().ok_or_else(|| {

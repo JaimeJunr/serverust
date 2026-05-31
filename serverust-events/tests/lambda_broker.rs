@@ -63,11 +63,14 @@ async fn handle_kafka_event_despacha_registros_para_handlers_inscritos() {
 }
 
 #[tokio::test]
-async fn handle_kafka_event_ignora_topico_sem_subscriber() {
+async fn handle_kafka_event_erro_quando_topico_sem_subscriber() {
     let broker = Arc::new(LambdaBroker::new());
-    // Nenhum subscriber registrado — não deve panicar nem erroar.
     let event = fixture();
-    broker.handle_kafka_event(&event).await.unwrap();
+    let err = broker.handle_kafka_event(&event).await.unwrap_err();
+    assert!(
+        format!("{err}").contains("no handler subscribed"),
+        "erro foi: {err}"
+    );
 }
 
 #[tokio::test]
