@@ -1,6 +1,6 @@
 # Roadmap — serverust
 
-> Última atualização: 2026-05-27  
+> Última atualização: 2026-05-31  
 > Para o histórico detalhado de mudanças por versão, veja [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
@@ -79,6 +79,7 @@ Evolução do `serverust-events` de extractor simples para framework event-drive
 
 - Ack silencioso corrigido: fila sem handler ou ARN inválido → `batch_item_failures` quando há `message_id`
 - Backoff exponencial no `EventRouter`: expoente limitado + `Duration::saturating_mul` (sem panic em overflow)
+- `serverust-cli`: `version.workspace = true` — versão do binário segue `workspace.package.version` sem drift manual
 
 ---
 

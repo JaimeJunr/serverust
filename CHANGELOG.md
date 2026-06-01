@@ -8,7 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!-- MAINTENANCE: When bumping workspace.version in Cargo.toml, add a new ## [x.y.z] section
      above [Unreleased] with date YYYY-MM-DD and move relevant [Unreleased] entries there. -->
 
+## Week ending 2026-05-31
+
+> Digest da auditoria semanal (commits `92cdd3a`..`c6c35ab`). Itens de produto acumulam em `[Unreleased]` abaixo.
+
+### Fixed
+
+- `EventRouter` com `RetryPolicy::Exponential`: backoff com `Duration::saturating_mul` e expoente limitado a 31 — sem panic por overflow (#13).
+
+### Changed
+
+- `serverust-cli`: `version.workspace = true` em `Cargo.toml`, alinhado aos demais crates publicáveis (#19).
+
+### Documentation
+
+- SQS v0.3: guia [event-driven.md](docs/guides/event-driven.md), roadmap v0.3 entregue, `INDEX.md` e overview (#16).
+- Sync semanal: comportamento de backoff documentado no guia; patches pós-0.3.0 no roadmap (#17).
+
 ## [Unreleased]
+
+### Changed
+
+- `serverust-cli`: passa a usar `version.workspace = true` em `Cargo.toml`, herdando `workspace.package.version` como os demais crates publicáveis (evita drift de versão do binário `serverust`).
 
 ### Fixed
 

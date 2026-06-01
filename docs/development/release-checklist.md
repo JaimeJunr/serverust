@@ -31,7 +31,7 @@ A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada
 
 ### Etapas
 
-- [ ] Incrementar `version` no(s) `Cargo.toml` do(s) crate(s) afetado(s)
+- [ ] Incrementar `version` no(s) `Cargo.toml` do(s) crate(s) afetado(s). Crates publicáveis (`serverust-*`) usam `version.workspace = true` — em release workspace-wide (pré-v0.4), basta bump em `[workspace.package]` no `Cargo.toml` raiz.
 - [ ] Atualizar refs path-deps internas para a nova versão (ex: `serverust-events` depende de `serverust-telemetry = "X.Y.Z"`)
 - [ ] Mover itens de `[Unreleased]` para nova versão com data em `CHANGELOG.md`
 - [ ] `scripts/quality_changelog.sh` verde
