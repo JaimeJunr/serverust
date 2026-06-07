@@ -265,8 +265,30 @@ where
             match store.try_acquire(&key, acquired_at, ttl_ms).await {
                 Ok(AcquireOutcome::Acquired) => {
                     let result = inner.call(req).await;
-                    if result.is_ok() {
-                        let _ = store.complete(&key, now_ms(), ttl_ms).await;
+                    match &result {
+                        Ok(()) => {
+                            if let Err(e) = store.complete(&key, now_ms(), ttl_ms).await {
+                                if let Err(release_err) = store.release(&key).await {
+                                    warn!(
+                                        idempotency_key = %key,
+                                        error = %release_err,
+                                        "idempotency release after complete failure also failed",
+                                    );
+                                }
+                                return Err(BrokerError::Subscribe(format!(
+                                    "idempotency complete: {e}"
+                                )));
+                            }
+                        }
+                        Err(_) => {
+                            if let Err(release_err) = store.release(&key).await {
+                                warn!(
+                                    idempotency_key = %key,
+                                    error = %release_err,
+                                    "idempotency release after handler failure failed",
+                                );
+                            }
+                        }
                     }
                     result
                 }

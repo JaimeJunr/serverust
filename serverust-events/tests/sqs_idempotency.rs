@@ -154,9 +154,7 @@ async fn expired_record_allows_reprocessing() {
 }
 
 #[tokio::test]
-async fn handler_failure_does_not_persist_completed_record() {
-    // Após erro, o lock InProgress fica gravado e expira; ele NÃO vira Completed,
-    // de modo que uma retentativa após o TTL pode reprocessar.
+async fn handler_failure_releases_lock_for_sqs_redelivery() {
     let calls = Arc::new(Mutex::new(0_u32));
     let calls_for_handler = calls.clone();
     let subscriber = SqsSubscriber::new(move |_msg: SqsMessage| {
@@ -178,12 +176,96 @@ async fn handler_failure_does_not_persist_completed_record() {
     assert!(matches!(err, BrokerError::Subscribe(_)));
     assert_eq!(*calls.lock().unwrap(), 1);
 
-    // Após falha, store está InProgress (não Completed) — try_acquire dentro
-    // do TTL ainda vê InProgress (lock segura até TTL expirar).
+    // Após falha, o lock InProgress é liberado para que redeliveries do SQS
+    // possam re-adquirir e reexecutar o handler (não ficam bloqueados 24h).
     let outcome = store.try_acquire("fail", now_ms(), 60_000).await.unwrap();
     assert!(
-        matches!(outcome, AcquireOutcome::InProgress),
-        "falha não deve marcar Completed",
+        matches!(outcome, AcquireOutcome::Acquired),
+        "falha deve liberar o lock, não marcar Completed nem manter InProgress",
+    );
+}
+
+#[tokio::test]
+async fn complete_failure_returns_error_and_releases_lock() {
+    struct FailingCompleteStore {
+        inner: InMemoryIdempotencyStore,
+    }
+
+    #[async_trait::async_trait]
+    impl IdempotencyStore for FailingCompleteStore {
+        async fn get(
+            &self,
+            key: &str,
+        ) -> Result<Option<serverust_telemetry::IdempotencyRecord>, serverust_telemetry::IdempotencyError>
+        {
+            self.inner.get(key).await
+        }
+
+        async fn put(
+            &self,
+            record: serverust_telemetry::IdempotencyRecord,
+        ) -> Result<(), serverust_telemetry::IdempotencyError> {
+            self.inner.put(record).await
+        }
+
+        async fn try_acquire(
+            &self,
+            key: &str,
+            now_ms: u64,
+            ttl_ms: u64,
+        ) -> Result<AcquireOutcome, serverust_telemetry::IdempotencyError> {
+            self.inner.try_acquire(key, now_ms, ttl_ms).await
+        }
+
+        async fn complete(
+            &self,
+            _key: &str,
+            _now_ms: u64,
+            _ttl_ms: u64,
+        ) -> Result<(), serverust_telemetry::IdempotencyError> {
+            Err(serverust_telemetry::IdempotencyError::Storage(
+                "dynamodb throttle".into(),
+            ))
+        }
+
+        async fn release(&self, key: &str) -> Result<(), serverust_telemetry::IdempotencyError> {
+            self.inner.release(key).await
+        }
+    }
+
+    let calls = Arc::new(Mutex::new(0_u32));
+    let calls_for_handler = calls.clone();
+    let subscriber = SqsSubscriber::new(move |_msg: SqsMessage| {
+        let calls = calls_for_handler.clone();
+        async move {
+            *calls.lock().unwrap() += 1;
+            Ok::<_, BrokerError>(())
+        }
+    });
+
+    let store: Arc<dyn IdempotencyStore> = Arc::new(FailingCompleteStore {
+        inner: InMemoryIdempotencyStore::new(),
+    });
+
+    let mut svc = ServiceBuilder::new()
+        .layer(IdempotencyLayer::new(store.clone()).with_ttl(Duration::from_secs(60)))
+        .service(subscriber);
+
+    svc.ready().await.unwrap();
+    let err = svc
+        .call(message_with_id("complete-fail"))
+        .await
+        .expect_err("complete failure must surface to SQS for retry");
+    assert!(
+        err.to_string().contains("idempotency complete"),
+        "erro deve indicar falha no complete, recebi: {err}",
+    );
+    assert_eq!(*calls.lock().unwrap(), 1);
+
+    let outcome = store.try_acquire("complete-fail", now_ms(), 60_000).await.unwrap();
+    assert!(
+        matches!(outcome, AcquireOutcome::Acquired),
+        "lock liberado após falha no complete para permitir retry",
     );
 }
 

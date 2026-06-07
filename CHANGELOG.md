@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `EventRouter` com `RetryPolicy::Exponential`: o atraso `base_delay * 2^n` passa a usar `Duration::saturating_mul` e expoente limitado a 31, evitando panic por overflow de `Duration` em retentativas longas ou `base_delay` grande.
 - `SqsBroker::handle_sqs_event` (Lambda ESM + `ReportBatchItemFailures`): mensagens sem handler para a fila do ARN ou sem `event_source_arn` válido passam a entrar em `batchItemFailures` quando há `messageId`, em vez de serem tratadas como sucesso implícito (a Lambda removia da fila sem processamento).
+- `IdempotencyLayer` (SQS): após falha do handler ou falha ao marcar `Completed`, o lock `InProgress` é liberado via `IdempotencyStore::release` — redeliveries do SQS voltam a adquirir a chave em vez de ficarem bloqueadas até o TTL (24h) expirar.
 
 ## [0.3.0] - 2026-05-17
 
