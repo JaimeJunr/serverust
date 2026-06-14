@@ -70,15 +70,23 @@ async fn try_acquire_overrides_expired_completed_record() {
 }
 
 #[tokio::test]
-async fn complete_marks_record_as_completed() {
+async fn release_removes_in_progress_lock() {
+    let store = InMemoryIdempotencyStore::new();
+    store.try_acquire("k", 1_000, TTL_MS).await.unwrap();
+    store.release("k").await.unwrap();
+    let outcome = store.try_acquire("k", 2_000, TTL_MS).await.unwrap();
+    assert!(
+        matches!(outcome, AcquireOutcome::Acquired),
+        "após release, nova aquisição deve ser concedida",
+    );
+}
+
+#[tokio::test]
+async fn release_is_noop_for_completed_record() {
     let store = InMemoryIdempotencyStore::new();
     store.try_acquire("k", 1_000, TTL_MS).await.unwrap();
     store.complete("k", 1_500, TTL_MS).await.unwrap();
-    let outcome = store.try_acquire("k", 1_600, TTL_MS).await.unwrap();
-    match outcome {
-        AcquireOutcome::AlreadyCompleted(rec) => {
-            assert_eq!(rec.state, IdempotencyState::Completed);
-        }
-        other => panic!("esperava AlreadyCompleted, recebi {other:?}"),
-    }
+    store.release("k").await.unwrap();
+    let outcome = store.try_acquire("k", 2_000, TTL_MS).await.unwrap();
+    assert!(matches!(outcome, AcquireOutcome::AlreadyCompleted(_)));
 }

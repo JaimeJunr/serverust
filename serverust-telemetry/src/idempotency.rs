@@ -18,6 +18,9 @@
 //!   deve recuar) ou [`AcquireOutcome::AlreadyCompleted`] (skip seguro).
 //! - [`IdempotencyStore::complete`] grava o resultado final (estado
 //!   `Completed`) com novo TTL.
+//! - [`IdempotencyStore::release`] remove um lock `InProgress` abandonado
+//!   após falha do handler ou de `complete`, permitindo que o SQS redelivery
+//!   reexecute o processamento dentro do TTL.
 //!
 //! Em DynamoDB, isso é implementado com `condition_expression`
 //! `attribute_not_exists(pk) OR expires_at_ms < :now` no `try_acquire`.
@@ -99,6 +102,11 @@ pub trait IdempotencyStore: Send + Sync + 'static {
     /// Marca a chave como Completed com novo TTL. Caller deve ter chamado
     /// `try_acquire` antes e obtido `Acquired`.
     async fn complete(&self, key: &str, now_ms: u64, ttl_ms: u64) -> Result<(), IdempotencyError>;
+
+    /// Libera um lock `InProgress` abandonado (ex.: handler falhou após
+    /// `try_acquire`). Registros `Completed` não são alterados. Idempotente
+    /// quando a chave já foi liberada ou expirou.
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError>;
 }
 
 /// Implementação in-memory thread-safe — referência para testes e dev.
@@ -179,6 +187,20 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
                 expires_at_ms: now_ms.saturating_add(ttl_ms),
             },
         );
+        Ok(())
+    }
+
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+        let mut guard = self
+            .locks
+            .lock()
+            .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
+        match guard.get(key) {
+            Some(existing) if existing.state == IdempotencyState::InProgress => {
+                guard.remove(key);
+            }
+            _ => {}
+        }
         Ok(())
     }
 }
@@ -380,6 +402,35 @@ mod dynamodb_impl {
                 .await
                 .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
             Ok(())
+        }
+
+        async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+            let result = self
+                .client
+                .delete_item()
+                .table_name(&self.table_name)
+                .key("pk", AttributeValue::S(key.to_string()))
+                .condition_expression("#state = :in_progress")
+                .expression_attribute_names("#state", "state")
+                .expression_attribute_values(
+                    ":in_progress",
+                    AttributeValue::S("InProgress".to_string()),
+                )
+                .send()
+                .await;
+
+            match result {
+                Ok(_) => Ok(()),
+                Err(SdkError::ServiceError(svc))
+                    if matches!(
+                        svc.err(),
+                        aws_sdk_dynamodb::operation::delete_item::DeleteItemError::ConditionalCheckFailedException(_)
+                    ) =>
+                {
+                    Ok(())
+                }
+                Err(e) => Err(IdempotencyError::Storage(e.to_string())),
+            }
         }
     }
 }
