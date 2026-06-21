@@ -18,6 +18,8 @@
 //!   deve recuar) ou [`AcquireOutcome::AlreadyCompleted`] (skip seguro).
 //! - [`IdempotencyStore::complete`] grava o resultado final (estado
 //!   `Completed`) com novo TTL.
+//! - [`IdempotencyStore::release`] remove um lock `InProgress` após falha do
+//!   handler, permitindo que redeliveries SQS reexecutem o processamento.
 //!
 //! Em DynamoDB, isso é implementado com `condition_expression`
 //! `attribute_not_exists(pk) OR expires_at_ms < :now` no `try_acquire`.
@@ -99,6 +101,13 @@ pub trait IdempotencyStore: Send + Sync + 'static {
     /// Marca a chave como Completed com novo TTL. Caller deve ter chamado
     /// `try_acquire` antes e obtido `Acquired`.
     async fn complete(&self, key: &str, now_ms: u64, ttl_ms: u64) -> Result<(), IdempotencyError>;
+
+    /// Remove um lock `InProgress` após falha do handler.
+    ///
+    /// Sem isso, redeliveries SQS (visibility timeout) encontram `InProgress`
+    /// e falham até o TTL expirar (default 24 h). Registros `Completed` ou
+    /// chaves ausentes são no-op.
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError>;
 }
 
 /// Implementação in-memory thread-safe — referência para testes e dev.
@@ -181,6 +190,20 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
         );
         Ok(())
     }
+
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+        let mut guard = self
+            .locks
+            .lock()
+            .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
+        if guard
+            .get(key)
+            .is_some_and(|r| r.state == IdempotencyState::InProgress)
+        {
+            guard.remove(key);
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "dynamodb")]
@@ -192,6 +215,7 @@ mod dynamodb_impl {
     use async_trait::async_trait;
     use aws_sdk_dynamodb::Client;
     use aws_sdk_dynamodb::error::SdkError;
+    use aws_sdk_dynamodb::operation::delete_item::DeleteItemError;
     use aws_sdk_dynamodb::operation::put_item::PutItemError;
     use aws_sdk_dynamodb::primitives::Blob;
     use aws_sdk_dynamodb::types::AttributeValue;
@@ -380,6 +404,35 @@ mod dynamodb_impl {
                 .await
                 .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
             Ok(())
+        }
+
+        async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+            let result = self
+                .client
+                .delete_item()
+                .table_name(&self.table_name)
+                .key("pk", AttributeValue::S(key.to_string()))
+                .condition_expression("#state = :in_progress")
+                .expression_attribute_names("#state", "state")
+                .expression_attribute_values(
+                    ":in_progress",
+                    AttributeValue::S("InProgress".to_string()),
+                )
+                .send()
+                .await;
+
+            match result {
+                Ok(_) => Ok(()),
+                Err(SdkError::ServiceError(svc))
+                    if matches!(
+                        svc.err(),
+                        DeleteItemError::ConditionalCheckFailedException(_)
+                    ) =>
+                {
+                    Ok(())
+                }
+                Err(e) => Err(IdempotencyError::Storage(e.to_string())),
+            }
         }
     }
 }

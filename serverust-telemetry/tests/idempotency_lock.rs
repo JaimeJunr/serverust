@@ -82,3 +82,28 @@ async fn complete_marks_record_as_completed() {
         other => panic!("esperava AlreadyCompleted, recebi {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn release_clears_in_progress_lock() {
+    let store = InMemoryIdempotencyStore::new();
+    store.try_acquire("k", 1_000, TTL_MS).await.unwrap();
+    store.release("k").await.unwrap();
+    let outcome = store.try_acquire("k", 2_000, TTL_MS).await.unwrap();
+    assert!(
+        matches!(outcome, AcquireOutcome::Acquired),
+        "release deve permitir nova aquisição",
+    );
+}
+
+#[tokio::test]
+async fn release_is_noop_for_completed_record() {
+    let store = InMemoryIdempotencyStore::new();
+    store.try_acquire("k", 1_000, TTL_MS).await.unwrap();
+    store.complete("k", 1_500, TTL_MS).await.unwrap();
+    store.release("k").await.unwrap();
+    let outcome = store.try_acquire("k", 2_000, TTL_MS).await.unwrap();
+    assert!(
+        matches!(outcome, AcquireOutcome::AlreadyCompleted(_)),
+        "release não deve remover Completed",
+    );
+}
