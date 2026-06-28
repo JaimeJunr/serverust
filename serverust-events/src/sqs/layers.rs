@@ -265,10 +265,21 @@ where
             match store.try_acquire(&key, acquired_at, ttl_ms).await {
                 Ok(AcquireOutcome::Acquired) => {
                     let result = inner.call(req).await;
-                    if result.is_ok() {
-                        let _ = store.complete(&key, now_ms(), ttl_ms).await;
+                    match result {
+                        Ok(()) => match store.complete(&key, now_ms(), ttl_ms).await {
+                            Ok(()) => Ok(()),
+                            Err(e) => {
+                                let _ = store.release(&key).await;
+                                Err(BrokerError::Subscribe(format!(
+                                    "idempotency complete failed for {key}: {e}"
+                                )))
+                            }
+                        },
+                        Err(e) => {
+                            let _ = store.release(&key).await;
+                            Err(e)
+                        }
                     }
-                    result
                 }
                 Ok(AcquireOutcome::AlreadyCompleted(_)) => Ok(()),
                 Ok(AcquireOutcome::InProgress) => Err(BrokerError::Subscribe(format!(

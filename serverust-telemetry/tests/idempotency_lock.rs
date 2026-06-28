@@ -82,3 +82,15 @@ async fn complete_marks_record_as_completed() {
         other => panic!("esperava AlreadyCompleted, recebi {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn release_removes_in_progress_lock() {
+    let store = InMemoryIdempotencyStore::new();
+    store.try_acquire("k", 1_000, TTL_MS).await.unwrap();
+    store.release("k").await.unwrap();
+    let outcome = store.try_acquire("k", 2_000, TTL_MS).await.unwrap();
+    assert!(
+        matches!(outcome, AcquireOutcome::Acquired),
+        "após release, nova aquisição deve ser concedida",
+    );
+}

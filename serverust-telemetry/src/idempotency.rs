@@ -99,6 +99,11 @@ pub trait IdempotencyStore: Send + Sync + 'static {
     /// Marca a chave como Completed com novo TTL. Caller deve ter chamado
     /// `try_acquire` antes e obtido `Acquired`.
     async fn complete(&self, key: &str, now_ms: u64, ttl_ms: u64) -> Result<(), IdempotencyError>;
+
+    /// Libera um lock `InProgress` sem marcar `Completed`. Usado quando o
+    /// handler falha ou `complete` falha, permitindo que retentativas SQS
+    /// re-adquiram a chave após visibility timeout.
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError>;
 }
 
 /// Implementação in-memory thread-safe — referência para testes e dev.
@@ -179,6 +184,15 @@ impl IdempotencyStore for InMemoryIdempotencyStore {
                 expires_at_ms: now_ms.saturating_add(ttl_ms),
             },
         );
+        Ok(())
+    }
+
+    async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+        let mut guard = self
+            .locks
+            .lock()
+            .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
+        guard.remove(key);
         Ok(())
     }
 }
@@ -376,6 +390,17 @@ mod dynamodb_impl {
                     "expires_at_ms",
                     AttributeValue::N(expires_at_ms.to_string()),
                 )
+                .send()
+                .await
+                .map_err(|e| IdempotencyError::Storage(e.to_string()))?;
+            Ok(())
+        }
+
+        async fn release(&self, key: &str) -> Result<(), IdempotencyError> {
+            self.client
+                .delete_item()
+                .table_name(&self.table_name)
+                .key("pk", AttributeValue::S(key.to_string()))
                 .send()
                 .await
                 .map_err(|e| IdempotencyError::Storage(e.to_string()))?;

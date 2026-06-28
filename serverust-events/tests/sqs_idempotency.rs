@@ -154,9 +154,9 @@ async fn expired_record_allows_reprocessing() {
 }
 
 #[tokio::test]
-async fn handler_failure_does_not_persist_completed_record() {
-    // Após erro, o lock InProgress fica gravado e expira; ele NÃO vira Completed,
-    // de modo que uma retentativa após o TTL pode reprocessar.
+async fn handler_failure_releases_lock_for_sqs_redelivery() {
+    // Após erro, o lock InProgress deve ser liberado para que a retentativa
+    // SQS (após visibility timeout) possa re-adquirir e reprocessar.
     let calls = Arc::new(Mutex::new(0_u32));
     let calls_for_handler = calls.clone();
     let subscriber = SqsSubscriber::new(move |_msg: SqsMessage| {
@@ -178,12 +178,11 @@ async fn handler_failure_does_not_persist_completed_record() {
     assert!(matches!(err, BrokerError::Subscribe(_)));
     assert_eq!(*calls.lock().unwrap(), 1);
 
-    // Após falha, store está InProgress (não Completed) — try_acquire dentro
-    // do TTL ainda vê InProgress (lock segura até TTL expirar).
+    // Lock liberado — redelivery SQS pode re-adquirir dentro do TTL.
     let outcome = store.try_acquire("fail", now_ms(), 60_000).await.unwrap();
     assert!(
-        matches!(outcome, AcquireOutcome::InProgress),
-        "falha não deve marcar Completed",
+        matches!(outcome, AcquireOutcome::Acquired),
+        "falha deve liberar lock para retentativa SQS",
     );
 }
 
