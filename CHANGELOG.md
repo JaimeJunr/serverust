@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `serverust-cli`: passa a usar `version.workspace = true` em `Cargo.toml`, herdando `workspace.package.version` como os demais crates publicáveis (evita drift de versão do binário `serverust`).
-- `IdempotencyStore::try_acquire` devolve `AcquireOutcome::Acquired(LockToken)`; `release` e `complete` passam a exigir o token da aquisição (fencing). Token divergente é no-op de sucesso.
+- **BREAKING** (`serverust-telemetry`): `IdempotencyStore::try_acquire` devolve `AcquireOutcome::Acquired(LockToken)` em vez de `Acquired`, e `release`/`complete` passam a exigir o token da aquisição (fencing). Token divergente é no-op de sucesso. Implementações externas de `IdempotencyStore` e qualquer `match` sobre `AcquireOutcome::Acquired` precisam ser ajustados.
 
 ### Fixed
 
