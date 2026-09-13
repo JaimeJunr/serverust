@@ -18,7 +18,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::ConsumerContext;
 use rdkafka::producer::{FutureProducer, FutureRecord, ProducerContext};
 
-use super::{BoxedHandler, Broker, BrokerError, BrokerMessage};
+use super::{BoxedHandler, Broker, BrokerError, BrokerMessage, UnhandledTopicPolicy};
 
 /// Contexto rdkafka que fornece o token IAM MSK via OAUTHBEARER.
 #[derive(Clone)]
@@ -101,6 +101,7 @@ impl KafkaBrokerConfig {
 pub struct KafkaBroker {
     producer: FutureProducer<MskIamContext>,
     subscriptions: Mutex<Vec<Subscription>>,
+    unhandled_topic_policy: UnhandledTopicPolicy,
 }
 
 /// Registro interno de uma inscrição (handler + tópico).
@@ -141,7 +142,14 @@ impl KafkaBroker {
         Ok(Self {
             producer,
             subscriptions: Mutex::new(Vec::new()),
+            unhandled_topic_policy: UnhandledTopicPolicy::default(),
         })
+    }
+
+    /// Define a política para records cujo tópico não tem handler inscrito.
+    pub fn with_unhandled_topic_policy(mut self, policy: UnhandledTopicPolicy) -> Self {
+        self.unhandled_topic_policy = policy;
+        self
     }
 
     /// Lista os tópicos atualmente inscritos (somente leitura, ordem de inscrição).
@@ -161,15 +169,35 @@ impl KafkaBroker {
     /// [`BrokerMessage`] e chama `dispatch` para entregar aos handlers.
     /// Testar o loop real exige broker físico; `dispatch` é testado de
     /// forma isolada.
+    ///
+    /// Sem handler inscrito, aplica [`UnhandledTopicPolicy`]: `WarnAndIgnore`
+    /// (default) pula a mensagem e emite `tracing::warn!`; `Error` retorna
+    /// [`BrokerError::Subscribe`] com o tópico recebido e a lista de tópicos
+    /// inscritos.
     pub async fn dispatch(&self, msg: BrokerMessage) -> Result<(), BrokerError> {
-        let handlers: Vec<BoxedHandler> = self
-            .subscriptions
-            .lock()
-            .map_err(|_| BrokerError::Subscribe("subscriptions mutex poisoned".into()))?
-            .iter()
-            .filter(|s| s.topic == msg.topic)
-            .map(|s| s.handler.clone())
-            .collect();
+        let (handlers, registered_topics): (Vec<BoxedHandler>, Vec<String>) = {
+            let guard = self
+                .subscriptions
+                .lock()
+                .map_err(|_| BrokerError::Subscribe("subscriptions mutex poisoned".into()))?;
+            let handlers: Vec<BoxedHandler> = guard
+                .iter()
+                .filter(|s| s.topic == msg.topic)
+                .map(|s| s.handler.clone())
+                .collect();
+            let registered_topics = if handlers.is_empty() {
+                super::unique_topics(guard.iter().map(|s| s.topic.as_str()))
+            } else {
+                Vec::new()
+            };
+            (handlers, registered_topics)
+        };
+
+        if handlers.is_empty() {
+            return self
+                .unhandled_topic_policy
+                .on_unhandled(&msg.topic, &registered_topics);
+        }
 
         for handler in handlers {
             handler(msg.clone()).await?;

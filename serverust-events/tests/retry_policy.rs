@@ -133,7 +133,7 @@ async fn dead_letter_publica_no_dlq_apos_esgotamento_via_policy() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);
@@ -159,7 +159,7 @@ async fn with_dlq_publica_no_dlq_apos_esgotamento_via_router() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);
@@ -218,8 +218,65 @@ async fn exponential_dead_letter_publica_no_dlq() {
         .await
         .unwrap();
 
-    let _ = broker.publish("orders", &payload).await;
+    broker.publish("orders", &payload).await.unwrap();
 
     let dlq_msgs = broker.messages("orders.dlq");
     assert_eq!(dlq_msgs.len(), 1);
+}
+
+// ---------------------------------------------------------------------------
+// DLQ publish falha: o erro original do handler é retornado.
+// ---------------------------------------------------------------------------
+
+struct FailingDlqBroker {
+    inner: Arc<InMemoryBroker>,
+    fail_topic: String,
+}
+
+#[async_trait::async_trait]
+impl Broker for FailingDlqBroker {
+    async fn subscribe(
+        &self,
+        topic: &str,
+        handler: serverust_events::broker::BoxedHandler,
+    ) -> Result<(), BrokerError> {
+        self.inner.subscribe(topic, handler).await
+    }
+
+    async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), BrokerError> {
+        if topic == self.fail_topic {
+            return Err(BrokerError::Publish(format!(
+                "simulated DLQ publish failure to '{topic}'"
+            )));
+        }
+        self.inner.publish(topic, payload).await
+    }
+}
+
+#[tokio::test]
+async fn dlq_publish_falha_propaga_erro_do_handler() {
+    let inner = Arc::new(InMemoryBroker::new());
+    let broker = Arc::new(FailingDlqBroker {
+        inner: inner.clone(),
+        fail_topic: "orders.dlq".to_string(),
+    });
+    let payload = serde_json::to_vec(&OrderEvent { id: 8 }).unwrap();
+
+    EventRouter::new()
+        .subscribe::<OrderEvent, _, _>("orders", |_: OrderEvent| async move {
+            Err(BrokerError::Subscribe("falha do handler".to_string()))
+        })
+        .with_retry(RetryPolicy::immediate(1))
+        .with_dlq("orders.dlq")
+        .attach(broker.clone())
+        .await
+        .unwrap();
+
+    let result = broker.publish("orders", &payload).await;
+    let err = result.expect_err("DLQ falhou => Err do handler");
+    assert!(
+        format!("{err}").contains("falha do handler"),
+        "erro foi: {err}"
+    );
+    assert_eq!(inner.messages("orders.dlq").len(), 0);
 }

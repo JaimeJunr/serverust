@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use aws_lambda_events::event::kafka::KafkaEvent;
 use base64::Engine;
 
-use super::{BoxedHandler, Broker, BrokerError, BrokerMessage};
+use super::{BoxedHandler, Broker, BrokerError, BrokerMessage, UnhandledTopicPolicy};
 
 /// Broker sink-only para o modo Lambda.
 ///
@@ -37,6 +37,7 @@ use super::{BoxedHandler, Broker, BrokerError, BrokerMessage};
 ///   ou ao producer dedicado em uma futura US.
 pub struct LambdaBroker {
     subscriptions: Mutex<Vec<Subscription>>,
+    unhandled_topic_policy: UnhandledTopicPolicy,
 }
 
 struct Subscription {
@@ -49,7 +50,14 @@ impl LambdaBroker {
     pub fn new() -> Self {
         Self {
             subscriptions: Mutex::new(Vec::new()),
+            unhandled_topic_policy: UnhandledTopicPolicy::default(),
         }
+    }
+
+    /// Define a política para records cujo tópico não tem handler inscrito.
+    pub fn with_unhandled_topic_policy(mut self, policy: UnhandledTopicPolicy) -> Self {
+        self.unhandled_topic_policy = policy;
+        self
     }
 
     /// Lista os tópicos atualmente inscritos (ordem de inscrição).
@@ -68,7 +76,10 @@ impl LambdaBroker {
     /// 1. Identifica o tópico via `record.topic` (campo do próprio registro).
     /// 2. Se houver handlers inscritos, decodifica `value` (Base64) e
     ///    despacha como [`BrokerMessage`].
-    /// 3. Se não houver handlers inscritos para o tópico, ignora o registro.
+    /// 3. Se não houver handlers inscritos para o tópico, aplica
+    ///    [`UnhandledTopicPolicy`]: `WarnAndIgnore` (default) pula o registro
+    ///    e emite `tracing::warn!`; `Error` retorna [`BrokerError::Subscribe`]
+    ///    com o tópico recebido e a lista de tópicos inscritos.
     ///
     /// O primeiro erro encontrado interrompe o despacho e propaga.
     pub async fn handle_kafka_event(&self, event: &KafkaEvent) -> Result<(), BrokerError> {
@@ -76,16 +87,26 @@ impl LambdaBroker {
             for raw in records {
                 let topic = raw.topic.clone().unwrap_or_default();
 
-                let handlers: Vec<BoxedHandler> = self
-                    .subscriptions
-                    .lock()
-                    .map_err(|_| BrokerError::Subscribe("subscriptions mutex poisoned".into()))?
-                    .iter()
-                    .filter(|s| s.topic == topic)
-                    .map(|s| s.handler.clone())
-                    .collect();
+                let (handlers, registered_topics): (Vec<BoxedHandler>, Vec<String>) = {
+                    let guard = self.subscriptions.lock().map_err(|_| {
+                        BrokerError::Subscribe("subscriptions mutex poisoned".into())
+                    })?;
+                    let handlers: Vec<BoxedHandler> = guard
+                        .iter()
+                        .filter(|s| s.topic == topic)
+                        .map(|s| s.handler.clone())
+                        .collect();
+                    let registered_topics = if handlers.is_empty() {
+                        super::unique_topics(guard.iter().map(|s| s.topic.as_str()))
+                    } else {
+                        Vec::new()
+                    };
+                    (handlers, registered_topics)
+                };
 
                 if handlers.is_empty() {
+                    self.unhandled_topic_policy
+                        .on_unhandled(&topic, &registered_topics)?;
                     continue;
                 }
 

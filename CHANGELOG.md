@@ -27,10 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `UnhandledTopicPolicy` em `LambdaBroker` e `KafkaBroker` (`with_unhandled_topic_policy`): `WarnAndIgnore` (default) preserva o comportamento 0.3.x de pular o record sem handler e passa a emitir `tracing::warn!` com o tópico; `Error` retorna `BrokerError::Subscribe` com o tópico recebido e a lista de tópicos inscritos.
+
 ### Changed
 
+- `serverust-events`: `tracing` deixa de ser dependência opcional (antes só sob a feature `sqs`) — `UnhandledTopicPolicy` e o log de falha da DLQ em `EventRouter` rodam em código sem a feature `sqs`.
 - CI e desenvolvimento local passam a usar toolchain Rust pinada em `rust-toolchain.toml` (1.94.1) em vez de `stable` flutuante — os testes `trybuild` de `serverust-macros` comparam a saída literal do rustc e quebravam a cada mudança de formatação de diagnóstico.
-
 - `serverust-cli`: passa a usar `version.workspace = true` em `Cargo.toml`, herdando `workspace.package.version` como os demais crates publicáveis (evita drift de versão do binário `serverust`).
 - **BREAKING** (`serverust-telemetry`): `IdempotencyStore::try_acquire` devolve `AcquireOutcome::Acquired(LockToken)` em vez de `Acquired`, e `release`/`complete` passam a exigir o token da aquisição (fencing). Token divergente é no-op de sucesso. Implementações externas de `IdempotencyStore` e qualquer `match` sobre `AcquireOutcome::Acquired` precisam ser ajustados.
 
@@ -39,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `EventRouter` com `RetryPolicy::Exponential`: o atraso `base_delay * 2^n` passa a usar `Duration::saturating_mul` e expoente limitado a 31, evitando panic por overflow de `Duration` em retentativas longas ou `base_delay` grande.
 - `SqsBroker::handle_sqs_event` (Lambda ESM + `ReportBatchItemFailures`): mensagens sem handler para a fila do ARN ou sem `event_source_arn` válido passam a entrar em `batchItemFailures` quando há `messageId`, em vez de serem tratadas como sucesso implícito (a Lambda removia da fila sem processamento).
 - `IdempotencyLayer`: após falha do handler ou de `complete()`, libera o lock `InProgress` via `IdempotencyStore::release`, permitindo que redeliveries do SQS reexecutem o handler dentro do TTL (antes o lock bloqueava reprocessamento por até 24h e a mensagem ia para DLQ sem nova tentativa). `release`/`complete` só mutam o registro se o token bater com o dono corrente — um owner cujo TTL expirou não apaga nem completa o lock de outro worker. Falha de `release` é logada com `tracing::warn` (chave + erro), sem mascarar o erro do handler. Falha de `complete` após sucesso do handler propaga erro ao SQS e libera o lock.
+- `EventRouter::with_dlq`: após publicação bem-sucedida no tópico DLQ, o wrapper retorna `Ok(())` (mesma semântica de `DlqLayer`), permitindo ack da mensagem original no Lambda SQS em vez de loop infinito de redelivery. Se o publish na DLQ falhar, o erro original do handler é retornado e ambos os erros (handler e DLQ) são registrados com `tracing::error!`.
 
 ## [0.3.0] - 2026-05-17
 

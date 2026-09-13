@@ -49,6 +49,57 @@ pub enum BrokerError {
     Transport(String),
 }
 
+/// Política para records cujo tópico não tem handler inscrito.
+///
+/// O default [`UnhandledTopicPolicy::WarnAndIgnore`] preserva o comportamento
+/// 0.3.x: o record é pulado. A variante [`UnhandledTopicPolicy::Error`] falha
+/// o despacho com [`BrokerError::Subscribe`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UnhandledTopicPolicy {
+    /// Pula o record e emite `tracing::warn!` com o tópico recebido.
+    ///
+    /// Equivale ao skip 0.3.x; o warn é o único acréscimo no default (o skip
+    /// era totalmente silencioso).
+    #[default]
+    WarnAndIgnore,
+    /// Retorna [`BrokerError::Subscribe`] com o tópico recebido e a lista de
+    /// tópicos que têm handler registrado.
+    Error,
+}
+
+impl UnhandledTopicPolicy {
+    /// Aplica a política a um tópico sem handler.
+    pub(crate) fn on_unhandled(
+        self,
+        topic: &str,
+        registered_topics: &[String],
+    ) -> Result<(), BrokerError> {
+        match self {
+            Self::WarnAndIgnore => {
+                tracing::warn!(topic, "no handler subscribed; skipping record");
+                Ok(())
+            }
+            Self::Error => Err(BrokerError::Subscribe(format!(
+                "no handler subscribed for kafka topic '{topic}'; registered topics: [{}]",
+                registered_topics.join(", ")
+            ))),
+        }
+    }
+}
+
+pub(crate) fn unique_topics<'a, I>(topics: I) -> Vec<String>
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let mut out: Vec<String> = Vec::new();
+    for topic in topics {
+        if !out.iter().any(|existing| existing == topic) {
+            out.push(topic.to_string());
+        }
+    }
+    out
+}
+
 /// Mensagem entregue a um handler inscrito.
 ///
 /// Representa um registro de broker já normalizado para um shape comum
@@ -107,5 +158,36 @@ impl<B: Broker> Broker for Arc<B> {
 
     async fn publish(&self, topic: &str, payload: &[u8]) -> Result<(), BrokerError> {
         (**self).publish(topic, payload).await
+    }
+}
+
+#[cfg(test)]
+mod unhandled_topic_policy_tests {
+    use super::*;
+
+    #[test]
+    fn default_is_warn_and_ignore() {
+        assert_eq!(
+            UnhandledTopicPolicy::default(),
+            UnhandledTopicPolicy::WarnAndIgnore
+        );
+    }
+
+    #[test]
+    fn error_policy_includes_received_and_registered_topics() {
+        let err = UnhandledTopicPolicy::Error
+            .on_unhandled("incoming", &["orders".to_string(), "billing".to_string()])
+            .expect_err("Error policy deve falhar");
+        let msg = format!("{err}");
+        assert!(msg.contains("incoming"), "{msg}");
+        assert!(msg.contains("orders"), "{msg}");
+        assert!(msg.contains("billing"), "{msg}");
+    }
+
+    #[test]
+    fn warn_and_ignore_returns_ok() {
+        UnhandledTopicPolicy::WarnAndIgnore
+            .on_unhandled("incoming", &[])
+            .expect("WarnAndIgnore deve pular");
     }
 }
