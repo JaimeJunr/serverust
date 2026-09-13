@@ -1,0 +1,17 @@
+# Toolchain pinada para o CI e o desenvolvimento local.
+#
+# O CI usava `dtolnay/rust-toolchain@stable`, que segue a stable mais recente.
+# Os testes `trybuild` de `serverust-macros` comparam a saída literal do rustc,
+# então qualquer mudança de formatação de diagnóstico entre releases quebra o
+# check `tests` sem que nada do projeto tenha mudado — foi o que aconteceu com
+# a nota de `FifoSendBuilder<NoGroupId>`, reformatada de lista para linha única.
+#
+# Subir esta versão é uma mudança deliberada: rode
+# `cargo test -p serverust-macros --test trybuild` e, se a única diferença for
+# formatação de diagnóstico, rebless com `TRYBUILD=overwrite`.
+#
+# `rust-version` no Cargo.toml (MSRV 1.85) é outro eixo: define o mínimo que os
+# consumidores precisam, não a toolchain com que o projeto é construído.
+[toolchain]
+channel = "1.94.1"
+components = ["rustfmt", "clippy"]
