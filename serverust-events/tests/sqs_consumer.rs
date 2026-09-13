@@ -437,3 +437,55 @@ async fn event_router_dlq_ack_apos_publicar_dlq_em_lambda_sqs() {
     );
     assert_eq!(dlq_payloads.lock().unwrap().len(), 3);
 }
+
+struct FailingDlqBroker {
+    sqs: Arc<SqsBroker>,
+    dlq_topic: String,
+}
+
+#[async_trait::async_trait]
+impl Broker for FailingDlqBroker {
+    async fn subscribe(
+        &self,
+        topic: &str,
+        handler: serverust_events::broker::BoxedHandler,
+    ) -> Result<(), BrokerError> {
+        self.sqs.subscribe(topic, handler).await
+    }
+
+    async fn publish(&self, topic: &str, _payload: &[u8]) -> Result<(), BrokerError> {
+        Err(BrokerError::Publish(format!(
+            "simulated DLQ publish failure to '{topic}' (configured dlq: {})",
+            self.dlq_topic
+        )))
+    }
+}
+
+#[tokio::test]
+async fn event_router_dlq_publish_falha_retorna_err_em_lambda_sqs() {
+    use serverust_events::retry::RetryPolicy;
+
+    let sqs_broker = Arc::new(SqsBroker::new());
+    let broker = Arc::new(FailingDlqBroker {
+        sqs: sqs_broker.clone(),
+        dlq_topic: "orders-dlq".to_string(),
+    });
+
+    EventRouter::new()
+        .subscribe::<Order, _, _>("orders", |_: Order| async move {
+            Err(BrokerError::Subscribe("falha do handler".to_string()))
+        })
+        .with_retry(RetryPolicy::immediate(1))
+        .with_dlq("orders-dlq")
+        .attach(broker)
+        .await
+        .unwrap();
+
+    let resp = sqs_broker.handle_sqs_event(&fixture()).await;
+    assert_eq!(
+        resp.batch_item_failures.len(),
+        3,
+        "DLQ falhou => Err do handler => batchItemFailures, got: {:?}",
+        resp.batch_item_failures
+    );
+}

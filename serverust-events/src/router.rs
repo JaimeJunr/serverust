@@ -115,8 +115,15 @@ where
                         return Ok(());
                     }
                     Err(dlq_err) => {
-                        eprintln!(
-                            "[serverust-events] DLQ publish to '{dlq_topic}' failed: {dlq_err}"
+                        let handler_error = last_err
+                            .as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_else(|| "sem tentativas".to_string());
+                        tracing::error!(
+                            dlq_topic = %dlq_topic,
+                            handler_error = %handler_error,
+                            dlq_error = %dlq_err,
+                            "DLQ publish failed after handler retries exhausted"
                         );
                     }
                 }

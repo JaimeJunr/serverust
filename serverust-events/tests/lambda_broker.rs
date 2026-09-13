@@ -11,6 +11,7 @@ use std::sync::Mutex;
 use aws_lambda_events::event::kafka::KafkaEvent;
 use serde::Deserialize;
 use serverust_events::broker::Broker;
+use serverust_events::broker::UnhandledTopicPolicy;
 use serverust_events::broker::lambda::LambdaBroker;
 use serverust_events::router::EventRouter;
 
@@ -63,13 +64,32 @@ async fn handle_kafka_event_despacha_registros_para_handlers_inscritos() {
 }
 
 #[tokio::test]
-async fn handle_kafka_event_erro_quando_topico_sem_subscriber() {
+async fn handle_kafka_event_ignora_topico_sem_subscriber() {
     let broker = Arc::new(LambdaBroker::new());
+    // Nenhum subscriber registrado — default WarnAndIgnore não panica nem erra.
+    let event = fixture();
+    broker.handle_kafka_event(&event).await.unwrap();
+}
+
+#[tokio::test]
+async fn handle_kafka_event_erro_quando_topico_sem_subscriber() {
+    let broker = Arc::new(
+        LambdaBroker::new().with_unhandled_topic_policy(UnhandledTopicPolicy::Error),
+    );
+    let router =
+        EventRouter::new().subscribe::<WalletCredit, _, _>("other.topic", |_| async { Ok(()) });
+    router.attach(broker.clone()).await.unwrap();
+
     let event = fixture();
     let err = broker.handle_kafka_event(&event).await.unwrap_err();
+    let msg = format!("{err}");
     assert!(
-        format!("{err}").contains("no handler subscribed"),
-        "erro foi: {err}"
+        msg.contains("wallet.credits"),
+        "mensagem deve citar o tópico recebido; erro foi: {msg}"
+    );
+    assert!(
+        msg.contains("other.topic"),
+        "mensagem deve citar os tópicos inscritos; erro foi: {msg}"
     );
 }
 

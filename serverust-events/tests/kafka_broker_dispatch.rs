@@ -12,6 +12,7 @@ use std::sync::Mutex;
 
 use serverust_events::broker::Broker;
 use serverust_events::broker::BrokerMessage;
+use serverust_events::broker::UnhandledTopicPolicy;
 use serverust_events::broker::kafka::{KafkaBroker, KafkaBrokerConfig};
 
 fn make_broker() -> KafkaBroker {
@@ -59,7 +60,7 @@ async fn dispatch_invoca_handlers_inscritos_no_topico() {
 }
 
 #[tokio::test]
-async fn dispatch_erro_quando_topico_sem_subscriber() {
+async fn dispatch_em_topico_sem_subscriber_e_no_op() {
     let broker = make_broker();
     let msg = BrokerMessage {
         topic: "topico.sem.subscriber".to_string(),
@@ -70,10 +71,35 @@ async fn dispatch_erro_quando_topico_sem_subscriber() {
         headers: HashMap::new(),
         timestamp: None,
     };
+    broker.dispatch(msg).await.unwrap();
+}
+
+#[tokio::test]
+async fn dispatch_erro_quando_topico_sem_subscriber() {
+    let broker = make_broker().with_unhandled_topic_policy(UnhandledTopicPolicy::Error);
+    let h = |_: BrokerMessage| -> serverust_events::broker::HandlerFuture {
+        Box::pin(async { Ok(()) })
+    };
+    broker.subscribe("orders.created", Arc::new(h)).await.unwrap();
+
+    let msg = BrokerMessage {
+        topic: "topico.sem.subscriber".to_string(),
+        partition: None,
+        offset: None,
+        key: None,
+        payload: Vec::new(),
+        headers: HashMap::new(),
+        timestamp: None,
+    };
     let err = broker.dispatch(msg).await.unwrap_err();
+    let text = format!("{err}");
     assert!(
-        format!("{err}").contains("no handler subscribed"),
-        "erro foi: {err}"
+        text.contains("topico.sem.subscriber"),
+        "mensagem deve citar o tópico recebido; erro foi: {text}"
+    );
+    assert!(
+        text.contains("orders.created"),
+        "mensagem deve citar os tópicos inscritos; erro foi: {text}"
     );
 }
 
