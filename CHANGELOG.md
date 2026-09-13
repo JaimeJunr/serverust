@@ -27,6 +27,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-13
+
+`serverust-telemetry 0.4.0` traz uma **quebra de API** no `IdempotencyStore` e dois fixes que **mudam o comportamento em runtime sem quebrar a compilação** — leia "Migração" antes de subir em produção.
+
+### Migração desde 0.3.x
+
+**1. `IdempotencyStore` agora exige token de fencing.** Só afeta quem implementa o trait ou faz `match` em `AcquireOutcome` diretamente; quem só monta o `IdempotencyLayer` com `InMemoryIdempotencyStore` / `DynamoDbIdempotencyStore` não precisa mudar nada.
+
+```rust
+// antes
+match store.try_acquire(&key, now, ttl).await? {
+    AcquireOutcome::Acquired => { /* ... */ store.complete(&key, now, ttl).await?; }
+    // ...
+}
+
+// depois — o token identifica o dono do lock
+match store.try_acquire(&key, now, ttl).await? {
+    AcquireOutcome::Acquired(token) => { /* ... */ store.complete(&key, &token, now, ttl).await?; }
+    // ...
+}
+```
+
+Quem implementa o trait: `release`/`complete` devem virar no-op de sucesso quando o token não bate com o do registro corrente — é o que impede um worker cujo TTL expirou de apagar o lock de outro. Na tabela DynamoDB isso vira uma `condition_expression` com estado **e** token; nenhuma migração de schema é necessária (o atributo `token` passa a ser gravado nos registros novos).
+
+**2. Mudanças de comportamento em produção** — nada a alterar no código, mas o sistema passa a agir diferente:
+
+| Cenário | 0.3.x | 0.4.0 |
+|---|---|---|
+| Handler falha com `IdempotencyLayer` ativo | Lock `InProgress` ficava até o TTL (24h por padrão); redeliveries do SQS não reexecutavam o handler e a mensagem ia para a DLQ sem nunca ser processada | Lock é liberado; a próxima redelivery reexecuta o handler |
+| `EventRouter::with_dlq`, publish na DLQ bem-sucedido | Retornava `Err`, a Lambda não removia a mensagem da fila — loop de redelivery com escrita duplicada na DLQ | Retorna `Ok(())`, a mensagem original recebe ack (mesma semântica do `DlqLayer`) |
+
+O efeito prático do primeiro é **mais reprocessamento** de mensagens que antes ficavam presas: se o handler não for idempotente por conta própria além do lock, verifique isso antes de subir. O do segundo é **menos escrita duplicada na DLQ**.
+
+**3. `tracing` virou dependência não-opcional de `serverust-events`.** Antes vinha só com a feature `sqs`. Nenhuma ação necessária — apenas note o acréscimo na árvore de dependências se você audita footprint.
+
+**4. Tópico Kafka sem handler continua sendo ignorado** (agora com `tracing::warn!` em vez de silêncio). Se preferir que isso falhe, é opt-in: `.with_unhandled_topic_policy(UnhandledTopicPolicy::Error)`.
+
 ### Added
 
 - `UnhandledTopicPolicy` em `LambdaBroker` e `KafkaBroker` (`with_unhandled_topic_policy`): `WarnAndIgnore` (default) preserva o comportamento 0.3.x de pular o record sem handler e passa a emitir `tracing::warn!` com o tópico; `Error` retorna `BrokerError::Subscribe` com o tópico recebido e a lista de tópicos inscritos.

@@ -10,6 +10,12 @@
 # Breaking changes: detectadas por cargo-semver-checks integrado.
 
 [workspace]
+# O CHANGELOG.md deste repo é curado à mão (Keep a Changelog, com seção de
+# migração por release). git-cliff geraria uma linha por commit, perdendo a
+# explicação das mudanças de comportamento — que é o que importa pra quem roda
+# em produção. release-plz cuida de versão, tag e publish; o texto é nosso.
+changelog_update = false
+
 # Conventional Commits opcionais — release-plz usa para bump automático
 # (feat = minor, fix = patch, feat!/BREAKING CHANGE = major).
 changelog_config = "cliff.toml"
