@@ -28,7 +28,7 @@ body = """
 """
 trim = true
 footer = """
-[unreleased]: https://github.com/JaimeJunr/serverust/compare/{previous}...HEAD
+[unreleased]: https://github.com/JaimeJunr/serverust/compare/{{ previous.version }}...HEAD
 """
 
 [git]
