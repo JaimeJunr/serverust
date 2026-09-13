@@ -13,7 +13,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 ## Produto
 
 - [**product/vision.md**](product/vision.md) — O que é, por que existe, objetivos mensuráveis, princípios de design e não-objetivos.
-- [**product/roadmap.md**](product/roadmap.md) — O que foi entregue (v0.1.x, v0.2.0) e o que está planejado (v0.3, v0.4, backlog).
+- [**product/roadmap.md**](product/roadmap.md) — O que foi entregue (v0.1.x, v0.2.0, v0.3.0) e o que está planejado (v0.3.x+, v0.4, backlog).
 - [**product/competitors/axum.md**](product/competitors/axum.md) — Análise de Axum: mesma stack Tower/Tokio, gaps em DI nativa, OpenAPI e Lambda.
 - [**product/competitors/actix.md**](product/competitors/actix.md) — Análise de actix-web v4.13.0: pontos fortes, gaps vs serverust e quando cada um faz sentido.
 - [**product/competitors/rocket.md**](product/competitors/rocket.md) — Análise de Rocket v0.5.1: pontos fortes, gaps vs serverust e quando cada um faz sentido.
