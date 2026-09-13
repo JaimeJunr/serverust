@@ -1,7 +1,7 @@
 //! Chamadas AWS SQS para `serverust queue inspect/tail`.
 
-use aws_sdk_sqs::types::{MessageSystemAttributeName, QueueAttributeName};
 use aws_sdk_sqs::Client;
+use aws_sdk_sqs::types::{MessageSystemAttributeName, QueueAttributeName};
 
 use crate::queue::{MessageSummary, QueueAttributes};
 
@@ -21,12 +21,11 @@ pub async fn get_attributes(url: &str) -> anyhow::Result<QueueAttributes> {
         .map_err(|e| anyhow::anyhow!("GetQueueAttributes: {e}"))?;
 
     let find = |name: &str| -> Option<String> {
-        out.attributes()
-            .and_then(|m| {
-                m.iter()
-                    .find(|(k, _)| k.as_str() == name)
-                    .map(|(_, v)| v.clone())
-            })
+        out.attributes().and_then(|m| {
+            m.iter()
+                .find(|(k, _)| k.as_str() == name)
+                .map(|(_, v)| v.clone())
+        })
     };
 
     Ok(QueueAttributes {
