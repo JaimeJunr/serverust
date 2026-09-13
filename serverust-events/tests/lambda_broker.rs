@@ -73,9 +73,8 @@ async fn handle_kafka_event_ignora_topico_sem_subscriber() {
 
 #[tokio::test]
 async fn handle_kafka_event_erro_quando_topico_sem_subscriber() {
-    let broker = Arc::new(
-        LambdaBroker::new().with_unhandled_topic_policy(UnhandledTopicPolicy::Error),
-    );
+    let broker =
+        Arc::new(LambdaBroker::new().with_unhandled_topic_policy(UnhandledTopicPolicy::Error));
     let router =
         EventRouter::new().subscribe::<WalletCredit, _, _>("other.topic", |_| async { Ok(()) });
     router.attach(broker.clone()).await.unwrap();

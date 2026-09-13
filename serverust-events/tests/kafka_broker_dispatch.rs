@@ -80,7 +80,10 @@ async fn dispatch_erro_quando_topico_sem_subscriber() {
     let h = |_: BrokerMessage| -> serverust_events::broker::HandlerFuture {
         Box::pin(async { Ok(()) })
     };
-    broker.subscribe("orders.created", Arc::new(h)).await.unwrap();
+    broker
+        .subscribe("orders.created", Arc::new(h))
+        .await
+        .unwrap();
 
     let msg = BrokerMessage {
         topic: "topico.sem.subscriber".to_string(),

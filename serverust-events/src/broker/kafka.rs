@@ -176,9 +176,10 @@ impl KafkaBroker {
     /// inscritos.
     pub async fn dispatch(&self, msg: BrokerMessage) -> Result<(), BrokerError> {
         let (handlers, registered_topics): (Vec<BoxedHandler>, Vec<String>) = {
-            let guard = self.subscriptions.lock().map_err(|_| {
-                BrokerError::Subscribe("subscriptions mutex poisoned".into())
-            })?;
+            let guard = self
+                .subscriptions
+                .lock()
+                .map_err(|_| BrokerError::Subscribe("subscriptions mutex poisoned".into()))?;
             let handlers: Vec<BoxedHandler> = guard
                 .iter()
                 .filter(|s| s.topic == msg.topic)
