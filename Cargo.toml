@@ -25,3 +25,12 @@ documentation = "https://docs.rs/serverust-core"
 readme = "README.md"
 keywords = ["lambda", "serverless", "aws", "framework", "api"]
 categories = ["web-programming", "web-programming::http-server", "asynchronous"]
+
+# Build incremental local mais rápido: debuginfo completo das dependências é o
+# grosso do tempo de link e não é usado no dia a dia (backtrace com linha basta).
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+debug = false
