@@ -47,9 +47,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use aws_lambda_events::event::sqs::SqsMessage;
 use serverust_telemetry::IdempotencyStore;
-use tracing::warn;
 use serverust_telemetry::idempotency::AcquireOutcome;
 use tower::{Layer, Service};
+use tracing::warn;
 
 use crate::broker::BrokerError;
 
@@ -263,10 +263,32 @@ where
 
             let acquired_at = now_ms();
             match store.try_acquire(&key, acquired_at, ttl_ms).await {
-                Ok(AcquireOutcome::Acquired) => {
+                Ok(AcquireOutcome::Acquired(token)) => {
                     let result = inner.call(req).await;
-                    if result.is_ok() {
-                        let _ = store.complete(&key, now_ms(), ttl_ms).await;
+                    match &result {
+                        Ok(()) => {
+                            if let Err(e) = store.complete(&key, &token, now_ms(), ttl_ms).await {
+                                if let Err(release_err) = store.release(&key, &token).await {
+                                    warn!(
+                                        idempotency_key = %key,
+                                        error = %release_err,
+                                        "idempotency release after complete failure also failed",
+                                    );
+                                }
+                                return Err(BrokerError::Subscribe(format!(
+                                    "idempotency complete: {e}"
+                                )));
+                            }
+                        }
+                        Err(_) => {
+                            if let Err(release_err) = store.release(&key, &token).await {
+                                warn!(
+                                    idempotency_key = %key,
+                                    error = %release_err,
+                                    "idempotency release after handler failure failed",
+                                );
+                            }
+                        }
                     }
                     result
                 }
