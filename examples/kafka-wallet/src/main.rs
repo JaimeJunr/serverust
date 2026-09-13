@@ -13,7 +13,9 @@ use serverust_telemetry::dynamo::DynamoRepo;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let config = aws_config::load_from_env().await;
+    // `load_defaults` com BehaviorVersion explícita: `load_from_env` está
+    // deprecada e fixa a versão de comportamento do SDK de forma implícita.
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
     let client = aws_sdk_dynamodb::Client::new(&config);
     kafka_wallet::init_repo(Arc::new(DynamoRepo::new(client)));
 
