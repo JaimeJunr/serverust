@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use aws_lambda_events::event::kafka::KafkaEvent;
 use kafka_wallet::handle_wallet;
-use lambda_runtime::{service_fn, LambdaEvent};
+use lambda_runtime::{LambdaEvent, service_fn};
 use serverust_events::broker::lambda::LambdaBroker;
 use serverust_events::router::EventRouter;
 use serverust_events::runtime::Runtime;
@@ -41,7 +41,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // loop { let msg = poll_rdkafka(&broker); broker.dispatch(msg).await?; }
             //
             // Sem a feature `kafka`, este exemplo é Lambda-only.
-            eprintln!("Long-running mode não configurado: habilite a feature `kafka` e implemente o poll loop.");
+            eprintln!(
+                "Long-running mode não configurado: habilite a feature `kafka` e implemente o poll loop."
+            );
             std::process::exit(1);
         }
     }

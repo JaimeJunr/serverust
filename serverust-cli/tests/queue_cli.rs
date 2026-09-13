@@ -2,15 +2,13 @@ use clap::Parser;
 use serverust_cli::cli::{Cli, Command, QueueCommand};
 use serverust_cli::queue::{MessageSummary, QueueAttributes, format_inspect, format_messages};
 
-const SAMPLE_URL: &str =
-    "https://sqs.us-east-1.amazonaws.com/123456789012/orders";
+const SAMPLE_URL: &str = "https://sqs.us-east-1.amazonaws.com/123456789012/orders";
 
 // ── CLI parse tests ──────────────────────────────────────────────────────────
 
 #[test]
 fn parses_queue_inspect() {
-    let cli = Cli::try_parse_from(["serverust", "queue", "inspect", SAMPLE_URL])
-        .expect("parse");
+    let cli = Cli::try_parse_from(["serverust", "queue", "inspect", SAMPLE_URL]).expect("parse");
     match cli.command {
         Command::Queue {
             command: QueueCommand::Inspect { url },
@@ -21,8 +19,7 @@ fn parses_queue_inspect() {
 
 #[test]
 fn parses_queue_tail_default_max() {
-    let cli =
-        Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL]).expect("parse");
+    let cli = Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL]).expect("parse");
     match cli.command {
         Command::Queue {
             command: QueueCommand::Tail { url, max },
@@ -36,9 +33,8 @@ fn parses_queue_tail_default_max() {
 
 #[test]
 fn parses_queue_tail_custom_max() {
-    let cli =
-        Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL, "--max", "10"])
-            .expect("parse");
+    let cli = Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL, "--max", "10"])
+        .expect("parse");
     match cli.command {
         Command::Queue {
             command: QueueCommand::Tail { max, .. },
@@ -49,9 +45,11 @@ fn parses_queue_tail_custom_max() {
 
 #[test]
 fn rejects_queue_tail_max_above_limit() {
-    let result =
-        Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL, "--max", "11"]);
-    assert!(result.is_err(), "max > 10 deve ser rejeitado pelo clap (value_parser)");
+    let result = Cli::try_parse_from(["serverust", "queue", "tail", SAMPLE_URL, "--max", "11"]);
+    assert!(
+        result.is_err(),
+        "max > 10 deve ser rejeitado pelo clap (value_parser)"
+    );
 }
 
 // ── format_inspect tests ─────────────────────────────────────────────────────
@@ -148,8 +146,5 @@ fn format_messages_truncates_long_body() {
     }];
     let output = format_messages(&msgs);
     // preview não deve vazar além de 200 chars de body
-    assert!(
-        !output.contains(&long_body),
-        "body longo não foi truncado"
-    );
+    assert!(!output.contains(&long_body), "body longo não foi truncado");
 }
