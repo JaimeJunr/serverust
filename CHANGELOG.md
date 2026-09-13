@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Hooks `machete` e `cog-verify` no lefthook deixavam de bloquear quando a ferramenta existia e reprovava (deps não usadas / mensagem de commit inválida); só a ausência da ferramenta deve ser tolerada.
 - `EventRouter` com `RetryPolicy::Exponential`: o atraso `base_delay * 2^n` passa a usar `Duration::saturating_mul` e expoente limitado a 31, evitando panic por overflow de `Duration` em retentativas longas ou `base_delay` grande.
 - `SqsBroker::handle_sqs_event` (Lambda ESM + `ReportBatchItemFailures`): mensagens sem handler para a fila do ARN ou sem `event_source_arn` válido passam a entrar em `batchItemFailures` quando há `messageId`, em vez de serem tratadas como sucesso implícito (a Lambda removia da fila sem processamento).
 - `IdempotencyLayer`: após falha do handler ou de `complete()`, libera o lock `InProgress` via `IdempotencyStore::release`, permitindo que redeliveries do SQS reexecutem o handler dentro do TTL (antes o lock bloqueava reprocessamento por até 24h e a mensagem ia para DLQ sem nova tentativa). `release`/`complete` só mutam o registro se o token bater com o dono corrente — um owner cujo TTL expirou não apaga nem completa o lock de outro worker. Falha de `release` é logada com `tracing::warn` (chave + erro), sem mascarar o erro do handler. Falha de `complete` após sucesso do handler propaga erro ao SQS e libera o lock.
