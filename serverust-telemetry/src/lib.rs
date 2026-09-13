@@ -58,7 +58,7 @@ pub use correlation::{
 pub use emf::{EmfMetric, emit_emf, emit_emf_to};
 pub use idempotency::{
     AcquireOutcome, IdempotencyError, IdempotencyLockRecord, IdempotencyRecord, IdempotencyState,
-    IdempotencyStore, InMemoryIdempotencyStore,
+    IdempotencyStore, InMemoryIdempotencyStore, LockToken,
 };
 pub use logger::{init, init_with_writer, json_subscriber};
 
