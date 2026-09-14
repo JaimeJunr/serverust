@@ -1,0 +1,42 @@
+name: lint
+
+# Espelha no CI os gates que até aqui só existiam em `lefthook.yml`
+# (pre-commit). Quando o lefthook não está instalado na máquina que commita,
+# `.git/hooks/pre-commit` não existe e o gate simplesmente não roda — foi assim
+# que fmt e clippy apodreceram no `main` sem ninguém ver (PR #30).
+# Rodamos os MESMOS scripts do hook, não comandos reescritos: se o gate local
+# mudar, o CI muda junto.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: cargo fmt --check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Sem step de toolchain de propósito: `rust-toolchain.toml` pina 1.94.1
+      # com rustfmt+clippy e o rustup do runner instala esse canal sozinho na
+      # primeira invocação do cargo. Instalar `@stable` aqui só criaria drift
+      # entre a toolchain do CI e a do hook local.
+      - name: rustfmt
+        run: bash scripts/quality_fmt.sh
+
+  clippy:
+    name: clippy (-D warnings)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "clippy"
+      - name: clippy
+        # `--workspace` do script é aceitável no runner do GitHub; localmente a
+        # regra do CLAUDE.md continua valendo (build por crate).
+        run: bash scripts/quality_lint.sh
