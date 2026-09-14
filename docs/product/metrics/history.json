@@ -124,5 +124,23 @@
     },
     "competitor_refs": null,
     "notes": "Coletado automaticamente por metrics_append.sh. Valor de startup medido em amostra única (pré-ADR 0008); cold start de Lambda nunca foi medido por este script."
+  },
+  {
+    "version": "0.4.2",
+    "date": "2026-09-13",
+    "startup_local_p50_ms": 18,
+    "startup_local_samples": 5,
+    "cold_start_p95_ms": null,
+    "stripped_bytes": 3550128,
+    "loc_handler": 13,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Coletado automaticamente por metrics_append.sh. cold_start_p95_ms (Lambda ARM64 128MB) exige invocação real na AWS — ver ADR 0008."
   }
 ]
