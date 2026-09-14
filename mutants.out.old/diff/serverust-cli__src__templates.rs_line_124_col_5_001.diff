@@ -1,0 +1,42 @@
+--- serverust-cli/src/templates.rs
++++ replace service -> String with "xyzzy".into()
+@@ -116,38 +116,17 @@
+ }
+ "#,
+         name,
+         &type_name,
+     )
+ }
+ 
+ pub fn service(name: &str) -> String {
+-    let type_name = pascal_case(name);
+-    template_with_name_type(
+-        r#"use serverust_macros::injectable;
+-
+-#[injectable]
+-pub struct {{TYPE}}Service;
+-
+-impl {{TYPE}}Service {
+-    pub fn new() -> Self {
+-        Self
+-    }
+-}
+-
+-impl Default for {{TYPE}}Service {
+-    fn default() -> Self {
+-        Self::new()
+-    }
+-}
+-"#,
+-        name,
+-        &type_name,
+-    )
++    "xyzzy".into() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn dto(name: &str) -> String {
+     let type_name = pascal_case(name);
+     template_with_name_type(
+         r#"use serde::{Deserialize, Serialize};
+ use validator::Validate;
+ 

@@ -1,0 +1,48 @@
+--- serverust-cli/src/scaffold.rs
++++ replace generate_module -> Result<()> with Ok(())
+@@ -84,44 +84,17 @@
+             "filters",
+             format!("{name}.filter.rs"),
+             templates::filter(name),
+         ),
+     }
+ }
+ 
+ fn generate_module(base: &Path, name: &str, with_dto: bool, with_tests: bool) -> Result<()> {
+-    let dir = base.join("src/modules").join(name);
+-    fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+-    write_file(
+-        &dir.join("mod.rs"),
+-        &if with_dto {
+-            templates::resource_mod_rs(name, with_tests)
+-        } else {
+-            templates::module_mod_rs(name, with_tests)
+-        },
+-    )?;
+-    write_file(
+-        &dir.join(format!("{name}.controller.rs")),
+-        &templates::controller(name),
+-    )?;
+-    write_file(
+-        &dir.join(format!("{name}.service.rs")),
+-        &templates::service(name),
+-    )?;
+-    if with_dto {
+-        write_file(&dir.join(format!("{name}.dto.rs")), &templates::dto(name))?;
+-    }
+-    if with_tests {
+-        write_file(
+-            &dir.join(format!("{name}.tests.rs")),
+-            &templates::module_test(name),
+-        )?;
+-    }
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn generate_resource(base: &Path, name: &str) -> Result<()> {
+     generate_module(base, name, true, false)
+ }
+ 
+ fn generate_single_module_file(
+     base: &Path,

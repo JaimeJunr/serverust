@@ -1,0 +1,36 @@
+--- serverust-core/src/error.rs
++++ replace validation_error_response -> Response with Default::default()
+@@ -31,32 +31,10 @@
+     fn status(&self) -> u16;
+     fn message(&self) -> String;
+ }
+ 
+ /// Constrói a resposta HTTP 422 padronizada a partir de erros do validator.
+ ///
+ /// Formato: `{ "error": "validation_error", "fields": { campo: [mensagens] } }`.
+ pub fn validation_error_response(errors: &ValidationErrors) -> Response {
+-    let mut fields = Map::new();
+-
+-    for (field, kind) in errors.field_errors() {
+-        let messages: Vec<Value> = kind
+-            .iter()
+-            .map(|e| {
+-                let msg = e
+-                    .message
+-                    .as_ref()
+-                    .map(|m| m.to_string())
+-                    .unwrap_or_else(|| e.code.to_string());
+-                Value::String(msg)
+-            })
+-            .collect();
+-        fields.insert((*field).to_string(), Value::Array(messages));
+-    }
+-
+-    let body = json!({
+-        "error": "validation_error",
+-        "fields": fields,
+-    });
+-
+-    (StatusCode::UNPROCESSABLE_ENTITY, AxumJson(body)).into_response()
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }

@@ -1,0 +1,52 @@
+--- serverust-cli/src/templates.rs
++++ replace project_main_rs -> String with String::new()
+@@ -57,48 +57,17 @@
+ [prod.server]
+ host = "0.0.0.0"
+ port = 8080
+ "#
+     )
+ }
+ 
+ pub fn project_main_rs() -> String {
+-    r#"use serde::Serialize;
+-use serverust_core::{App, extract::Json};
+-use serverust_lambda::AppRuntime;
+-use serverust_macros::get;
+-use utoipa::ToSchema;
+-
+-#[derive(Serialize, ToSchema)]
+-struct HelloResponse {
+-    message: String,
+-}
+-
+-#[get("/", response = HelloResponse)]
+-async fn hello() -> Json<HelloResponse> {
+-    Json(HelloResponse {
+-        message: "Hello, serverust!".into(),
+-    })
+-}
+-
+-#[tokio::main]
+-async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+-    // Local: HTTP em 0.0.0.0:3000. Lambda: detecta automaticamente.
+-    // Acesse http://localhost:3000/docs para a referência interativa Scalar.
+-    App::new()
+-        .openapi_info("My API", "0.1.0")
+-        .register_schema::<HelloResponse>()
+-        .route(hello)
+-        .run()
+-        .await?;
+-    Ok(())
+-}
+-"#
+-    .to_string()
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn project_modules_mod_rs() -> String {
+     "// declare seus módulos aqui: `pub mod users;`\n".to_string()
+ }
+ 
+ pub fn project_shared_mod_rs() -> String {
+     "// componentes compartilhados: guards, pipes, interceptors, filters\n".to_string()

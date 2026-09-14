@@ -1,0 +1,33 @@
+--- serverust-cli/src/lib.rs
++++ replace require_cargo_subcommand -> Result<()> with Ok(())
+@@ -116,29 +116,17 @@
+ }
+ 
+ /// Confirma que `cargo-<subcommand>` está disponível no PATH antes de chamar.
+ ///
+ /// Em vez de deixar o cargo cuspir o erro padrão (`error: no such command: ...`),
+ /// emitimos uma mensagem com o comando exato de instalação. Reduz fricção para
+ /// quem está descobrindo o framework e ainda não conhece o ecossistema.
+ fn require_cargo_subcommand(subcommand: &str, install_hint: &str) -> Result<()> {
+-    let binary = format!("cargo-{subcommand}");
+-    let installed = std::process::Command::new(&binary)
+-        .arg("--version")
+-        .output()
+-        .map(|o| o.status.success())
+-        .unwrap_or(false);
+-    if installed {
+-        return Ok(());
+-    }
+-    anyhow::bail!(
+-        "`cargo {subcommand}` não está disponível (necessário para este comando).\n\
+-         Instale com:\n    {install_hint}"
+-    );
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn spawn_status(mut cmd: std::process::Command, label: &str) -> Result<()> {
+     let status = cmd
+         .status()
+         .map_err(|e| anyhow::anyhow!("failed to spawn {label}: {e}"))?;
+     if !status.success() {
+         anyhow::bail!("{label} failed with status {status}");

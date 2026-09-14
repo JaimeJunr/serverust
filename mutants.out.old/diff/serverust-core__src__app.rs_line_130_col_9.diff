@@ -1,0 +1,22 @@
+--- serverust-core/src/app.rs
++++ replace App::r#override -> Self with Default::default()
+@@ -122,18 +122,17 @@
+     pub fn provide<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+         self.container.insert(value);
+         self
+     }
+ 
+     /// API de teste: substitui o provider de `T` por uma instância mock.
+     /// `override` é palavra reservada — chame como `app.r#override::<...>(...)`.
+     pub fn r#override<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+-        self.container.insert(value);
+-        self
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Registra um interceptor (tower middleware) sobre as rotas do usuário.
+     ///
+     /// Aplicado em [`Self::into_router`] apenas às rotas registradas via
+     /// [`Self::route`] — as rotas de documentação (`/openapi.json`, `/docs`,
+     /// `/redoc`) ficam de fora intencionalmente, para que não dependam da
+     /// pipeline de negócio (ex.: autenticação, rate limiting).

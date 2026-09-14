@@ -1,0 +1,22 @@
+--- serverust-core/src/container.rs
++++ replace Container::get -> Option<Arc<T>> with Some(Arc::new(Default::default()))
+@@ -28,18 +28,17 @@
+     /// distintos mesmo apontando para a mesma implementação concreta.
+     pub fn insert<T: ?Sized + Send + Sync + 'static>(&mut self, value: Arc<T>) {
+         self.services
+             .insert(TypeId::of::<Arc<T>>(), Arc::new(value));
+     }
+ 
+     /// Recupera um `Arc<T>` previamente inserido, ou `None` se ausente.
+     pub fn get<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+-        let any_arc = self.services.get(&TypeId::of::<Arc<T>>())?;
+-        any_arc.downcast_ref::<Arc<T>>().cloned()
++        Some(Arc::new(Default::default())) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // Blanket: qualquer `Arc<T>` pode ser extraído do Container via axum's State.
+ // Possível pelo orphan rule porque `Container` é local e aparece como
+ // parâmetro de tipo da trait `FromRef`.
+ impl<T: ?Sized + Send + Sync + 'static> FromRef<Container> for Arc<T> {
+     fn from_ref(container: &Container) -> Arc<T> {

@@ -1,0 +1,24 @@
+--- serverust-core/src/container.rs
++++ replace <impl FromRef<Container> for Arc<T>>::from_ref -> Arc<T> with Arc::new(Default::default())
+@@ -38,20 +38,15 @@
+     }
+ }
+ 
+ // Blanket: qualquer `Arc<T>` pode ser extraído do Container via axum's State.
+ // Possível pelo orphan rule porque `Container` é local e aparece como
+ // parâmetro de tipo da trait `FromRef`.
+ impl<T: ?Sized + Send + Sync + 'static> FromRef<Container> for Arc<T> {
+     fn from_ref(container: &Container) -> Arc<T> {
+-        container.get::<T>().unwrap_or_else(|| {
+-            panic!(
+-                "service Arc<{}> not registered in App container",
+-                std::any::type_name::<T>()
+-            )
+-        })
++        Arc::new(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Marker trait emitida por `#[injectable]`. Não impõe método; apenas
+ /// confirma intenção de injeção e habilita verificações de tipo nos testes.
+ pub trait Injectable {}

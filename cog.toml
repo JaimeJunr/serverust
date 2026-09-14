@@ -8,8 +8,12 @@
 
 # ─── Chaves globais (devem vir ANTES de qualquer [table]) ──────────────────
 
-# Política do tag — bate com release-plz.
-tag_prefix = ""
+# Prefixo das tags do repo: v0.1.0, v0.3.0, v0.4.0 (workspace-wide).
+# Com `tag_prefix = ""` o cog não reconhecia nenhuma delas e
+# `cog check --from-latest-tag` falhava com "unable to get any tag".
+# Nota: o release-plz.toml usa `<package>-v<version>` (per-crate), formato que o
+# projeto ainda não adotou — ver o comentário no topo de release-plz.yml.
+tag_prefix = "v"
 
 # Permite merge commits e revert commits sem enforcement estrito.
 ignore_merge_commits = true

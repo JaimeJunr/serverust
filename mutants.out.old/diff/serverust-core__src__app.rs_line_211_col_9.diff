@@ -1,0 +1,74 @@
+--- serverust-core/src/app.rs
++++ replace App::into_router -> Router with Default::default()
+@@ -203,70 +203,17 @@
+             .remove(&key)
+             .and_then(|b| b.downcast::<EventHandlerRegistry<E>>().ok())
+             .unwrap_or_else(|| Box::new(EventHandlerRegistry::<E>::new()));
+         registry.into_dispatcher(self.container)
+     }
+ 
+     /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e `/redoc`.
+     pub fn into_router(self) -> Router {
+-        let doc = self.openapi.build();
+-        let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
+-        let swagger_html = swagger_ui_html(self.openapi_path);
+-        let redoc_page = redoc_html(self.openapi_path);
+-
+-        // Aplica interceptors sobre as rotas do usuário antes de juntar com as
+-        // rotas de documentação — isto garante que /openapi.json, /docs e
+-        // /redoc NÃO sejam envolvidos pela pipeline de middleware do usuário.
+-        let mut user_router = self.router;
+-        for mutator in self.interceptors {
+-            user_router = mutator(user_router);
+-        }
+-
+-        user_router
+-            .route(
+-                self.openapi_path,
+-                get(move || {
+-                    let json = json.clone();
+-                    async move {
+-                        (
+-                            [(header::CONTENT_TYPE, "application/json")],
+-                            json,
+-                        )
+-                            .into_response()
+-                    }
+-                }),
+-            )
+-            .route(
+-                self.docs_path,
+-                get(move || {
+-                    let html = swagger_html.clone();
+-                    async move {
+-                        (
+-                            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+-                            html,
+-                        )
+-                            .into_response()
+-                    }
+-                }),
+-            )
+-            .route(
+-                self.redoc_path,
+-                get(move || {
+-                    let html = redoc_page.clone();
+-                    async move {
+-                        (
+-                            [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
+-                            html,
+-                        )
+-                            .into_response()
+-                    }
+-                }),
+-            )
+-            .with_state(self.container)
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Sobe um servidor HTTP local ligado em `addr` (ex.: `"127.0.0.1:3000"`).
+     ///
+     /// Imprime no stderr o endereço efetivo + URLs de documentação assim que o
+     /// listener fica pronto, para o desenvolvedor saber onde conectar:
+     ///
+     /// ```text

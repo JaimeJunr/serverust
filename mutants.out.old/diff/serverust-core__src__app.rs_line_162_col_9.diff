@@ -1,0 +1,25 @@
+--- serverust-core/src/app.rs
++++ replace App::route -> Self with Default::default()
+@@ -154,21 +154,17 @@
+     /// Injeta uma [`ServerustConfig`] tipada no container. Handlers podem extraí-la via
+     /// `State<Arc<ServerustConfig>>`.
+     pub fn config(self, cfg: ServerustConfig) -> Self {
+         self.provide::<ServerustConfig>(Arc::new(cfg))
+     }
+ 
+     /// Registra um handler anotado por `#[get]`, `#[post]`, etc.
+     pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
+-        let route = handler.into_route();
+-        self.openapi
+-            .push_operation(route.path, route.method, route.operation);
+-        self.router = self.router.route(route.path, route.method_router);
+-        self
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Registra um [`EventHandler<E>`] tipado.
+     ///
+     /// Múltiplos handlers para o mesmo tipo `E` são acumulados e executados em
+     /// sequência por [`EventDispatcher::dispatch_event`]. O [`Container`] é
+     /// compartilhado entre handlers HTTP e event handlers — os mesmos serviços
+     /// registrados via [`Self::provide`] ficam disponíveis em `ctx`.

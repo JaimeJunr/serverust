@@ -1,0 +1,37 @@
+--- serverust-cli/src/queue_aws.rs
++++ replace receive_messages -> anyhow::Result<Vec<MessageSummary>> with Ok(vec![Default::default()])
+@@ -32,33 +32,10 @@
+         url: url.to_string(),
+         approx_messages: find("ApproximateNumberOfMessages"),
+         approx_age_oldest: find("ApproximateAgeOfOldestMessage"),
+         redrive_policy: find("RedrivePolicy"),
+     })
+ }
+ 
+ pub async fn receive_messages(url: &str, max: i32) -> anyhow::Result<Vec<MessageSummary>> {
+-    let sqs = client().await;
+-    let out = sqs
+-        .receive_message()
+-        .queue_url(url)
+-        .max_number_of_messages(max)
+-        .message_system_attribute_names(MessageSystemAttributeName::SentTimestamp)
+-        .send()
+-        .await
+-        .map_err(|e| anyhow::anyhow!("ReceiveMessage: {e}"))?;
+-
+-    let msgs = out
+-        .messages()
+-        .iter()
+-        .map(|m| MessageSummary {
+-            message_id: m.message_id().unwrap_or("(no id)").to_string(),
+-            body_preview: m.body().unwrap_or("").to_string(),
+-            sent_timestamp: m
+-                .attributes()
+-                .and_then(|a| a.get(&MessageSystemAttributeName::SentTimestamp))
+-                .cloned(),
+-        })
+-        .collect();
+-
+-    Ok(msgs)
++    Ok(vec![Default::default()]) /* ~ changed by cargo-mutants ~ */
+ }

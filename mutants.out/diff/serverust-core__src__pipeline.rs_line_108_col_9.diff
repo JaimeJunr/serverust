@@ -1,0 +1,27 @@
+--- serverust-core/src/pipeline.rs
++++ replace <impl Pipe<String> for ParseUuidPipe>::transform -> Result<Self::Output, Response> with Ok(Default::default())
+@@ -100,23 +100,17 @@
+ /// Pipe que converte uma `String` em [`uuid::Uuid`]. Falha → HTTP 400 com
+ /// payload `{ "error": "invalid_uuid", "input": "<valor>" }`.
+ pub struct ParseUuidPipe;
+ 
+ impl Pipe<String> for ParseUuidPipe {
+     type Output = uuid::Uuid;
+ 
+     fn transform(input: String) -> Result<Self::Output, Response> {
+-        uuid::Uuid::parse_str(&input).map_err(|_| {
+-            let body = serde_json::json!({
+-                "error": "invalid_uuid",
+-                "input": input,
+-            });
+-            (StatusCode::BAD_REQUEST, axum::Json(body)).into_response()
+-        })
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ // ---------------------------------------------------------------------------
+ // Interceptor
+ // ---------------------------------------------------------------------------
+ 
+ /// Middleware com semântica de "wrap" sobre a execução: pode inspecionar a

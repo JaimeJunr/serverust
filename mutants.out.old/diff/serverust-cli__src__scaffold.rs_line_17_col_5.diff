@@ -1,0 +1,47 @@
+--- serverust-cli/src/scaffold.rs
++++ replace new_project -> Result<()> with Ok(())
+@@ -9,43 +9,17 @@
+ 
+ use anyhow::{Context, Result, bail};
+ 
+ use crate::cli::GenerateKind;
+ use crate::templates;
+ 
+ /// Cria um novo projeto serverust em `base/<name>`.
+ pub fn new_project(base: &Path, name: &str) -> Result<()> {
+-    let root = base.join(name);
+-    if root.exists() {
+-        bail!("target directory '{}' already exists", root.display());
+-    }
+-    fs::create_dir_all(root.join("src/modules"))
+-        .with_context(|| format!("creating src/modules in {}", root.display()))?;
+-    fs::create_dir_all(root.join("src/shared"))
+-        .with_context(|| format!("creating src/shared in {}", root.display()))?;
+-
+-    write_file(
+-        &root.join("Cargo.toml"),
+-        &templates::project_cargo_toml(name),
+-    )?;
+-    write_file(
+-        &root.join("serverust.toml"),
+-        &templates::project_serverust_toml(name),
+-    )?;
+-    write_file(&root.join("src/main.rs"), &templates::project_main_rs())?;
+-    write_file(
+-        &root.join("src/modules/mod.rs"),
+-        &templates::project_modules_mod_rs(),
+-    )?;
+-    write_file(
+-        &root.join("src/shared/mod.rs"),
+-        &templates::project_shared_mod_rs(),
+-    )?;
+-    Ok(())
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Gera scaffolding para um artefato (`controller`, `service`, etc.) em
+ /// `base/src/...`.
+ pub fn generate(base: &Path, kind: GenerateKind, name: &str, crud: bool) -> Result<()> {
+     match kind {
+         GenerateKind::Resource => generate_resource(base, name),
+         GenerateKind::Module => generate_module(base, name, crud, crud),

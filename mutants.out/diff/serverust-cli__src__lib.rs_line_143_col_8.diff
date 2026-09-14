@@ -1,0 +1,17 @@
+--- serverust-cli/src/lib.rs
++++ delete ! in spawn_status
+@@ -135,13 +135,13 @@
+          Instale com:\n    {install_hint}"
+     );
+ }
+ 
+ fn spawn_status(mut cmd: std::process::Command, label: &str) -> Result<()> {
+     let status = cmd
+         .status()
+         .map_err(|e| anyhow::anyhow!("failed to spawn {label}: {e}"))?;
+-    if !status.success() {
++    if  /* ~ changed by cargo-mutants ~ */status.success() {
+         anyhow::bail!("{label} failed with status {status}");
+     }
+     Ok(())
+ }

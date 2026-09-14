@@ -1,0 +1,21 @@
+--- serverust-core/src/events/mod.rs
++++ replace <impl ErasedHandler<E> for HandlerWrapper<H>>::handle_erased -> Pin<Box<dyn Future<Output = Result<(), EventError>>+Send +'a>> with Pin::from_iter([Box::new(Default::default())])
+@@ -70,17 +70,17 @@
+     E: Send + 'static,
+     H: EventHandler<E>,
+ {
+     fn handle_erased<'a>(
+         &'a self,
+         event: E,
+         ctx: &'a Container,
+     ) -> Pin<Box<dyn Future<Output = Result<(), EventError>> + Send + 'a>> {
+-        Box::pin(self.0.handle(event, ctx))
++        Pin::from_iter([Box::new(Default::default())]) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Despacha eventos `E` para os handlers registrados via [`crate::App::event`].
+ ///
+ /// Constrói-se via [`crate::App::into_event_dispatcher`] e executa os
+ /// handlers em sequência, parando no primeiro erro.
+ pub struct EventDispatcher<E: Send + 'static> {

@@ -1,0 +1,31 @@
+--- serverust-core/src/events/mod.rs
++++ replace EventDispatcher<E>::dispatch_event -> Result<(), EventError> with Ok(())
+@@ -97,27 +97,17 @@
+     }
+ 
+     /// Despacha `event` para todos os handlers registrados em sequência.
+     /// Retorna no primeiro erro encontrado.
+     pub async fn dispatch_event(&self, event: E) -> Result<(), EventError>
+     where
+         E: Clone,
+     {
+-        let last = self.handlers.len().saturating_sub(1);
+-        for (i, handler) in self.handlers.iter().enumerate() {
+-            let evt = if i == last {
+-                // Último handler: consume sem clone extra (mas E: Clone já existe)
+-                event.clone()
+-            } else {
+-                event.clone()
+-            };
+-            handler.handle_erased(evt, &self.container).await?;
+-        }
+-        Ok(())
++        Ok(()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ /// Builder interno que acumula handlers antes de construir o EventDispatcher.
+ pub(crate) struct EventHandlerRegistry<E: Send + 'static> {
+     handlers: Vec<Arc<dyn ErasedHandler<E>>>,
+ }
+ 

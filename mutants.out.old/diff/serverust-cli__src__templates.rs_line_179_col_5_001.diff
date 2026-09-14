@@ -1,0 +1,24 @@
+--- serverust-cli/src/templates.rs
++++ replace resource_mod_rs -> String with "xyzzy".into()
+@@ -171,20 +171,17 @@
+         out.push_str(&format!(
+             "#[cfg(test)]\n#[path = \"{name}.tests.rs\"]\nmod tests;\n"
+         ));
+     }
+     out
+ }
+ 
+ pub fn resource_mod_rs(name: &str, with_tests: bool) -> String {
+-    format!(
+-        "{base}#[path = \"{name}.dto.rs\"]\npub mod dto;\n",
+-        base = module_mod_rs(name, with_tests),
+-    )
++    "xyzzy".into() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn module_test(name: &str) -> String {
+     let type_name = pascal_case(name);
+     template_with_name_type(
+         r#"#[test]
+ fn {{NAME}}_crud_module_smoke() {
+     let _service = super::service::{{TYPE}}Service::new();

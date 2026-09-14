@@ -1,0 +1,14 @@
+--- serverust-cli/src/scaffold.rs
++++ replace write_file -> Result<()> with Ok(())
+@@ -136,10 +136,10 @@
+ 
+ fn generate_shared(base: &Path, kind_dir: &str, filename: String, body: String) -> Result<()> {
+     let dir = base.join("src/shared").join(kind_dir);
+     fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+     write_file(&dir.join(filename), &body)
+ }
+ 
+ fn write_file(path: &PathBuf, body: &str) -> Result<()> {
+-    fs::write(path, body).with_context(|| format!("writing {}", path.display()))
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }

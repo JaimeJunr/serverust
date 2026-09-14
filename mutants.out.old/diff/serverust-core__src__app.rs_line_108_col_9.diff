@@ -1,0 +1,22 @@
+--- serverust-core/src/app.rs
++++ replace App::docs -> Self with Default::default()
+@@ -100,18 +100,17 @@
+     /// Registra um schema `T: ToSchema` em `components.schemas` do OpenAPI.
+     pub fn register_schema<T: ToSchema + PartialSchema>(mut self) -> Self {
+         self.openapi.register_schema::<T>();
+         self
+     }
+ 
+     /// Customiza o path em que o Scalar API Reference é servido (default `/docs`).
+     pub fn docs(mut self, path: &'static str) -> Self {
+-        self.docs_path = path;
+-        self
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Customiza o path em que o ReDoc é servido (default `/redoc`).
+     pub fn redoc(mut self, path: &'static str) -> Self {
+         self.redoc_path = path;
+         self
+     }
+ 

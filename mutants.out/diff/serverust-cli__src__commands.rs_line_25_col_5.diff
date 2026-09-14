@@ -1,0 +1,27 @@
+--- serverust-cli/src/commands.rs
++++ replace deploy_lambda_cargo_command -> Command with Default::default()
+@@ -17,23 +17,17 @@
+ pub fn dev_cargo_command() -> Command {
+     let mut cmd = Command::new("cargo");
+     cmd.arg("watch").arg("-q").arg("-x").arg("run");
+     cmd
+ }
+ 
+ /// `cargo lambda deploy --<arch>` — deploy Lambda.
+ pub fn deploy_lambda_cargo_command(arch: Arch) -> Command {
+-    let mut cmd = Command::new("cargo");
+-    cmd.arg("lambda").arg("deploy");
+-    match arch {
+-        Arch::Arm64 => cmd.arg("--arm64"),
+-        Arch::X86_64 => cmd.arg("--x86-64"),
+-    };
+-    cmd
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `cargo run --quiet -- --serverust-emit-openapi <out>` — extrai o spec OpenAPI
+ /// do binário do projeto sem subir o servidor. O runtime `serverust_lambda::run`
+ /// (ou um handler equivalente no `main`) detecta a flag, escreve o spec e sai.
+ pub fn openapi_export_command(out: &Path) -> Command {
+     let mut cmd = Command::new("cargo");
+     cmd.arg("run")

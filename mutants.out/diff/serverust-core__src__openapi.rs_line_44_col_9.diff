@@ -1,0 +1,23 @@
+--- serverust-core/src/openapi.rs
++++ replace OpenApiState::register_schema with ()
+@@ -36,19 +36,17 @@
+         path: impl Into<String>,
+         method: HttpMethod,
+         op: Operation,
+     ) {
+         self.paths.push((path.into(), method, op));
+     }
+ 
+     pub(crate) fn register_schema<T: ToSchema + PartialSchema>(&mut self) {
+-        let name = T::name().into_owned();
+-        let schema = <T as PartialSchema>::schema();
+-        self.schemas.insert(name, schema);
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(crate) fn build(&self) -> OpenApi {
+         let info = InfoBuilder::new()
+             .title(self.title.clone().unwrap_or_else(|| "serverust".into()))
+             .version(self.version.clone().unwrap_or_else(|| "0.1.0".into()))
+             .build();
+ 

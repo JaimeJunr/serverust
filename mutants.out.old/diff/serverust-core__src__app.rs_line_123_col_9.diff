@@ -1,0 +1,22 @@
+--- serverust-core/src/app.rs
++++ replace App::provide -> Self with Default::default()
+@@ -115,18 +115,17 @@
+         self
+     }
+ 
+     /// Registra um service com lifetime Singleton no container.
+     ///
+     /// `T` pode ser `dyn Trait`: `app.provide::<dyn MyService>(Arc::new(impl))`.
+     /// Handlers extraem o serviço via `State<Arc<dyn MyService>>`.
+     pub fn provide<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+-        self.container.insert(value);
+-        self
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// API de teste: substitui o provider de `T` por uma instância mock.
+     /// `override` é palavra reservada — chame como `app.r#override::<...>(...)`.
+     pub fn r#override<T: ?Sized + Send + Sync + 'static>(mut self, value: Arc<T>) -> Self {
+         self.container.insert(value);
+         self
+     }

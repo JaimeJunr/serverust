@@ -1,0 +1,15 @@
+--- serverust-cli/src/main.rs
++++ replace main with ()
+@@ -1,11 +1,7 @@
+ use clap::Parser;
+ 
+ use serverust_cli::cli::Cli;
+ 
+ fn main() {
+-    let cli = Cli::parse();
+-    if let Err(err) = serverust_cli::run(cli) {
+-        eprintln!("error: {err:#}");
+-        std::process::exit(1);
+-    }
++    () /* ~ changed by cargo-mutants ~ */
+ }

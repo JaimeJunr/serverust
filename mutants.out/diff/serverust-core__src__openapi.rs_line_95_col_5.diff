@@ -1,0 +1,37 @@
+--- serverust-core/src/openapi.rs
++++ replace swagger_ui_html -> String with String::new()
+@@ -87,33 +87,17 @@
+             .paths(paths)
+             .components(components)
+             .build()
+     }
+ }
+ 
+ /// HTML embutido que carrega Scalar API Reference via CDN apontando para `spec_url`.
+ pub(crate) fn swagger_ui_html(spec_url: &str) -> String {
+-    format!(
+-        r##"<!DOCTYPE html>
+-<html lang="en">
+-  <head>
+-    <meta charset="UTF-8" />
+-    <title>API Reference</title>
+-  </head>
+-  <body>
+-    <script
+-      id="api-reference"
+-      data-url="{spec_url}"
+-      data-configuration='{{"theme":"default","layout":"modern"}}'
+-    ></script>
+-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+-  </body>
+-</html>"##
+-    )
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// HTML embutido que carrega ReDoc via CDN apontando para `spec_url`.
+ pub(crate) fn redoc_html(spec_url: &str) -> String {
+     format!(
+         r##"<!DOCTYPE html>
+ <html lang="en">
+   <head>
