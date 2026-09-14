@@ -4,14 +4,14 @@
 //! a ordem efetiva de execução é Guards → Pipes → Handler → Interceptors.
 
 use axum::body::Body;
-use axum::extract::Request;
+use axum::extract::{DefaultBodyLimit, Request};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use http::request::Parts;
 use http::{Method, Request as HttpRequest, StatusCode};
 use http_body_util::BodyExt;
 use serverust_core::{App, Guard, Interceptor, ParseUuidPipe, PipePath};
-use serverust_macros::{get, guard};
+use serverust_macros::{get, guard, post};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -146,6 +146,54 @@ async fn interceptor_wraps_response_and_adds_header() {
         Some("true"),
         "interceptor deveria injetar o header x-intercepted"
     );
+}
+
+// --- App::layer: tower::Layer genérico aplicado ao Router ------------------
+
+#[post("/upload")]
+async fn upload(body: axum::body::Bytes) -> String {
+    body.len().to_string()
+}
+
+// Corpo maior que o default de 2 MiB do axum, para exercitar o limite.
+fn oversized_body() -> Body {
+    Body::from(vec![0u8; 3 * 1024 * 1024])
+}
+
+fn req_post(path: &str, body: Body) -> HttpRequest<Body> {
+    HttpRequest::builder()
+        .method(Method::POST)
+        .uri(path)
+        .body(body)
+        .unwrap()
+}
+
+#[tokio::test]
+async fn without_layer_oversized_body_is_rejected_with_413() {
+    let router = App::new().route(upload).into_router();
+
+    let resp = router
+        .oneshot(req_post("/upload", oversized_body()))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn layer_applies_generic_tower_layer_to_user_routes() {
+    let router = App::new()
+        .route(upload)
+        .layer(DefaultBodyLimit::disable())
+        .into_router();
+
+    let resp = router
+        .oneshot(req_post("/upload", oversized_body()))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(body_string(resp).await, (3 * 1024 * 1024).to_string());
 }
 
 // --- Composição: Guard + Pipe + Interceptor todos juntos --------------------

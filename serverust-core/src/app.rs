@@ -63,7 +63,8 @@ type RouterMutator = Box<dyn FnOnce(Router<Container>) -> Router<Container> + Se
 ///
 /// [`into_router`](Self::into_router) injeta automaticamente três rotas:
 /// `/openapi.json` (OpenAPI 3.1), `/docs` (Scalar API Reference) e `/redoc` (ReDoc).
-/// Customize os paths via [`docs`](Self::docs) e [`redoc`](Self::redoc).
+/// Customize os paths via [`docs`](Self::docs) e [`redoc`](Self::redoc), ou
+/// desabilite as três via [`without_docs`](Self::without_docs).
 pub struct App {
     router: Router<Container>,
     container: Container,
@@ -72,6 +73,7 @@ pub struct App {
     docs_path: &'static str,
     redoc_path: &'static str,
     interceptors: Vec<RouterMutator>,
+    docs_enabled: bool,
     // TypeId::of::<EventHandlerRegistry<E>>() → Box<EventHandlerRegistry<E>>
     event_registries: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
@@ -87,6 +89,7 @@ impl App {
             docs_path: "/docs",
             redoc_path: "/redoc",
             interceptors: Vec::new(),
+            docs_enabled: true,
             event_registries: HashMap::new(),
         }
     }
@@ -112,6 +115,14 @@ impl App {
     /// Customiza o path em que o ReDoc é servido (default `/redoc`).
     pub fn redoc(mut self, path: &'static str) -> Self {
         self.redoc_path = path;
+        self
+    }
+
+    /// Desabilita o registro de `/openapi.json`, `/docs` e `/redoc` em
+    /// [`Self::into_router`]. Útil para serviços internos que não querem
+    /// expor essa superfície (ex.: atrás de API Gateway com API key).
+    pub fn without_docs(mut self) -> Self {
+        self.docs_enabled = false;
         self
     }
 
@@ -147,6 +158,24 @@ impl App {
             });
             router.layer(layer)
         });
+        self.interceptors.push(mutator);
+        self
+    }
+
+    /// Registra um `tower::Layer` genérico sobre as rotas do usuário — mesmo
+    /// mecanismo de [`Self::interceptor`] (não afeta `/openapi.json`, `/docs`
+    /// nem `/redoc`), mas aceita qualquer `Layer` do ecossistema tower/axum
+    /// (ex.: `axum::extract::DefaultBodyLimit`, CORS, timeout, compressão),
+    /// em vez de exigir a trait `Interceptor` do framework.
+    pub fn layer<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as tower::Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as tower::Service<Request>>::Error: Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<Request>>::Future: Send + 'static,
+    {
+        let mutator: RouterMutator = Box::new(move |router: Router<Container>| router.layer(layer));
         self.interceptors.push(mutator);
         self
     }
@@ -206,13 +235,9 @@ impl App {
         registry.into_dispatcher(self.container)
     }
 
-    /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e `/redoc`.
+    /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e
+    /// `/redoc` — a menos que [`Self::without_docs`] tenha sido chamado.
     pub fn into_router(self) -> Router {
-        let doc = self.openapi.build();
-        let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
-        let swagger_html = swagger_ui_html(self.openapi_path);
-        let redoc_page = redoc_html(self.openapi_path);
-
         // Aplica interceptors sobre as rotas do usuário antes de juntar com as
         // rotas de documentação — isto garante que /openapi.json, /docs e
         // /redoc NÃO sejam envolvidos pela pipeline de middleware do usuário.
@@ -220,6 +245,15 @@ impl App {
         for mutator in self.interceptors {
             user_router = mutator(user_router);
         }
+
+        if !self.docs_enabled {
+            return user_router.with_state(self.container);
+        }
+
+        let doc = self.openapi.build();
+        let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
+        let swagger_html = swagger_ui_html(self.openapi_path);
+        let redoc_page = redoc_html(self.openapi_path);
 
         user_router
             .route(

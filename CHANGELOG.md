@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `serverust-core`: `App::layer(...)` para aplicar qualquer `tower::Layer` genérico (ex.: `axum::extract::DefaultBodyLimit`, CORS, timeout, compressão) sobre as rotas do usuário, sem precisar implementar a trait `Interceptor` nem espelhar o `run()` do framework à mão (#39).
+- `serverust-core`: `App::without_docs()` desabilita o registro de `/openapi.json`, `/docs` e `/redoc` em `into_router()`, para serviços internos que não querem expor essa superfície (#39).
+
 ## [0.4.1] - 2026-09-13
 
 Release de manutenção: atualiza duas dependências com advisory do RUSTSEC no `Cargo.lock`. **Sem mudança de API** — quem usa os crates como biblioteca pode pular.
