@@ -236,6 +236,43 @@ async fn docs_path_can_be_customized() {
 }
 
 #[tokio::test]
+async fn without_docs_disables_openapi_docs_and_redoc_routes() {
+    let router = App::new().without_docs().route(hello).into_router();
+
+    for path in ["/openapi.json", "/docs", "/redoc"] {
+        let resp = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "{path} não deveria estar montado com without_docs()"
+        );
+    }
+
+    // A rota do usuário continua funcionando normalmente.
+    let resp = router
+        .oneshot(
+            Request::builder()
+                .method(Method::GET)
+                .uri("/hello")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn operation_supports_tag_operation_id_examples_and_default_errors() {
     let router = App::new().route(login).into_router();
     let resp = router
