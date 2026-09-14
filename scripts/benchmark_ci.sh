@@ -2,6 +2,9 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=lib/kpi_metrics.sh
+source "$ROOT_DIR/scripts/lib/kpi_metrics.sh"
+
 BIN_PATH="$ROOT_DIR/target/release/hello-world"
 STRIPPED_PATH="$BIN_PATH.stripped"
 MAX_BIN_BYTES=$((10 * 1024 * 1024))
@@ -24,28 +27,20 @@ if [ "$BIN_BYTES" -gt "$MAX_BIN_BYTES" ]; then
   exit 1
 fi
 
-echo "==> startup smoke (first HTTP response)"
-"$BIN_PATH" >/tmp/serverust_bench_stdout.log 2>/tmp/serverust_bench_stderr.log &
-APP_PID=$!
-cleanup() {
-  kill "$APP_PID" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+# Mediana de N amostras: uma medição única cai em qualquer ponto do ruído de
+# agendamento do SO e vira baseline enviesado para todas as execuções seguintes.
+echo "==> startup smoke (first HTTP response, ${STARTUP_SAMPLES} samples)"
+if ! ELAPSED_MS="$(measure_startup_median_ms "$BIN_PATH" "$PORT")"; then
+  echo "ERROR: server did not become ready in time"
+  exit 1
+fi
 
-START_MS="$(date +%s%3N)"
-for _ in $(seq 1 100); do
-  if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
-    END_MS="$(date +%s%3N)"
-    ELAPSED_MS=$((END_MS - START_MS))
-    echo "startup_ms=$ELAPSED_MS (target <= $MAX_STARTUP_MS)"
-    if [ "$ELAPSED_MS" -gt "$MAX_STARTUP_MS" ]; then
-      echo "ERROR: startup time exceeded target"
-      exit 1
-    fi
-    exit 0
-  fi
-  sleep 0.05
-done
-
-echo "ERROR: server did not become ready in time"
-exit 1
+SAMPLES_RAW="$(cat "$STARTUP_SAMPLES_FILE")"
+echo "startup_local_samples_ms=${SAMPLES_RAW// /,}"
+echo "startup_local_samples=${STARTUP_SAMPLES}"
+echo "startup_local_p50_ms=$ELAPSED_MS (target <= $MAX_STARTUP_MS)"
+if [ "$ELAPSED_MS" -gt "$MAX_STARTUP_MS" ]; then
+  echo "ERROR: startup time exceeded target"
+  exit 1
+fi
+exit 0

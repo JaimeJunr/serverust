@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Compara última entry de history.json com a penúltima e falha se houver regressão.
 # Tolerâncias:
-#   - cold_start_p95_ms: regressão > 10% em relação à versão anterior → falha
-#   - stripped_bytes:    regressão > 5%  em relação à versão anterior → falha
+#   - stripped_bytes:       regressão > 5% vs versão anterior → falha
+#   - startup_local_p50_ms: INFORMATIVO, apenas reportado. A medição local varia
+#                           mais com o estado da máquina que com o código (13ms
+#                           a 62ms na mesma build) — ver ADR 0008.
 # Valores null são ignorados (sem medição = sem regressão detectável).
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HISTORY="$ROOT_DIR/docs/product/metrics/history.json"
+# shellcheck source=lib/kpi_metrics.sh
+source "$ROOT_DIR/scripts/lib/kpi_metrics.sh"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "ERRO: jq não encontrado."
@@ -33,33 +37,36 @@ check_regression() {
   local field="$1"
   local tolerance_pct="$2"
   local label="$3"
+  local tolerance_floor="${4:-0}"
 
   local prev_val curr_val
-  prev_val="$(echo "$PREV" | jq ".$field")"
-  curr_val="$(echo "$CURR" | jq ".$field")"
+  prev_val="$(echo "$PREV" | jq "$field")"
+  curr_val="$(echo "$CURR" | jq "$field")"
 
   if [ "$prev_val" = "null" ] || [ "$curr_val" = "null" ]; then
     echo "  $label: sem dados suficientes (null) — ignorado"
     return
   fi
 
-  # Regressão = curr > prev * (1 + tolerance/100)
   local exceeded
-  exceeded="$(echo "$prev_val $curr_val $tolerance_pct" | awk '{
-    threshold = $1 * (1 + $3/100)
-    if ($2 > threshold) print "yes"; else print "no"
-  }')"
+  exceeded="$(exceeds_tolerance "$prev_val" "$curr_val" "$tolerance_pct" "$tolerance_floor")"
 
   if [ "$exceeded" = "yes" ]; then
-    echo "  FALHOU $label: $prev_val → $curr_val (tolerância $tolerance_pct%)"
+    echo "  FALHOU $label: $prev_val → $curr_val"
     FAILED=1
   else
     echo "  OK    $label: $prev_val → $curr_val"
   fi
 }
 
-check_regression "cold_start_p95_ms" 10 "cold_start_p95_ms (tol. 10%)"
-check_regression "stripped_bytes"     5  "stripped_bytes     (tol. 5%)"
+check_regression ".stripped_bytes" \
+  "$BYTES_TOLERANCE_PCT" "stripped_bytes       (tol. ${BYTES_TOLERANCE_PCT}%)" \
+  "$BYTES_TOLERANCE_FLOOR"
+
+# Fallback: entradas anteriores ao rename gravavam o startup local como cold_start_p95_ms.
+PREV_STARTUP="$(echo "$PREV" | jq '.startup_local_p50_ms // .cold_start_p95_ms')"
+CURR_STARTUP="$(echo "$CURR" | jq '.startup_local_p50_ms // .cold_start_p95_ms')"
+echo "  INFO  startup_local_p50_ms: $PREV_STARTUP → $CURR_STARTUP (informativo — não reprova)"
 
 if [ "$FAILED" -eq 1 ]; then
   echo ""
