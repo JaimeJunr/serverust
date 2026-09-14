@@ -35,7 +35,7 @@ cargo test -p <crate>           # testes de um único crate
 cargo tree -p <crate>           # visualiza árvore de dependências
 scripts/quality_changelog.sh    # valida CHANGELOG.md
 scripts/quality_kpi_gate.sh     # valida KPIs contra baseline histórico
-scripts/benchmark_ci.sh         # mede binário e cold start (leitura)
+scripts/benchmark_ci.sh         # mede binário e startup local (leitura)
 ```
 
 **Nunca** rode `cargo build --workspace` ou `cargo test --workspace` — consome disco e RAM em excesso.

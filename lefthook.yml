@@ -11,6 +11,10 @@ pre-commit:
       run: ./scripts/quality_cycles.sh
     hello_world:
       run: ./scripts/quality_hello_world.sh
+    kpi_metrics_lib:
+      # Guard da lógica dos gates de KPI: tolerância, teto absoluto e agregação
+      # de amostras. Barato (sem build), roda a cada commit.
+      run: ./scripts/test_kpi_metrics_lib.sh
     lefthook_hooks:
       # Guard dos próprios hooks abaixo: garante que ausência da ferramenta
       # continua sendo skip e que reprovação dela volta a bloquear.

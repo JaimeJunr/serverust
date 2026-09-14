@@ -29,7 +29,8 @@ DATE="$(date +%Y-%m-%d)"
 echo "==> Coletando stripped_bytes via benchmark_ci.sh..."
 BIN_OUTPUT="$(bash "$ROOT_DIR/scripts/benchmark_ci.sh" 2>&1)" || true
 STRIPPED_BYTES="$(echo "$BIN_OUTPUT" | grep -oP 'stripped_size_bytes=\K[0-9]+' || echo "null")"
-STARTUP_MS="$(echo "$BIN_OUTPUT" | grep -oP 'startup_ms=\K[0-9]+' || echo "null")"
+STARTUP_MS="$(echo "$BIN_OUTPUT" | grep -oP 'startup_local_p50_ms=\K[0-9]+' || echo "null")"
+STARTUP_SAMPLES_N="$(echo "$BIN_OUTPUT" | grep -oP 'startup_local_samples=\K[0-9]+' || echo "null")"
 
 # Contar LOC do handler de referência
 LOC_HANDLER="$(wc -l < "$ROOT_DIR/examples/hello-world/src/main.rs" | tr -d ' ')"
@@ -37,13 +38,16 @@ LOC_HANDLER="$(wc -l < "$ROOT_DIR/examples/hello-world/src/main.rs" | tr -d ' ')
 ENTRY="$(jq -n \
   --arg version "$VERSION" \
   --arg date "$DATE" \
-  --argjson cold_start "${STARTUP_MS}" \
+  --argjson startup "${STARTUP_MS}" \
+  --argjson startup_samples "${STARTUP_SAMPLES_N}" \
   --argjson stripped_bytes "${STRIPPED_BYTES}" \
   --argjson loc_handler "$LOC_HANDLER" \
   '{
     version: $version,
     date: $date,
-    cold_start_p95_ms: $cold_start,
+    startup_local_p50_ms: $startup,
+    startup_local_samples: $startup_samples,
+    cold_start_p95_ms: null,
     stripped_bytes: $stripped_bytes,
     loc_handler: $loc_handler,
     quality_gates: {
@@ -54,7 +58,7 @@ ENTRY="$(jq -n \
       mutation_score_pct: null
     },
     competitor_refs: null,
-    notes: "Coletado automaticamente por metrics_append.sh"
+    notes: "Coletado automaticamente por metrics_append.sh. cold_start_p95_ms (Lambda ARM64 128MB) exige invocação real na AWS — ver ADR 0008."
   }')"
 
 UPDATED="$(jq --argjson entry "$ENTRY" '. + [$entry]' "$HISTORY")"

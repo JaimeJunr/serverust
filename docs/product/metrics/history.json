@@ -2,6 +2,8 @@
   {
     "version": "0.1.0",
     "date": "2024-06-01",
+    "startup_local_p50_ms": null,
+    "startup_local_samples": null,
     "cold_start_p95_ms": null,
     "stripped_bytes": null,
     "loc_handler": 28,
@@ -18,6 +20,8 @@
   {
     "version": "0.1.1",
     "date": "2024-10-01",
+    "startup_local_p50_ms": null,
+    "startup_local_samples": null,
     "cold_start_p95_ms": null,
     "stripped_bytes": null,
     "loc_handler": 28,
@@ -34,6 +38,8 @@
   {
     "version": "0.1.2",
     "date": "2025-05-01",
+    "startup_local_p50_ms": null,
+    "startup_local_samples": null,
     "cold_start_p95_ms": null,
     "stripped_bytes": null,
     "loc_handler": 28,
@@ -50,7 +56,9 @@
   {
     "version": "0.2.0",
     "date": "2026-05-16",
-    "cold_start_p95_ms": 15,
+    "startup_local_p50_ms": 15,
+    "startup_local_samples": 1,
+    "cold_start_p95_ms": null,
     "stripped_bytes": 3549712,
     "loc_handler": 13,
     "quality_gates": {
@@ -61,12 +69,14 @@
       "mutation_score_pct": null
     },
     "competitor_refs": null,
-    "notes": "Coletado automaticamente por metrics_append.sh"
+    "notes": "Coletado automaticamente por metrics_append.sh. Valor de startup medido em amostra única (pré-ADR 0008); cold start de Lambda nunca foi medido por este script."
   },
   {
     "version": "0.3.0",
     "date": "2026-05-17",
-    "cold_start_p95_ms": 12,
+    "startup_local_p50_ms": 12,
+    "startup_local_samples": 1,
+    "cold_start_p95_ms": null,
     "stripped_bytes": 3549224,
     "loc_handler": 13,
     "quality_gates": {
@@ -77,12 +87,14 @@
       "mutation_score_pct": null
     },
     "competitor_refs": null,
-    "notes": "Coletado automaticamente por metrics_append.sh"
+    "notes": "Coletado automaticamente por metrics_append.sh. Valor de startup medido em amostra única (pré-ADR 0008); cold start de Lambda nunca foi medido por este script."
   },
   {
     "version": "0.4.0",
     "date": "2026-09-13",
-    "cold_start_p95_ms": 10,
+    "startup_local_p50_ms": 10,
+    "startup_local_samples": 1,
+    "cold_start_p95_ms": null,
     "stripped_bytes": 3550744,
     "loc_handler": 13,
     "quality_gates": {
@@ -93,12 +105,14 @@
       "mutation_score_pct": null
     },
     "competitor_refs": null,
-    "notes": "Coletado automaticamente por metrics_append.sh"
+    "notes": "Coletado automaticamente por metrics_append.sh. Valor de startup medido em amostra única (pré-ADR 0008); cold start de Lambda nunca foi medido por este script."
   },
   {
     "version": "0.4.1",
     "date": "2026-09-13",
-    "cold_start_p95_ms": 11,
+    "startup_local_p50_ms": 11,
+    "startup_local_samples": 1,
+    "cold_start_p95_ms": null,
     "stripped_bytes": 3550112,
     "loc_handler": 13,
     "quality_gates": {
@@ -109,6 +123,6 @@
       "mutation_score_pct": null
     },
     "competitor_refs": null,
-    "notes": "Coletado automaticamente por metrics_append.sh"
+    "notes": "Coletado automaticamente por metrics_append.sh. Valor de startup medido em amostra única (pré-ADR 0008); cold start de Lambda nunca foi medido por este script."
   }
 ]
