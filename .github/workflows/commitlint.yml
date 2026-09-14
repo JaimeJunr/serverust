@@ -24,12 +24,23 @@ jobs:
         with:
           tool: cocogitto
       - name: Validate commit history
-        # Em PR: valida só os commits da PR (from-latest-tag = false).
-        # Em push para main: cog check valida tudo desde o último tag.
+        # Em PR: valida só os commits da PR.
+        # Em push para main: valida do último tag até HEAD.
+        #
+        # `cog check` sem argumento varre o histórico INTEIRO e por isso
+        # reprovava SEMPRE no push, por dois commits já publicados que não dá
+        # para reescrever: 76e3a61 (escopo com espaço, "serverust-events 0.3.0")
+        # e 8209786 (tipo `release`, que não existe no cog.toml). O check ficava
+        # permanentemente vermelho no main — e um check sempre vermelho mascara
+        # falha real, que foi exatamente a lição dos gates de fmt/clippy.
+        #
+        # `--from-latest-tag` ancora o range na última tag de release. Os dois
+        # commits problemáticos são anteriores à v0.4.0, então saem do range;
+        # tudo que entrar no main a partir daí continua sendo validado.
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin ${{ github.base_ref }}
             cog check origin/${{ github.base_ref }}..HEAD
           else
-            cog check
+            cog check --from-latest-tag
           fi
