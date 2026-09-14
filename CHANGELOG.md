@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-14
+
+Duas adições à API pública de `serverust-core`, ambas **compatíveis** — nada muda para quem já usa a 0.4.x. O restante é infraestrutura do repositório e não alcança quem consome os crates.
+
+Versão de patch, não minor, apesar de `feat`: em `0.x` o Cargo trata `0.5.0` como incompatível com `0.4.x`, e uma 0.5.0 exigiria que cada consumidor editasse o `Cargo.toml` para receber uma mudança que é puramente aditiva. Com `0.4.2`, quem declara `serverust-core = "0.4"` recebe automaticamente.
+
 ### Added
 
 - `serverust-core`: `App::layer(...)` para aplicar qualquer `tower::Layer` genérico (ex.: `axum::extract::DefaultBodyLimit`, CORS, timeout, compressão) sobre as rotas do usuário, sem precisar implementar a trait `Interceptor` nem espelhar o `run()` do framework à mão (#39).
