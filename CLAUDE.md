@@ -11,12 +11,13 @@ Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR ap
 
 | Invariante | Limite | Medição |
 |---|---|---|
-| Cold start ARM64 128 MB (`hello-world`) | **< 50 ms** p95 | `scripts/benchmark_ci.sh --lambda` |
+| Cold start ARM64 128 MB (`hello-world`) | **< 50 ms** p95 | sem medição automatizada — exige `cargo-lambda` + invocação real na AWS (ver ADR 0008) |
 | Binário stripped (`hello-world`) | **< 10 MB** | `scripts/benchmark_ci.sh` |
 | `serverust-core` sem deps de eventos/Kafka | zero | `cargo tree -p serverust-core \| grep -E "kafka\|rdkafka\|event"` |
 | `hello-world` sem deps de Kafka/DynamoDB | zero | `cargo tree -p hello-world \| grep -v -e kafka -e dynamo` |
 | Typecheck do workspace | verde | `cargo check --workspace` |
-| Métricas da versão corrente preenchidas | `stripped_bytes` + `cold_start_p95_ms` não-null em `history.json` | `scripts/quality_metrics_required.sh` (gate obrigatório no pre-push) |
+| Métricas da versão corrente preenchidas | `stripped_bytes` + `startup_local_p50_ms` não-null em `history.json` | `scripts/quality_metrics_required.sh` (gate obrigatório no pre-push) |
+| Startup local (`hello-world`) | **informativo** — só reprova acima de 2000 ms | `scripts/quality_kpi_gate.sh` (ver ADR 0008) |
 
 **Regressão detectada?** Crie uma ADR em `docs/development/decisions/` justificando antes de mergear.
 

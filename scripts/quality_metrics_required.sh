@@ -31,7 +31,8 @@ if [ -z "$ENTRY" ]; then
 fi
 
 STRIPPED="$(echo "$ENTRY" | jq -r '.stripped_bytes')"
-COLD="$(echo "$ENTRY" | jq -r '.cold_start_p95_ms')"
+# Fallback: entradas anteriores ao rename gravavam o startup local como cold_start_p95_ms.
+COLD="$(echo "$ENTRY" | jq -r '.startup_local_p50_ms // .cold_start_p95_ms')"
 
 FAILED=0
 if [ "$STRIPPED" = "null" ]; then
@@ -39,7 +40,7 @@ if [ "$STRIPPED" = "null" ]; then
   FAILED=1
 fi
 if [ "$COLD" = "null" ]; then
-  echo "FALHOU: cold_start_p95_ms é null para v$VERSION."
+  echo "FALHOU: startup_local_p50_ms é null para v$VERSION."
   FAILED=1
 fi
 
@@ -52,4 +53,4 @@ if [ "$FAILED" -eq 1 ]; then
   exit 1
 fi
 
-echo "OK: v$VERSION tem stripped_bytes=$STRIPPED e cold_start_p95_ms=$COLD."
+echo "OK: v$VERSION tem stripped_bytes=$STRIPPED e startup_local_p50_ms=$COLD."

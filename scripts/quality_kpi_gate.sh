@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
-# Gate de KPI: compara binário stripped e cold start vs baseline em history.json.
+# Gate de KPI: compara binário stripped e startup local vs baseline em history.json.
 #
 # Tolerâncias:
-#   - stripped_bytes:    falha se tamanho atual for >5%  acima da última entry de history.json
-#   - cold_start_local:  falha se startup local for >20% acima da última entry de history.json
+#   - stripped_bytes:      falha se tamanho atual for >5% acima da última entry.
+#                          Eixo determinístico — mesmo código produz byte-idêntico.
+#   - startup_local_p50_ms: INFORMATIVO. Reporta a mediana de N medições e o
+#                          delta vs baseline, mas só reprova acima de um teto
+#                          absoluto (2000ms). Medições isoladas da mesma build,
+#                          sem alteração de código, variaram de 13ms a 62ms na
+#                          mesma máquina: comparar contra o baseline nessa
+#                          dispersão reprova ruído, não regressão.
+#
+# ATENÇÃO ao que este eixo NÃO é: `startup_local_p50_ms` mede o tempo até a
+# primeira resposta HTTP de um binário local. O invariante público do CLAUDE.md
+# — cold start < 50ms no Lambda ARM64 128MB — exige invocação real na AWS e é
+# registrado separadamente em `cold_start_p95_ms`. Ver ADR 0008.
 #
 # Opt-in: controlado por LEFTHOOK_KPI=1
 # Override emergência: LEFTHOOK_KPI_SKIP=1 (exige justificativa no commit message — ver CLAUDE.md)
 #
 # Se a regressão for inevitável, crie uma ADR em docs/development/decisions/ antes de mergear.
-# Consulte docs/development/decisions/ para o procedimento completo.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HISTORY="$ROOT_DIR/docs/product/metrics/history.json"
+# shellcheck source=lib/kpi_metrics.sh
+source "$ROOT_DIR/scripts/lib/kpi_metrics.sh"
 
 # Opt-in: só roda se LEFTHOOK_KPI=1
 if [ "${LEFTHOOK_KPI:-0}" != "1" ]; then
@@ -62,12 +74,9 @@ rm -f "$STRIPPED_PATH"
 
 BASELINE_BYTES="$(echo "$BASELINE" | jq '.stripped_bytes')"
 if [ "$BASELINE_BYTES" != "null" ]; then
-  EXCEEDED="$(echo "$BASELINE_BYTES $CURR_BYTES" | awk '{
-    threshold = $1 * 1.05
-    if ($2 > threshold) print "yes"; else print "no"
-  }')"
+  EXCEEDED="$(exceeds_tolerance "$BASELINE_BYTES" "$CURR_BYTES" "$BYTES_TOLERANCE_PCT" "$BYTES_TOLERANCE_FLOOR")"
   if [ "$EXCEEDED" = "yes" ]; then
-    echo "  FALHOU stripped_bytes: baseline=$BASELINE_BYTES atual=$CURR_BYTES (tol. 5%)"
+    echo "  FALHOU stripped_bytes: baseline=$BASELINE_BYTES atual=$CURR_BYTES (tol. ${BYTES_TOLERANCE_PCT}%)"
     echo "  Crie uma ADR em docs/development/decisions/ justificando a regressão."
     FAILED=1
   else
@@ -77,46 +86,23 @@ else
   echo "  INFO stripped_bytes: baseline null — ignorando comparação"
 fi
 
-# --- 2. Medir cold start local ---
+# --- 2. Medir startup local (mediana de N amostras) ---
 echo ""
-echo "==> Medindo cold start local..."
+echo "==> Medindo startup local (${STARTUP_SAMPLES} amostras)..."
 PORT=3000
 
-"$BIN_PATH" >/tmp/kpi_gate_stdout.log 2>/tmp/kpi_gate_stderr.log &
-APP_PID=$!
-cleanup() { kill "$APP_PID" >/dev/null 2>&1 || true; }
-trap cleanup EXIT
-
-START_MS="$(date +%s%3N)"
-READY=0
-for _ in $(seq 1 100); do
-  if curl -sf "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
-    END_MS="$(date +%s%3N)"
-    CURR_STARTUP_MS=$((END_MS - START_MS))
-    READY=1
-    break
-  fi
-  sleep 0.05
-done
-
-if [ "$READY" -eq 0 ]; then
-  echo "  AVISO: servidor não respondeu em tempo — pulando cold start check"
+if ! CURR_STARTUP_MS="$(measure_startup_median_ms "$BIN_PATH" "$PORT")"; then
+  echo "  AVISO: servidor não respondeu em tempo — pulando startup check"
 else
-  BASELINE_COLD="$(echo "$BASELINE" | jq '.cold_start_p95_ms')"
-  if [ "$BASELINE_COLD" != "null" ]; then
-    EXCEEDED="$(echo "$BASELINE_COLD $CURR_STARTUP_MS" | awk '{
-      threshold = $1 * 1.20
-      if ($2 > threshold) print "yes"; else print "no"
-    }')"
-    if [ "$EXCEEDED" = "yes" ]; then
-      echo "  FALHOU cold_start_local: baseline=${BASELINE_COLD}ms atual=${CURR_STARTUP_MS}ms (tol. 20%)"
-      echo "  Crie uma ADR em docs/development/decisions/ justificando a regressão."
-      FAILED=1
-    else
-      echo "  OK cold_start_local: baseline=${BASELINE_COLD}ms atual=${CURR_STARTUP_MS}ms"
-    fi
-  else
-    echo "  INFO cold_start_local: baseline null — resultado atual=${CURR_STARTUP_MS}ms (sem comparação)"
+  echo "  amostras: $(cat "$STARTUP_SAMPLES_FILE") ms -> mediana ${CURR_STARTUP_MS}ms"
+  # Entradas anteriores ao rename gravavam este mesmo valor como cold_start_p95_ms.
+  BASELINE_STARTUP="$(echo "$BASELINE" | jq '.startup_local_p50_ms // .cold_start_p95_ms')"
+  echo "  INFO startup_local: baseline=${BASELINE_STARTUP}ms atual=${CURR_STARTUP_MS}ms (informativo — não reprova)"
+
+  if [ "$(exceeds_absolute "$CURR_STARTUP_MS" "$STARTUP_ABSOLUTE_MAX_MS")" = "yes" ]; then
+    echo "  FALHOU startup_local: ${CURR_STARTUP_MS}ms acima do teto absoluto de ${STARTUP_ABSOLUTE_MAX_MS}ms"
+    echo "  Teto tão alto só é ultrapassado por regressão grosseira — investigue o caminho de inicialização."
+    FAILED=1
   fi
 fi
 

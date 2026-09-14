@@ -32,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `serverust-core`: `App::layer(...)` para aplicar qualquer `tower::Layer` genérico (ex.: `axum::extract::DefaultBodyLimit`, CORS, timeout, compressão) sobre as rotas do usuário, sem precisar implementar a trait `Interceptor` nem espelhar o `run()` do framework à mão (#39).
 - `serverust-core`: `App::without_docs()` desabilita o registro de `/openapi.json`, `/docs` e `/redoc` em `into_router()`, para serviços internos que não querem expor essa superfície (#39).
 
+### Changed
+
+- `scripts/quality_kpi_gate.sh`: o eixo de startup local deixa de reprovar por comparação com o baseline e passa a informativo, com guarda absoluta em 2000 ms. Medições isoladas da mesma build, sem alteração de código, variaram de 11 ms a 62 ms conforme a carga da máquina — a tolerância de 20% sobre um baseline de 11 ms reprovava ruído. `stripped_bytes` continua gate estrito em 5%. Ver ADR 0008.
+- `scripts/benchmark_ci.sh` e `scripts/metrics_append.sh`: o startup passa a ser a mediana de 5 medições (`STARTUP_SAMPLES`) em vez de uma amostra única, que deixava o baseline refém de onde caiu na distribuição.
+- `docs/product/metrics/history.json`: o campo medido passa a se chamar `startup_local_p50_ms`, acompanhado de `startup_local_samples`. O que o script mede é o tempo até a primeira resposta HTTP de um binário local — não cold start de Lambda. `cold_start_p95_ms` permanece no schema como o campo do invariante público e fica `null` enquanto não houver invocação real na AWS. Leitores aceitam o nome antigo como fallback.
+
 ## [0.4.1] - 2026-09-13
 
 Release de manutenção: atualiza duas dependências com advisory do RUSTSEC no `Cargo.lock`. **Sem mudança de API** — quem usa os crates como biblioteca pode pular.
