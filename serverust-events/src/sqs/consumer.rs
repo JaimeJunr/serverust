@@ -113,17 +113,15 @@ impl SqsBroker {
         for raw in &event.records {
             match extract_queue_name(raw) {
                 None => {
-                    if let Some(id) = raw.message_id.clone() {
-                        response.add_failure(id);
-                    } else {
+                    add_batch_failure_or_warn(&mut response, raw, || {
                         warn!(
                             "sqs record missing event_source_arn and message_id; \
                              Lambda may ack this record as success",
                         );
-                    }
+                    });
                 }
                 Some(queue) => {
-                    let handlers: Vec<BoxedHandler> = self
+                    let subscribers: Vec<BoxedHandler> = self
                         .subscriptions
                         .lock()
                         .expect("sqs subscriptions mutex poisoned")
@@ -132,39 +130,27 @@ impl SqsBroker {
                         .map(|s| s.handler.clone())
                         .collect();
 
-                    if handlers.is_empty() {
-                        if let Some(id) = raw.message_id.clone() {
-                            response.add_failure(id);
-                        } else {
+                    if subscribers.is_empty() {
+                        add_batch_failure_or_warn(&mut response, raw, || {
                             warn!(
                                 queue = %queue,
                                 "sqs record has no handler and no message_id; \
                                  Lambda may ack this record as success",
                             );
-                        }
+                        });
                         continue;
                     }
 
                     let msg = build_broker_message(&queue, raw);
 
-                    let mut handler_err: Option<BrokerError> = None;
-                    for handler in handlers {
-                        if let Err(e) = handler(msg.clone()).await {
-                            handler_err = Some(e);
-                            break;
-                        }
-                    }
-
-                    if let Some(e) = handler_err {
-                        if let Some(id) = raw.message_id.clone() {
-                            response.add_failure(id);
-                        } else {
+                    if let Some(e) = first_error_from_subscribers(subscribers, msg).await {
+                        add_batch_failure_or_warn(&mut response, raw, || {
                             warn!(
                                 queue = %queue,
                                 error = %e,
                                 "sqs message failed but has no message_id; Lambda will retry the whole batch",
                             );
-                        }
+                        });
                     }
                 }
             }
@@ -199,6 +185,35 @@ impl Broker for SqsBroker {
                 .to_string(),
         ))
     }
+}
+
+/// Se o registro tem `message_id`, registra falha no batch; senão executa o
+/// `warn` (Lambda não consegue retentar o item isolado).
+fn add_batch_failure_or_warn<F>(
+    response: &mut SqsBatchResponse,
+    record: &SqsMessage,
+    warn_without_message_id: F,
+) where
+    F: FnOnce(),
+{
+    if let Some(id) = record.message_id.clone() {
+        response.add_failure(id);
+    } else {
+        warn_without_message_id();
+    }
+}
+
+/// Invoca os subscribers na ordem de registro e devolve o primeiro `Err`.
+async fn first_error_from_subscribers(
+    subscribers: Vec<BoxedHandler>,
+    message: BrokerMessage,
+) -> Option<BrokerError> {
+    for subscriber in subscribers {
+        if let Err(error) = subscriber(message.clone()).await {
+            return Some(error);
+        }
+    }
+    None
 }
 
 /// Extrai o nome da fila do `event_source_arn` (segmento final).
