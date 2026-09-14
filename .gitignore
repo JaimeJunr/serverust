@@ -14,6 +14,12 @@ sync-prompts.sh
 # Ralph workspace (artefatos copiados para docs/; fonte viva fica local)
 .ralph/
 
+# Artefatos dos gates de qualidade (lefthook pre-push): cargo-mutants e
+# cargo-llvm-cov escrevem na raiz do repo. São saída de ferramenta, não fonte.
+/mutants.out/
+/mutants.out.old/
+/coverage.lcov
+
 # IDE
 .idea/
 .vscode/

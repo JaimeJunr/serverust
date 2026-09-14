@@ -37,6 +37,10 @@ jobs:
         # `--from-latest-tag` ancora o range na última tag de release. Os dois
         # commits problemáticos são anteriores à v0.4.0, então saem do range;
         # tudo que entrar no main a partir daí continua sendo validado.
+        #
+        # Depende de `tag_prefix = "v"` no cog.toml: as tags do repo são vX.Y.Z
+        # e, com o valor antigo (""), o cog não reconhecia nenhuma —
+        # `--from-latest-tag` falhava com "unable to get any tag" (#34).
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin ${{ github.base_ref }}
