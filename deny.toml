@@ -24,6 +24,26 @@ ignore = [
     "RUSTSEC-2026-0098",  # name constraints for URI names incorretas
     "RUSTSEC-2026-0099",  # wildcard name em name constraints
     "RUSTSEC-2026-0104",  # reachable panic em CRL parsing
+
+    # h2 0.3.27 (transitive via aws-smithy-http-client → AWS SDK). A linha 0.3.x
+    # NÃO tem patch: o fix saiu só em 0.4.16 (já aplicado — o lock traz h2 0.4.19
+    # para o caminho hyper/axum). Não há como remover a 0.3 do nosso lado
+    # enquanto o AWS SDK não migrar.
+    # Impacto: o advisory é DoS por DATA frames vazios sem limite, que atinge
+    # quem RECEBE a conexão. Aqui a h2 0.3 aparece apenas no cliente HTTP do AWS
+    # SDK falando com endpoints AWS — não serve tráfego de terceiros. O servidor
+    # HTTP do serverust (axum/hyper) usa a linha 0.4, já corrigida.
+    # Remover quando aws-sdk-rust migrar para h2 0.4
+    # (acompanhar https://github.com/awslabs/aws-sdk-rust/issues).
+    "RUSTSEC-2026-0258",  # h2 unbounded empty DATA frames
+
+    # proc-macro-error2 2.0.1 (transitive via validator_derive 0.20 → validator).
+    # É `unmaintained`, não vulnerabilidade — nenhum CVE associado.
+    # Impacto: proc-macro roda em build-time e não entra no binário final; não há
+    # superfície de ataque em runtime.
+    # Remover quando validator soltar release que troque a dep (o upstream já
+    # discute a migração; acompanhar https://github.com/Keats/validator).
+    "RUSTSEC-2026-0173",  # proc-macro-error2 is unmaintained
 ]
 
 [licenses]
