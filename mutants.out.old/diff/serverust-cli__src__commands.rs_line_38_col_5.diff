@@ -1,0 +1,27 @@
+--- serverust-cli/src/commands.rs
++++ replace openapi_export_command -> Command with Default::default()
+@@ -30,23 +30,17 @@
+     };
+     cmd
+ }
+ 
+ /// `cargo run --quiet -- --serverust-emit-openapi <out>` — extrai o spec OpenAPI
+ /// do binário do projeto sem subir o servidor. O runtime `serverust_lambda::run`
+ /// (ou um handler equivalente no `main`) detecta a flag, escreve o spec e sai.
+ pub fn openapi_export_command(out: &Path) -> Command {
+-    let mut cmd = Command::new("cargo");
+-    cmd.arg("run")
+-        .arg("--quiet")
+-        .arg("--")
+-        .arg("--serverust-emit-openapi")
+-        .arg(out);
+-    cmd
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `cargo run --quiet -- --serverust-emit-asyncapi <out>` — extrai o spec
+ /// AsyncAPI 3.0 do binário do projeto. O `main` do projeto detecta a flag,
+ /// monta o `AsyncApiBuilder` com os tipos de evento da aplicação, grava o
+ /// YAML em `<out>` e sai sem subir consumer/producer.
+ pub fn asyncapi_export_command(out: &Path) -> Command {
+     let mut cmd = Command::new("cargo");

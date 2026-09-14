@@ -1,0 +1,25 @@
+--- serverust-cli/src/commands.rs
++++ replace build_cargo_command -> Command with Default::default()
+@@ -1,21 +1,16 @@
+ use std::path::Path;
+ use std::process::Command;
+ 
+ use crate::cli::{Arch, OpenapiClientLang};
+ 
+ /// `cargo build [--release]`.
+ pub fn build_cargo_command(release: bool) -> Command {
+-    let mut cmd = Command::new("cargo");
+-    cmd.arg("build");
+-    if release {
+-        cmd.arg("--release");
+-    }
+-    cmd
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// `cargo watch -q -x run` — hot-reload local (quiet: sem prefixo "[Running...]").
+ pub fn dev_cargo_command() -> Command {
+     let mut cmd = Command::new("cargo");
+     cmd.arg("watch").arg("-q").arg("-x").arg("run");
+     cmd
+ }

@@ -1,0 +1,22 @@
+--- serverust-cli/src/queue_aws.rs
++++ replace client -> Client with Default::default()
+@@ -1,18 +1,17 @@
+ //! Chamadas AWS SQS para `serverust queue inspect/tail`.
+ 
+ use aws_sdk_sqs::Client;
+ use aws_sdk_sqs::types::{MessageSystemAttributeName, QueueAttributeName};
+ 
+ use crate::queue::{MessageSummary, QueueAttributes};
+ 
+ async fn client() -> Client {
+-    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+-    Client::new(&config)
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub async fn get_attributes(url: &str) -> anyhow::Result<QueueAttributes> {
+     let sqs = client().await;
+     let out = sqs
+         .get_queue_attributes()
+         .queue_url(url)
+         .attribute_names(QueueAttributeName::All)

@@ -1,0 +1,18 @@
+--- serverust-cli/src/queue.rs
++++ replace <= with > in truncate
+@@ -63,14 +63,14 @@
+     out
+ }
+ 
+ fn row(label: &str, value: &str) -> String {
+     format!("  {:<22} {value}\n", label)
+ }
+ 
+ fn truncate(s: &str, max: usize) -> String {
+-    if s.len() <= max {
++    if s.len() > /* ~ changed by cargo-mutants ~ */ max {
+         s.to_string()
+     } else {
+         format!("{}…", &s[..max])
+     }
+ }

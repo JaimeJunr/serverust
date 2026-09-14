@@ -1,0 +1,36 @@
+--- serverust-cli/src/templates.rs
++++ replace filter -> String with String::new()
+@@ -253,32 +253,17 @@
+ }
+ "#,
+         name,
+         &type_name,
+     )
+ }
+ 
+ pub fn filter(name: &str) -> String {
+-    let type_name = pascal_case(name);
+-    template_with_name_type(
+-        r#"use axum::response::{IntoResponse, Response};
+-
+-/// Filter (mapeador de erros) inspirado em ExceptionFilter do NestJS.
+-pub struct {{TYPE}}Filter;
+-
+-impl {{TYPE}}Filter {
+-    pub fn handle<E: std::error::Error>(err: E) -> Response {
+-        (axum::http::StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response()
+-    }
+-}
+-"#,
+-        name,
+-        &type_name,
+-    )
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn template_with_name_type(template: &str, name: &str, type_name: &str) -> String {
+     template
+         .replace(NAME_PLACEHOLDER, name)
+         .replace(TYPE_PLACEHOLDER, type_name)
+ }
+ 

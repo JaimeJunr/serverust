@@ -1,0 +1,38 @@
+--- serverust-cli/src/queue.rs
++++ replace format_inspect -> String with String::new()
+@@ -16,34 +16,17 @@
+ 
+ pub struct MessageSummary {
+     pub message_id: String,
+     pub body_preview: String,
+     pub sent_timestamp: Option<String>,
+ }
+ 
+ pub fn format_inspect(attrs: &QueueAttributes) -> String {
+-    let mut out = String::new();
+-    out.push_str(&format!(
+-        "{BOLD}Queue:{RESET} {CYAN}{}{RESET}\n{SEP}\n",
+-        attrs.url
+-    ));
+-
+-    let messages = attrs.approx_messages.as_deref().unwrap_or("—");
+-    let age_raw = attrs.approx_age_oldest.as_deref();
+-    let age = match age_raw {
+-        Some(v) => format!("{v} s"),
+-        None => "—".to_string(),
+-    };
+-    let redrive = attrs.redrive_policy.as_deref().unwrap_or("—");
+-
+-    out.push_str(&row("Messages available:", messages));
+-    out.push_str(&row("Oldest message age:", &age));
+-    out.push_str(&row("Redrive policy:", redrive));
+-    out
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn format_messages(msgs: &[MessageSummary]) -> String {
+     if msgs.is_empty() {
+         return format!("{DIM}0 messages received (queue empty or all invisible){RESET}\n");
+     }
+     let mut out = String::new();
+     for (i, msg) in msgs.iter().enumerate() {

@@ -1,0 +1,30 @@
+--- serverust-cli/src/templates.rs
++++ replace module_mod_rs -> String with String::new()
+@@ -158,26 +158,17 @@
+ }
+ "#,
+         name,
+         &type_name,
+     )
+ }
+ 
+ pub fn module_mod_rs(name: &str, with_tests: bool) -> String {
+-    let mut out = format!(
+-        "#[path = \"{name}.controller.rs\"]\npub mod controller;\n\
+-         #[path = \"{name}.service.rs\"]\npub mod service;\n"
+-    );
+-    if with_tests {
+-        out.push_str(&format!(
+-            "#[cfg(test)]\n#[path = \"{name}.tests.rs\"]\nmod tests;\n"
+-        ));
+-    }
+-    out
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn resource_mod_rs(name: &str, with_tests: bool) -> String {
+     format!(
+         "{base}#[path = \"{name}.dto.rs\"]\npub mod dto;\n",
+         base = module_mod_rs(name, with_tests),
+     )
+ }

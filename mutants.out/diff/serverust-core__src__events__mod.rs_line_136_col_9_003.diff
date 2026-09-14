@@ -1,0 +1,21 @@
+--- serverust-core/src/events/mod.rs
++++ replace EventHandlerRegistry<E>::into_dispatcher -> EventDispatcher<E> with EventDispatcher::from(Default::default())
+@@ -128,17 +128,17 @@
+         }
+     }
+ 
+     pub(crate) fn register<H: EventHandler<E>>(&mut self, handler: H) {
+         self.handlers.push(Arc::new(HandlerWrapper(handler)));
+     }
+ 
+     pub(crate) fn into_dispatcher(self, container: Container) -> EventDispatcher<E> {
+-        EventDispatcher::new(self.handlers, container)
++        EventDispatcher::from(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use std::sync::{Arc, Mutex};
+ 
+     use super::*;

@@ -1,0 +1,23 @@
+--- serverust-cli/src/scaffold.rs
++++ replace generate_single_module_file -> Result<()> with Ok(())
+@@ -124,19 +124,17 @@
+ }
+ 
+ fn generate_single_module_file(
+     base: &Path,
+     name: &str,
+     filename: String,
+     body: String,
+ ) -> Result<()> {
+-    let dir = base.join("src/modules").join(name);
+-    fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+-    write_file(&dir.join(filename), &body)
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn generate_shared(base: &Path, kind_dir: &str, filename: String, body: String) -> Result<()> {
+     let dir = base.join("src/shared").join(kind_dir);
+     fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+     write_file(&dir.join(filename), &body)
+ }
+ 

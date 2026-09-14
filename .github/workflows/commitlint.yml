@@ -24,12 +24,17 @@ jobs:
         with:
           tool: cocogitto
       - name: Validate commit history
-        # Em PR: valida só os commits da PR (from-latest-tag = false).
-        # Em push para main: cog check valida tudo desde o último tag.
+        # Em PR: valida só os commits da PR.
+        # Em push para main: `--from-latest-tag` valida a partir da última tag.
+        # `cog check` sem flag varre o histórico INTEIRO e reprova em dois
+        # commits antigos que não dá para reescrever (já publicados):
+        #   76e3a61 "feat(serverust-events 0.3.0): ..." — escopo com espaço
+        #   8209786 "release: ..."                      — tipo `release` não permitido
+        # Um check permanentemente vermelho no main mascara falha real.
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin ${{ github.base_ref }}
             cog check origin/${{ github.base_ref }}..HEAD
           else
-            cog check
+            cog check --from-latest-tag
           fi

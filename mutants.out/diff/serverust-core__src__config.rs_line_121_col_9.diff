@@ -1,0 +1,21 @@
+--- serverust-core/src/config.rs
++++ replace ServerustConfig::load -> Result<Self, figment::Error> with Ok(Default::default())
+@@ -113,17 +113,17 @@
+     pub telemetry: TelemetryConfig,
+     pub openapi: OpenApiConfig,
+ }
+ 
+ impl ServerustConfig {
+     /// Carrega de `serverust.toml` na raiz do projeto, perfil `default`.
+     /// Override por env vars com prefixo `SERVERUST_` (ex: `SERVERUST_SERVER__PORT=8080`).
+     pub fn load() -> Result<Self, figment::Error> {
+-        Self::load_for_profile(Profile::Default)
++        Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Carrega de `serverust.toml` com perfil específico.
+     /// Perfil herda dados do `[default]` e os sobrescreve com `[<profile>]`.
+     /// O perfil também pode ser definido via `SERVERUST_PROFILE`.
+     pub fn load_for_profile(profile: impl Into<Profile>) -> Result<Self, figment::Error> {
+         Self::load_from_for_profile("serverust.toml", profile)
+     }

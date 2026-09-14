@@ -1,0 +1,26 @@
+--- serverust-core/src/openapi.rs
++++ replace redoc_html -> String with String::new()
+@@ -108,22 +108,10 @@
+     <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+   </body>
+ </html>"##
+     )
+ }
+ 
+ /// HTML embutido que carrega ReDoc via CDN apontando para `spec_url`.
+ pub(crate) fn redoc_html(spec_url: &str) -> String {
+-    format!(
+-        r##"<!DOCTYPE html>
+-<html lang="en">
+-  <head>
+-    <meta charset="UTF-8" />
+-    <title>API ReDoc</title>
+-  </head>
+-  <body>
+-    <redoc spec-url="{spec_url}"></redoc>
+-    <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"></script>
+-  </body>
+-</html>"##
+-    )
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }

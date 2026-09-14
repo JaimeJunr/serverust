@@ -1,0 +1,22 @@
+--- serverust-core/src/container.rs
++++ replace Container::insert with ()
+@@ -22,18 +22,17 @@
+     pub fn new() -> Self {
+         Self::default()
+     }
+ 
+     /// Insere (ou substitui) `Arc<T>` no container. Chave é o `TypeId` de
+     /// `Arc<T>`, então `Arc<dyn TraitA>` e `Arc<dyn TraitB>` ocupam slots
+     /// distintos mesmo apontando para a mesma implementação concreta.
+     pub fn insert<T: ?Sized + Send + Sync + 'static>(&mut self, value: Arc<T>) {
+-        self.services
+-            .insert(TypeId::of::<Arc<T>>(), Arc::new(value));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Recupera um `Arc<T>` previamente inserido, ou `None` se ausente.
+     pub fn get<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+         let any_arc = self.services.get(&TypeId::of::<Arc<T>>())?;
+         any_arc.downcast_ref::<Arc<T>>().cloned()
+     }
+ }

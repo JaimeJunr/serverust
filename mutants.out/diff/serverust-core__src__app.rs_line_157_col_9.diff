@@ -1,0 +1,21 @@
+--- serverust-core/src/app.rs
++++ replace App::config -> Self with Default::default()
+@@ -149,17 +149,17 @@
+         });
+         self.interceptors.push(mutator);
+         self
+     }
+ 
+     /// Injeta uma [`ServerustConfig`] tipada no container. Handlers podem extraí-la via
+     /// `State<Arc<ServerustConfig>>`.
+     pub fn config(self, cfg: ServerustConfig) -> Self {
+-        self.provide::<ServerustConfig>(Arc::new(cfg))
++        Default::default() /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Registra um handler anotado por `#[get]`, `#[post]`, etc.
+     pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
+         let route = handler.into_route();
+         self.openapi
+             .push_operation(route.path, route.method, route.operation);
+         self.router = self.router.route(route.path, route.method_router);

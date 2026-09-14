@@ -1,0 +1,27 @@
+--- serverust-core/src/app.rs
++++ replace App::into_event_dispatcher -> EventDispatcher<E> with EventDispatcher::from_iter([Default::default()])
+@@ -192,23 +192,17 @@
+     /// Retorna `true` se pelo menos um event handler foi registrado (qualquer tipo `E`).
+     pub fn has_event_handlers(&self) -> bool {
+         !self.event_registries.is_empty()
+     }
+ 
+     /// Constrói um [`EventDispatcher<E>`] com todos os handlers registrados
+     /// para o tipo `E` e uma cópia do [`Container`] compartilhado.
+     pub fn into_event_dispatcher<E: Send + 'static>(mut self) -> EventDispatcher<E> {
+-        let key = TypeId::of::<EventHandlerRegistry<E>>();
+-        let registry = self
+-            .event_registries
+-            .remove(&key)
+-            .and_then(|b| b.downcast::<EventHandlerRegistry<E>>().ok())
+-            .unwrap_or_else(|| Box::new(EventHandlerRegistry::<E>::new()));
+-        registry.into_dispatcher(self.container)
++        EventDispatcher::from_iter([Default::default()]) /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e `/redoc`.
+     pub fn into_router(self) -> Router {
+         let doc = self.openapi.build();
+         let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
+         let swagger_html = swagger_ui_html(self.openapi_path);
+         let redoc_page = redoc_html(self.openapi_path);

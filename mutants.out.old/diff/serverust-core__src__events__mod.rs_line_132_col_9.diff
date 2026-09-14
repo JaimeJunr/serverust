@@ -1,0 +1,21 @@
+--- serverust-core/src/events/mod.rs
++++ replace EventHandlerRegistry<E>::register with ()
+@@ -124,17 +124,17 @@
+ impl<E: Send + 'static> EventHandlerRegistry<E> {
+     pub(crate) fn new() -> Self {
+         Self {
+             handlers: Vec::new(),
+         }
+     }
+ 
+     pub(crate) fn register<H: EventHandler<E>>(&mut self, handler: H) {
+-        self.handlers.push(Arc::new(HandlerWrapper(handler)));
++        () /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(crate) fn into_dispatcher(self, container: Container) -> EventDispatcher<E> {
+         EventDispatcher::new(self.handlers, container)
+     }
+ }
+ 
+ #[cfg(test)]

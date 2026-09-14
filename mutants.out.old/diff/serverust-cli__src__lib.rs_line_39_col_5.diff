@@ -1,0 +1,97 @@
+--- serverust-cli/src/lib.rs
++++ replace run -> Result<()> with Ok(())
+@@ -31,93 +31,17 @@
+ 
+ use crate::cli::{Cli, Command, DeployTarget, OpenapiCommand, QueueCommand};
+ 
+ /// Executa um comando da CLI já parseado.
+ ///
+ /// Operações de IO (criação de arquivos, spawn de processos) são executadas
+ /// aqui; a separação em módulos mantém a lógica testável sem efeitos colaterais.
+ pub fn run(cli: Cli) -> Result<()> {
+-    match cli.command {
+-        Command::New { name } => {
+-            let cwd = std::env::current_dir()?;
+-            scaffold::new_project(&cwd, &name)?;
+-            println!("✓ project created at {}/{}", cwd.display(), name);
+-            Ok(())
+-        }
+-        Command::Generate { kind, name, crud } => {
+-            let cwd = std::env::current_dir()?;
+-            scaffold::generate(&cwd, kind, &name, crud)?;
+-            println!("✓ {kind:?} '{name}' generated");
+-            Ok(())
+-        }
+-        Command::Dev => {
+-            require_cargo_subcommand("watch", "cargo install cargo-watch")?;
+-            spawn_status(commands::dev_cargo_command(), "dev")
+-        }
+-        Command::Build { release } => spawn_status(commands::build_cargo_command(release), "build"),
+-        Command::Deploy { target } => match target {
+-            DeployTarget::Lambda { arch } => {
+-                require_cargo_subcommand(
+-                    "lambda",
+-                    "cargo install cargo-lambda  # ou https://www.cargo-lambda.info/guide/installation.html",
+-                )?;
+-                spawn_status(commands::deploy_lambda_cargo_command(arch), "deploy lambda")
+-            }
+-        },
+-        Command::Info { asyncapi, out } => {
+-            if out.is_some() && !asyncapi {
+-                anyhow::bail!(
+-                    "`--out` requer `--asyncapi`. Use: serverust info --asyncapi --out <arquivo>"
+-                );
+-            }
+-            if asyncapi {
+-                let out_path = out.unwrap_or_else(|| std::path::PathBuf::from("asyncapi.yaml"));
+-                spawn_status(
+-                    commands::asyncapi_export_command(&out_path),
+-                    "info --asyncapi",
+-                )
+-            } else {
+-                println!("{}", commands::info_text());
+-                Ok(())
+-            }
+-        }
+-        Command::Doctor => {
+-            let cwd = std::env::current_dir()?;
+-            println!("{}", commands::doctor_report(&cwd));
+-            Ok(())
+-        }
+-        Command::Openapi { command } => match command {
+-            OpenapiCommand::Export { out } => {
+-                spawn_status(commands::openapi_export_command(&out), "openapi export")
+-            }
+-            OpenapiCommand::Client { lang, input, out } => spawn_status(
+-                commands::openapi_client_command(lang, &input, &out),
+-                "openapi client",
+-            ),
+-        },
+-        Command::Queue { command } => {
+-            let rt = tokio::runtime::Builder::new_current_thread()
+-                .enable_all()
+-                .build()
+-                .map_err(|e| anyhow::anyhow!("failed to build tokio runtime: {e}"))?;
+-            match command {
+-                QueueCommand::Inspect { url } => {
+-                    let attrs = rt.block_on(queue_aws::get_attributes(&url))?;
+-                    print!("{}", queue::format_inspect(&attrs));
+-                    Ok(())
+-                }
+-                QueueCommand::Tail { url, max } => {
+-                    let msgs = rt.block_on(queue_aws::receive_messages(&url, max))?;
+-                    print!("{}", queue::format_messages(&msgs));
+-                    Ok(())
+-                }
+-            }
+-        }
+-    }
++    Ok(()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ /// Confirma que `cargo-<subcommand>` está disponível no PATH antes de chamar.
+ ///
+ /// Em vez de deixar o cargo cuspir o erro padrão (`error: no such command: ...`),
+ /// emitimos uma mensagem com o comando exato de instalação. Reduz fricção para
+ /// quem está descobrindo o framework e ainda não conhece o ecossistema.
+ fn require_cargo_subcommand(subcommand: &str, install_hint: &str) -> Result<()> {

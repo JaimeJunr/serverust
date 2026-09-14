@@ -1,0 +1,21 @@
+--- serverust-cli/src/queue_aws.rs
++++ replace == with != in get_attributes
+@@ -18,17 +18,17 @@
+         .attribute_names(QueueAttributeName::All)
+         .send()
+         .await
+         .map_err(|e| anyhow::anyhow!("GetQueueAttributes: {e}"))?;
+ 
+     let find = |name: &str| -> Option<String> {
+         out.attributes().and_then(|m| {
+             m.iter()
+-                .find(|(k, _)| k.as_str() == name)
++                .find(|(k, _)| k.as_str() != /* ~ changed by cargo-mutants ~ */ name)
+                 .map(|(_, v)| v.clone())
+         })
+     };
+ 
+     Ok(QueueAttributes {
+         url: url.to_string(),
+         approx_messages: find("ApproximateNumberOfMessages"),
+         approx_age_oldest: find("ApproximateAgeOfOldestMessage"),

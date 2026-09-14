@@ -1,0 +1,21 @@
+--- serverust-cli/src/templates.rs
++++ replace project_shared_mod_rs -> String with "xyzzy".into()
+@@ -96,17 +96,17 @@
+     .to_string()
+ }
+ 
+ pub fn project_modules_mod_rs() -> String {
+     "// declare seus módulos aqui: `pub mod users;`\n".to_string()
+ }
+ 
+ pub fn project_shared_mod_rs() -> String {
+-    "// componentes compartilhados: guards, pipes, interceptors, filters\n".to_string()
++    "xyzzy".into() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn controller(name: &str) -> String {
+     let type_name = pascal_case(name);
+     template_with_name_type(
+         r#"use serverust_core::extract::Path;
+ use serverust_macros::get;
+ 

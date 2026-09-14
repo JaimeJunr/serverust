@@ -1,0 +1,37 @@
+--- serverust-cli/src/templates.rs
++++ replace pipe -> String with String::new()
+@@ -192,33 +192,17 @@
+ }
+ "#,
+         name,
+         &type_name,
+     )
+ }
+ 
+ pub fn pipe(name: &str) -> String {
+-    let type_name = pascal_case(name);
+-    template_with_name_type(
+-        r#"use serverust_core::pipeline::Pipe;
+-
+-pub struct {{TYPE}}Pipe;
+-
+-impl Pipe<String> for {{TYPE}}Pipe {
+-    type Output = String;
+-
+-    fn transform(input: String) -> Result<Self::Output, axum::response::Response> {
+-        Ok(input)
+-    }
+-}
+-"#,
+-        name,
+-        &type_name,
+-    )
++    String::new() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ pub fn guard(name: &str) -> String {
+     let type_name = pascal_case(name);
+     template_with_name_type(
+         r#"use axum::http::request::Parts;
+ use axum::response::Response;
+ use serverust_core::pipeline::Guard;
