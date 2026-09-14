@@ -298,7 +298,20 @@ async fn flush(
     let batch: HashMap<String, PendingMessage> =
         pending.drain(..).map(|m| (m.id.clone(), m)).collect();
 
-    let mut to_send: Vec<SendEntry> = batch
+    let mut to_send: Vec<SendEntry> = send_entries_from_pending(&batch);
+    let mut resolved: HashMap<String, Result<MessageId, SendError>> = HashMap::new();
+
+    retry_send_batch(client, queue_url, &mut to_send, &mut resolved, config).await;
+
+    // Entradas ainda em to_send sem resultado = retries esgotados
+    mark_unresolved_as_exhausted(to_send, &mut resolved);
+
+    // Notifica os callers
+    notify_pending_callers(batch, resolved);
+}
+
+fn send_entries_from_pending(batch: &HashMap<String, PendingMessage>) -> Vec<SendEntry> {
+    batch
         .values()
         .map(|m| SendEntry {
             id: m.id.clone(),
@@ -307,10 +320,22 @@ async fn flush(
             message_group_id: m.message_group_id.clone(),
             message_deduplication_id: m.message_deduplication_id.clone(),
         })
-        .collect();
+        .collect()
+}
 
-    let mut resolved: HashMap<String, Result<MessageId, SendError>> = HashMap::new();
+async fn sleep_before_retry(attempt: u32, config: &ProducerConfig) {
+    if attempt < config.max_retries && !config.base_backoff.is_zero() {
+        tokio::time::sleep(config.base_backoff * 2u32.pow(attempt - 1)).await;
+    }
+}
 
+async fn retry_send_batch(
+    client: &Arc<dyn SendClient>,
+    queue_url: &str,
+    to_send: &mut Vec<SendEntry>,
+    resolved: &mut HashMap<String, Result<MessageId, SendError>>,
+    config: &ProducerConfig,
+) {
     for attempt in 1..=config.max_retries {
         match client.send_batch(queue_url, to_send.clone()).await {
             Ok(result) => {
@@ -328,9 +353,7 @@ async fn flush(
                     retrying = to_send.len(),
                     "sqs producer partial failure; retentando",
                 );
-                if attempt < config.max_retries && !config.base_backoff.is_zero() {
-                    tokio::time::sleep(config.base_backoff * 2u32.pow(attempt - 1)).await;
-                }
+                sleep_before_retry(attempt, config).await;
             }
             Err(e) => {
                 error!(
@@ -339,21 +362,27 @@ async fn flush(
                     error = %e,
                     "sqs producer send error",
                 );
-                if attempt < config.max_retries && !config.base_backoff.is_zero() {
-                    tokio::time::sleep(config.base_backoff * 2u32.pow(attempt - 1)).await;
-                }
+                sleep_before_retry(attempt, config).await;
             }
         }
     }
+}
 
-    // Entradas ainda em to_send sem resultado = retries esgotados
+fn mark_unresolved_as_exhausted(
+    to_send: Vec<SendEntry>,
+    resolved: &mut HashMap<String, Result<MessageId, SendError>>,
+) {
     for entry in to_send {
         resolved
             .entry(entry.id)
             .or_insert_with(|| Err(SendError::RetryExhausted("max retries excedido".into())));
     }
+}
 
-    // Notifica os callers
+fn notify_pending_callers(
+    batch: HashMap<String, PendingMessage>,
+    mut resolved: HashMap<String, Result<MessageId, SendError>>,
+) {
     for (id, msg) in batch {
         let result = resolved
             .remove(&id)
