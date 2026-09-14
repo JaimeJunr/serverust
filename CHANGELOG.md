@@ -27,9 +27,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-13
+
+Release de manutenção: atualiza duas dependências com advisory do RUSTSEC no `Cargo.lock`. **Sem mudança de API** — quem usa os crates como biblioteca pode pular.
+
+**Quem deve atualizar:** quem instala o CLI com `cargo install serverust-cli --locked`, já que esse fluxo usa o `Cargo.lock` publicado no pacote. Quem depende dos crates como biblioteca resolve as próprias dependências e já pegava as versões corrigidas, por serem semver-compatíveis.
+
+### Changed
+
+- `serverust-events`: `handle_sqs_event` e `flush` decompostos em funções menores (complexidade cognitiva 32→6 e 27→3). Refactor interno, sem mudança de API nem de comportamento — os testes existentes passaram sem alteração.
+
 ### Security
 
-- `Cargo.lock`: `h2` 0.4.14 → 0.4.19 (RUSTSEC-2026-0258, DoS por DATA frames vazios sem limite) e `anyhow` 1.0.102 → 1.0.104 (RUSTSEC-2026-0190, unsoundness em `Error::downcast_mut()`). Consumidores das bibliotecas não eram afetados — o `Cargo.lock` não é usado na resolução de dependências de quem depende dos crates, e ambos os fixes são semver-compatíveis; o impacto era em quem builda este repositório.
+- `Cargo.lock`: `h2` 0.4.14 → 0.4.19 (RUSTSEC-2026-0258, DoS por DATA frames vazios sem limite) e `anyhow` 1.0.102 → 1.0.104 (RUSTSEC-2026-0190, unsoundness em `Error::downcast_mut()`). Consumidores das bibliotecas não eram afetados: o `Cargo.lock` não participa da resolução de dependências de quem depende dos crates, e ambos os fixes são semver-compatíveis. O impacto real era em quem builda este repositório e em quem instala o CLI com `cargo install serverust-cli --locked`, fluxo que usa o `Cargo.lock` publicado no pacote.
 - `deny.toml`: dois advisories sem ação possível deste lado passam a ter ignore documentado, em vez de deixar `cargo deny` vermelho mascarando achado novo — `h2` 0.3.27 (sem patch na linha 0.3.x, chega só pelo cliente HTTP do AWS SDK) e `proc-macro-error2` (unmaintained, proc-macro de build-time via `validator_derive`).
 
 ## [0.4.0] - 2026-09-13
