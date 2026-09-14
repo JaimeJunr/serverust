@@ -1,10 +1,12 @@
 name: release-plz
 
+# Trigger APENAS manual. O release-plz.toml está configurado para versionamento
+# per-crate (tags `<crate>-vX.Y.Z`), mas o projeto ainda versiona workspace-wide
+# (`version.workspace = true` nos 6 crates, tag única `vX.Y.Z`) — as duas coisas
+# não se encaixam, e o job disparando em todo push no main só produzia falha.
+# O release da v0.4.0 foi feito pelo processo manual de docs/development/release-checklist.md.
+# Reative o `push` quando o projeto migrar de fato para per-crate.
 on:
-  push:
-    branches: [main]
-  # workflow_dispatch permite trigger manual via UI ("Run workflow") — útil
-  # para forçar release após hot-fix.
   workflow_dispatch:
 
 permissions:
@@ -15,13 +17,16 @@ jobs:
   release-plz-release:
     name: release-plz / release
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install librdkafka build deps
+        # release-plz compila o workspace inteiro; serverust-events/kafka puxa
+        # librdkafka via cmake, que precisa de curl/curl.h e libsasl2.
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev libcurl4-openssl-dev
       - uses: release-plz/action@v0.5
         with:
           command: release
@@ -32,9 +37,9 @@ jobs:
   release-plz-pr:
     name: release-plz / release-pr
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
     concurrency:
-      # Cancela release-pr anterior se um novo push chegar — evita PRs duplicados.
+      # Serializa execuções: uma release-pr por vez na mesma ref. Não cancela a
+      # anterior (cancel-in-progress: false) — a que já está rodando termina.
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
@@ -43,6 +48,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install librdkafka build deps
+        # release-plz compila o workspace inteiro; serverust-events/kafka puxa
+        # librdkafka via cmake, que precisa de curl/curl.h e libsasl2.
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev libcurl4-openssl-dev
       - uses: release-plz/action@v0.5
         with:
           command: release-pr
