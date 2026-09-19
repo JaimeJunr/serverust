@@ -53,6 +53,19 @@ pub struct AuthEnabled;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Authenticated;
 
+/// Motivo estável pelo qual a autenticação falhou, registrado pela
+/// implementação para que o [`AuthGate`] o repasse ao cliente.
+///
+/// Sem isto o portão só saberia dizer "faltou identidade", e códigos úteis
+/// como `token_expired` — que dizem ao cliente para renovar em vez de
+/// reautenticar — se perderiam, porque o portão rejeita **antes** de qualquer
+/// extractor rodar.
+///
+/// O conteúdo é `&'static str` de propósito: o core não interpreta credencial
+/// e não deve alocar no caminho de rejeição.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AuthFailure(pub &'static str);
+
 /// Portão de rota que implementa o **default deny**: com autenticação
 /// instalada, a rota só executa se a requisição estiver autenticada.
 ///
@@ -109,8 +122,14 @@ where
         let authenticated = extensions.get::<Authenticated>().is_some();
 
         if auth_installed && !authenticated {
+            // Repassa o motivo preciso quando a implementação registrou um;
+            // sem ele, a rejeição é genérica por política de rota.
+            let reason = extensions
+                .get::<AuthFailure>()
+                .map_or("authentication_required", |f| f.0);
+
             AuthGateFuture::Denied {
-                response: Some(authentication_required()),
+                response: Some(unauthorized(reason)),
             }
         } else {
             AuthGateFuture::Allowed {
@@ -149,30 +168,30 @@ where
     }
 }
 
-/// Resposta 401 do portão.
+/// Resposta 401 do portão, com o motivo estável informado.
 ///
 /// `WWW-Authenticate: Bearer` segue a RFC 6750 §3 — sem esse header o cliente
 /// não sabe qual esquema usar.
 ///
-/// O motivo é `authentication_required`, e não um código de falha de
-/// credencial: o portão rejeita por **política da rota**, não por ter tentado
-/// interpretar uma credencial. Quem distingue credencial ausente de inválida é
-/// o extractor do crate de autenticação.
-fn authentication_required() -> Response {
+/// O motivo vem do [`AuthFailure`] quando a implementação registrou um (e aí
+/// carrega a precisão dela: `token_expired`, `invalid_issuer`, ...); na
+/// ausência dele é `authentication_required`, que significa rejeição por
+/// política da rota, sem tentativa de interpretar credencial.
+fn unauthorized(reason: &'static str) -> Response {
     // A ADR 0009 pede um 401 "que ensina" o desenvolvedor a anotar a rota. A
     // dica vai só em build de debug: em release ela seria vazamento de detalhe
     // interno para quem chama a API, que não pode fazer nada com ela.
     #[cfg(debug_assertions)]
     let body = serde_json::json!({
         "error": "unauthorized",
-        "reason": "authentication_required",
+        "reason": reason,
         "hint": "rota não anotada: marque com #[public] se ela deve ser aberta",
     });
 
     #[cfg(not(debug_assertions))]
     let body = serde_json::json!({
         "error": "unauthorized",
-        "reason": "authentication_required",
+        "reason": reason,
     });
 
     (

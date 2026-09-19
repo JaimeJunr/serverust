@@ -39,11 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   O portão é **inerte enquanto não houver autenticação instalada**: sem `AuthEnabled` nas extensions ele deixa tudo passar, então quem não usa autenticação não muda de comportamento, e a ordem do builder é irrelevante. A rejeição é 401 com `WWW-Authenticate: Bearer` (RFC 6750 §3) e `reason: "authentication_required"`. A dica que ensina a anotar a rota aparece **só em build de debug** — em release seria vazamento de detalhe interno para quem chama a API.
 
+  O `serverust-auth` passa a inserir esses marcadores, o que **ativa o default deny de fato**: instalar o `AuthLayer` protege toda rota não marcada como pública, inclusive as que não pedem `Auth<C>` na assinatura. O motivo preciso da falha atravessa a rejeição via `AuthFailure`, então uma rota protegida só pelo portão ainda devolve `token_expired` ou `invalid_issuer` em vez de um genérico — a distinção importa, porque diz ao cliente se deve renovar ou reautenticar.
+
   Custo medido: binário stripped de `hello-world` vai de 3 550 128 para 3 585 888 bytes (**+35 KB, +1,0%**), dentro do gate estrito de 5% e a 34% do limite de 10 MB. Startup local não regrediu.
 
 - Novo crate `serverust-auth`: verificação stateless de JWT emitido por IdP externo (Cognito, Auth0, Clerk, Keycloak, Logto), primeira parcela da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). Inclui `JwtAuth` com chave estática (`hs256`, `rs256_pem`, `es256_pem`) e os ajustes `.issuer()`, `.audience()` e `.leeway()`; `AuthLayer<C>`, que valida o token uma única vez e deposita as claims nas extensions sem jamais rejeitar a requisição; os extractors `Auth<C>` (exige identidade, 401 sem ela) e `MaybeAuth<C>` (opcional); e `StandardClaims`, cobrindo os formatos comuns de OAuth 2.0/OIDC. O algoritmo é fixado no construtor e não lido do header, fechando o ataque de confusão de algoritmo. O backend de cripto é Rust puro (feature `rust_crypto` do `jsonwebtoken`), escolhido para não exigir cmake e não quebrar a cross-compilação x86_64 → aarch64. `serverust-core` continua sem dependência de cripto: quem não usa auth não paga nada.
 
-  Ainda **não** implementados, e previstos para incrementos seguintes da mesma ADR: descoberta de JWKS/OIDC com a busca aquecida na fase de init, `#[authorize(scope = "...")]`, o default deny por rota e o `security` automático no OpenAPI. Enquanto o default deny não existe, **uma rota só é protegida se pedir `Auth<C>` na assinatura**.
+  Ainda **não** implementados, e previstos para incrementos seguintes da mesma ADR: descoberta de JWKS/OIDC com a busca aquecida na fase de init, `#[authorize(scope = "...")]`, a macro `#[public]` e o `security` automático no OpenAPI. Enquanto a macro não existe, declarar rota aberta exige a via programática `Route::public()`.
 
 ### Documentation
 

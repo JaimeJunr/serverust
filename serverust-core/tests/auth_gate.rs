@@ -15,7 +15,7 @@ use axum::response::Response;
 use axum::routing::get;
 use http::{Method, Request as HttpRequest, StatusCode};
 use http_body_util::BodyExt;
-use serverust_core::{App, AuthEnabled, Authenticated, Interceptor, IntoRoute, Route};
+use serverust_core::{App, AuthEnabled, AuthFailure, Authenticated, Interceptor, IntoRoute, Route};
 use serverust_macros::get as get_route;
 use tower::ServiceExt;
 use utoipa::openapi::HttpMethod;
@@ -235,6 +235,58 @@ async fn rejeicao_traz_www_authenticate_e_motivo_estavel() {
         corpo.contains(r#""error":"unauthorized""#),
         "corpo: {corpo}"
     );
+    assert!(
+        corpo.contains(r#""reason":"authentication_required""#),
+        "corpo: {corpo}"
+    );
+}
+
+/// Quando a implementação registra um motivo preciso, o portão o repassa em
+/// vez do genérico. Sem isto, proteger uma rota pelo default deny apagaria
+/// códigos úteis como `token_expired`, porque o portão rejeita antes de
+/// qualquer extractor rodar.
+#[tokio::test]
+async fn portao_repassa_o_motivo_registrado_pela_implementacao() {
+    struct FalhaComMotivo;
+
+    impl Interceptor for FalhaComMotivo {
+        async fn intercept(&self, mut req: Request, next: Next) -> Response {
+            req.extensions_mut().insert(AuthEnabled);
+            req.extensions_mut().insert(AuthFailure("token_expired"));
+            next.run(req).await
+        }
+    }
+
+    let router = App::new()
+        .without_docs()
+        .interceptor(FalhaComMotivo)
+        .route(privado)
+        .into_router();
+
+    let resp = router.oneshot(req("/privado")).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    let corpo = corpo(resp).await;
+    assert!(
+        corpo.contains(r#""reason":"token_expired""#),
+        "o portão substituiu o motivo preciso pelo genérico — corpo: {corpo}"
+    );
+}
+
+/// Sem motivo registrado, a rejeição é genérica: política de rota, sem
+/// alegar nada sobre a credencial.
+#[tokio::test]
+async fn sem_motivo_registrado_o_portao_usa_o_generico() {
+    let router = App::new()
+        .without_docs()
+        .interceptor(AutenticacaoFalsa {
+            identidade_valida: false,
+        })
+        .route(privado)
+        .into_router();
+
+    let corpo = corpo(router.oneshot(req("/privado")).await.unwrap()).await;
+
     assert!(
         corpo.contains(r#""reason":"authentication_required""#),
         "corpo: {corpo}"

@@ -181,13 +181,49 @@ O campo `reason` é código estável e **faz parte da API pública** — cliente
 
 O esquema `Bearer` é comparado sem diferenciar maiúsculas, como manda a RFC 7235 §2.1.
 
+## Default deny: instalar o layer protege todas as rotas
+
+**Instalar o `AuthLayer` ativa o default deny.** A partir daí, toda rota exige identidade válida — inclusive as que **não** pedem `Auth<C>` na assinatura:
+
+```rust
+// Protegida, mesmo sem Auth<C> na assinatura.
+#[get("/relatorio")]
+async fn relatorio() -> &'static str { "dados" }
+```
+
+Quem aplica isso é o `AuthGate` do `serverust-core`, que o `App::route()` coloca em toda rota não marcada como pública. O layer nunca rejeita sozinho: ele registra nas extensions se há autenticação instalada (`AuthEnabled`), se a requisição trouxe identidade válida (`Authenticated`) e, quando falhou, o motivo (`AuthFailure`). O portão lê esses marcadores e decide.
+
+O motivo preciso atravessa a rejeição: uma rota protegida só pelo default deny ainda devolve `token_expired` ou `invalid_issuer`, não um genérico. Só quando não há motivo registrado a resposta é `authentication_required`.
+
+### Abrindo uma rota
+
+A exceção é explícita e auditável — `grep` acha marcação, nunca a falta dela. Enquanto a macro `#[public]` não existe, use a via programática:
+
+```rust
+use serverust_core::{IntoRoute, Route};
+use utoipa::openapi::{HttpMethod, path::Operation};
+
+struct Health;
+
+impl IntoRoute for Health {
+    fn into_route(self) -> Route {
+        Route::new("/health", HttpMethod::Get, axum::routing::get(|| async { "ok" }), Operation::new())
+            .public()
+    }
+}
+```
+
+> **Adotando em serviço existente:** instalar o layer fecha todas as rotas de uma vez. Rode a suíte de testes — as falhas são a sua checklist do que precisa ser marcado público.
+
+**O que o portão não alcança:** as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) não passam por `App::route()` e seguem abertas; feche-as com `App::without_docs()`. E rota registrada direto no `axum::Router`, fora do `App`, também não é embrulhada.
+
 ## O que ainda não está implementado
 
 Esta é a primeira parcela da ADR 0009. Está fora do que existe hoje:
 
 - **Descoberta de JWKS/OIDC.** Só há chave estática. O construtor `async` com a busca do JWKS aquecida na fase de init, e o refresh sob demanda em caso de `kid` desconhecido, vêm em incremento seguinte.
 - **`#[authorize(scope = "...")]`.** A trait `AuthzFacts` já existe e o layer já publica os fatos apagados de tipo nas extensions, mas a macro que gera o `Guard` correspondente ainda não. Autorização por escopo hoje é checagem manual dentro do handler.
-- **Default deny por rota.** Ainda não existe. **Uma rota só é protegida se pedir `Auth<C>` na assinatura** — esquecer o parâmetro publica um endpoint aberto em silêncio. Enquanto isso não muda, trate a presença de `Auth<C>` como item de revisão de PR.
+- **Marcar rota pública por macro.** O default deny já vale (veja abaixo), mas a macro `#[public]` ainda não existe. Enquanto isso, a única forma de declarar uma rota aberta é a via programática `Route::public()`, implementando `IntoRoute` à mão.
 - **`security` automático no OpenAPI.** O botão "Authorize" do Scalar/Swagger UI ainda precisa de configuração manual.
 
 ## Veja também

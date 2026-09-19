@@ -81,6 +81,17 @@ pub fn req_bearer(path: &str, token: &str) -> Request<Body> {
     req_com_authorization(path, &format!("Bearer {token}"))
 }
 
+/// Corpo da resposta como texto cru, para handlers que devolvem `&str`.
+pub async fn corpo_texto(resp: Response) -> String {
+    let bytes = resp
+        .into_body()
+        .collect()
+        .await
+        .expect("corpo legível")
+        .to_bytes();
+    String::from_utf8(bytes.to_vec()).expect("corpo precisa ser UTF-8")
+}
+
 /// Corpo da resposta desserializado como JSON.
 pub async fn corpo_json(resp: Response) -> Value {
     let bytes = resp

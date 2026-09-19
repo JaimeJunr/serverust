@@ -46,7 +46,9 @@ mod route;
 mod validation;
 
 pub use app::App;
-pub use auth::{AuthEnabled, AuthGate, AuthGateFuture, AuthGateService, Authenticated};
+pub use auth::{
+    AuthEnabled, AuthFailure, AuthGate, AuthGateFuture, AuthGateService, Authenticated,
+};
 pub use config::ServerustConfig;
 pub use container::{Container, Injectable};
 pub use error::{ApiError, validation_error_response};
