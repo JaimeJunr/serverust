@@ -59,7 +59,7 @@ A validação já exige a claim `exp` e checa expiração por default. `issuer`,
 
 ## Instalando o layer
 
-Use `App::layer` — o mesmo ponto de extensão de qualquer `tower::Layer`:
+Use `App::auth`:
 
 ```rust
 use serverust_auth::{AuthLayer, JwtAuth, StandardClaims};
@@ -71,13 +71,28 @@ async fn main() -> std::io::Result<()> {
     let auth = JwtAuth::hs256(secret.as_bytes()).issuer("https://idp.exemplo.com/");
 
     App::new()
-        .layer(AuthLayer::<StandardClaims>::new(auth))
+        .auth(AuthLayer::<StandardClaims>::new(auth))
         .route(me)
         .route(health)
         .run_http("127.0.0.1:3000")
         .await
 }
 ```
+
+`.auth(...)` é o `.layer(...)` de sempre, com duas diferenças. A primeira é o nome: essa linha é a decisão mais consequente do serviço — a partir dela toda rota não marcada `#[public]` exige identidade — e esconder isso num ponto de extensão genérico não ajuda quem lê o `main`.
+
+A segunda é o log de inicialização. Com `.auth(...)`, o boot imprime no stderr a superfície anônima do serviço:
+
+```text
+  🔒 serverust: default deny ativo
+     2 rota(s) pública(s), sem exigir identidade:
+       GET /health
+       POST /webhooks/stripe
+```
+
+Lista o que é **aberto**, nunca o que é protegido: a lista curta é a que se lê, e inverter produziria um log do tamanho do serviço, que ninguém lê. `App::public_routes()` devolve o mesmo conteúdo, para afirmar a superfície anônima num teste em vez de confiar na leitura do log.
+
+`.layer(AuthLayer::new(...))` continua funcionando e continua ativando o default deny — quem faz isso são os marcadores que o layer insere, não o método. O que se perde é a lista no boot.
 
 Se o mesmo `JwtAuth` alimentar mais de um ponto da aplicação, use `AuthLayer::shared(Arc<JwtAuth>)` em vez de `new`.
 
@@ -185,7 +200,7 @@ O esquema `Bearer` é comparado sem diferenciar maiúsculas, como manda a RFC 72
 
 ## Default deny: instalar o layer protege todas as rotas
 
-**Instalar o `AuthLayer` ativa o default deny.** A partir daí, toda rota exige identidade válida — inclusive as que **não** pedem `Auth<C>` na assinatura:
+**Instalar autenticação ativa o default deny.** A partir daí, toda rota exige identidade válida — inclusive as que **não** pedem `Auth<C>` na assinatura:
 
 ```rust
 // Protegida, mesmo sem Auth<C> na assinatura.
@@ -220,7 +235,26 @@ Route::new("/health", HttpMethod::Get, axum::routing::get(|| async { "ok" }), Op
     .public()
 ```
 
-> **Adotando em serviço existente:** instalar o layer fecha todas as rotas de uma vez. Rode a suíte de testes — as falhas são a sua checklist do que precisa ser marcado público.
+### Adotando em serviço existente
+
+Instalar autenticação fecha todas as rotas de uma vez. Rode a suíte de testes: as falhas são a sua checklist do que precisa ser marcado público.
+
+Quando marcar tudo num único PR for arriscado demais, `App::allow_unannotated()` desliga o default deny enquanto a migração acontece rota a rota:
+
+```rust
+App::new()
+    .auth(AuthLayer::<StandardClaims>::new(auth))
+    .allow_unannotated()   // temporário — veja o aviso no boot
+```
+
+É escape hatch de migração, não configuração. Uma linha visível no builder é melhor do que omissão espalhada por N rotas, e o log de init a denuncia em voz alta a cada boot:
+
+```text
+  ⚠️  serverust: default deny DESLIGADO por .allow_unannotated()
+     toda rota responde sem identidade. [...]
+```
+
+Não afeta `#[authorize]`: afrouxar o default não é abrir mão da permissão que alguém pediu de propósito.
 
 ## Autorização por escopo e papel
 
@@ -273,7 +307,6 @@ A ausência de identidade nega **inclusive em rota `#[public]`** e **inclusive s
 A ADR 0009 é entregue em parcelas. Está fora do que existe hoje:
 
 - **Descoberta de JWKS/OIDC.** Só há chave estática. O construtor `async` com a busca do JWKS aquecida na fase de init, e o refresh sob demanda em caso de `kid` desconhecido, vêm em incremento seguinte.
-- **Log de inicialização listando as rotas públicas.** A anotação já é auditável por `grep`; ver a lista no boot do serviço ainda não é possível.
 - **Exigência alternativa em `#[authorize]`.** Só há conjunção (AND). Um `any_of` cabe hoje num `#[guard]` escrito à mão.
 - **`security` automático no OpenAPI.** O botão "Authorize" do Scalar/Swagger UI ainda precisa de configuração manual.
 

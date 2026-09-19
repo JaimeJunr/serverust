@@ -9,9 +9,10 @@ use axum::middleware::Next;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use tokio::net::{TcpListener, ToSocketAddrs};
+use utoipa::openapi::HttpMethod;
 use utoipa::{PartialSchema, ToSchema};
 
-use crate::auth::AuthGate;
+use crate::auth::{AllowUnannotated, AuthGate};
 use crate::config::ServerustConfig;
 use crate::container::Container;
 use crate::events::{EventDispatcher, EventHandler, EventHandlerRegistry};
@@ -75,6 +76,17 @@ pub struct App {
     redoc_path: &'static str,
     interceptors: Vec<RouterMutator>,
     docs_enabled: bool,
+    /// Se [`Self::auth`] foi usado. Só serve para decidir se o log de
+    /// inicialização sai: sem autenticação instalada, listar rotas públicas
+    /// seria ruído — todas são.
+    auth_installed: bool,
+    /// Se [`Self::allow_unannotated`] foi usado.
+    allow_unannotated: bool,
+    /// Rotas marcadas públicas, na ordem de registro, para o log de init.
+    /// O método vem como `&'static str` (`"GET"`) porque o `HttpMethod` do
+    /// utoipa não é `Debug` nem `PartialEq` — inutilizável numa asserção de
+    /// teste, que é metade do propósito deste inventário.
+    public_routes: Vec<(&'static str, &'static str)>,
     // TypeId::of::<EventHandlerRegistry<E>>() → Box<EventHandlerRegistry<E>>
     event_registries: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
@@ -91,6 +103,9 @@ impl App {
             redoc_path: "/redoc",
             interceptors: Vec::new(),
             docs_enabled: true,
+            auth_installed: false,
+            allow_unannotated: false,
+            public_routes: Vec::new(),
             event_registries: HashMap::new(),
         }
     }
@@ -181,6 +196,68 @@ impl App {
         self
     }
 
+    /// Instala autenticação — o mesmo que [`Self::layer`], com duas
+    /// diferenças que importam.
+    ///
+    /// ```ignore
+    /// App::new()
+    ///     .auth(AuthLayer::<StandardClaims>::new(jwt))
+    ///     .route(me)
+    /// ```
+    ///
+    /// A primeira é o nome: `.layer(AuthLayer::new(...))` esconde num ponto
+    /// de extensão genérico a decisão mais consequente do serviço — a partir
+    /// dali **toda rota não marcada `#[public]` passa a exigir identidade**.
+    /// Quem lê o `main` merece ver isso escrito.
+    ///
+    /// A segunda é o log de inicialização: com `.auth(...)`, o
+    /// [`Self::into_router`] imprime no stderr a lista de rotas públicas do
+    /// serviço. É a mitigação 2 da decisão 5 da ADR 0009 — a superfície
+    /// anônima fica visível em cada deploy, não só para quem roda `grep`.
+    ///
+    /// `.layer(AuthLayer::new(...))` continua funcionando e continua ativando
+    /// o default deny (quem faz isso são os marcadores que o layer insere,
+    /// não este método). O que se perde é a lista no boot.
+    pub fn auth<L>(mut self, layer: L) -> Self
+    where
+        L: tower::Layer<axum::routing::Route> + Clone + Send + Sync + 'static,
+        L::Service: tower::Service<Request> + Clone + Send + Sync + 'static,
+        <L::Service as tower::Service<Request>>::Response: IntoResponse + 'static,
+        <L::Service as tower::Service<Request>>::Error: Into<std::convert::Infallible> + 'static,
+        <L::Service as tower::Service<Request>>::Future: Send + 'static,
+    {
+        self.auth_installed = true;
+        self.layer(layer)
+    }
+
+    /// Desliga o default deny: rota sem `#[public]` volta a responder sem
+    /// identidade. **Escape hatch de migração, não configuração.**
+    ///
+    /// Instalar autenticação num serviço existente fecha todas as rotas de
+    /// uma vez, e marcar dezenas de `#[public]` num único PR é exatamente
+    /// onde o erro entra. Esta linha compra tempo para fazer isso rota a
+    /// rota, com a suíte de testes como checklist.
+    ///
+    /// É uma linha visível no builder em vez de omissão distribuída por N
+    /// rotas — e o log de init a denuncia em voz alta a cada boot, porque uma
+    /// permanência silenciosa aqui é o mesmo buraco que o default deny
+    /// fecha.
+    ///
+    /// Não afeta `#[authorize]`: afrouxar o default não é abrir mão do que
+    /// foi pedido de propósito.
+    pub fn allow_unannotated(mut self) -> Self {
+        self.allow_unannotated = true;
+        self.layer(axum::Extension(AllowUnannotated))
+    }
+
+    /// As rotas marcadas públicas, na ordem de registro.
+    ///
+    /// Mesmo conteúdo do log de inicialização, para quem queira afirmar a
+    /// superfície anônima num teste em vez de confiar na leitura do log.
+    pub fn public_routes(&self) -> &[(&'static str, &'static str)] {
+        &self.public_routes
+    }
+
     /// Injeta uma [`ServerustConfig`] tipada no container. Handlers podem extraí-la via
     /// `State<Arc<ServerustConfig>>`.
     pub fn config(self, cfg: ServerustConfig) -> Self {
@@ -196,10 +273,12 @@ impl App {
     /// configurar autenticação dá o mesmo resultado.
     pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
         let route = handler.into_route();
+        let route_method = metodo_str(&route.method);
         self.openapi
             .push_operation(route.path, route.method, route.operation);
 
         let method_router = if route.is_public {
+            self.public_routes.push((route_method, route.path));
             route.method_router
         } else {
             route.method_router.layer(AuthGate)
@@ -252,6 +331,13 @@ impl App {
     /// Constrói o `axum::Router` final adicionando `/openapi.json`, `/docs` e
     /// `/redoc` — a menos que [`Self::without_docs`] tenha sido chamado.
     pub fn into_router(self) -> Router {
+        if self.auth_installed {
+            eprint!(
+                "{}",
+                relatorio_de_init(&self.public_routes, self.allow_unannotated)
+            );
+        }
+
         // Aplica interceptors sobre as rotas do usuário antes de juntar com as
         // rotas de documentação — isto garante que /openapi.json, /docs e
         // /redoc NÃO sejam envolvidos pela pipeline de middleware do usuário.
@@ -340,5 +426,106 @@ impl App {
 impl Default for App {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// O texto do log de inicialização de autenticação (mitigação 2 da decisão 5
+/// da ADR 0009).
+///
+/// Separado do [`App::into_router`] e puro para ser afirmável em teste: o
+/// conteúdo desta lista é uma declaração de segurança, e declaração de
+/// segurança que ninguém verifica é a categoria de problema que a ADR inteira
+/// trata.
+///
+/// Lista **o que é aberto**, nunca o que é protegido. A lista curta é a que
+/// se lê; inverter isso produziria um log proporcional ao serviço, que
+/// ninguém lê — e a auditoria por presença vale também para a ferramenta de
+/// auditoria.
+fn relatorio_de_init(publicas: &[(&'static str, &'static str)], afrouxado: bool) -> String {
+    use std::fmt::Write as _;
+
+    let mut saida = String::new();
+
+    if afrouxado {
+        // Em voz alta e antes da lista: com o escape hatch ligado a lista
+        // abaixo é irrelevante, porque tudo está aberto.
+        saida.push_str(
+            "\n  ⚠️  serverust: default deny DESLIGADO por .allow_unannotated()\n     \
+             toda rota responde sem identidade. Isto é escape hatch de migração — \
+             marque as rotas com #[public] e remova a chamada.\n\n",
+        );
+        return saida;
+    }
+
+    let _ = writeln!(saida, "\n  🔒 serverust: default deny ativo");
+
+    if publicas.is_empty() {
+        let _ = writeln!(
+            saida,
+            "     nenhuma rota pública — toda rota exige identidade"
+        );
+    } else {
+        let _ = writeln!(
+            saida,
+            "     {} rota(s) pública(s), sem exigir identidade:",
+            publicas.len()
+        );
+        for (metodo, path) in publicas {
+            let _ = writeln!(saida, "       {metodo} {path}");
+        }
+    }
+
+    saida.push('\n');
+    saida
+}
+
+/// Nome HTTP do método, em maiúsculas.
+fn metodo_str(metodo: &HttpMethod) -> &'static str {
+    match metodo {
+        HttpMethod::Get => "GET",
+        HttpMethod::Post => "POST",
+        HttpMethod::Put => "PUT",
+        HttpMethod::Patch => "PATCH",
+        HttpMethod::Delete => "DELETE",
+        HttpMethod::Head => "HEAD",
+        HttpMethod::Options => "OPTIONS",
+        HttpMethod::Trace => "TRACE",
+    }
+}
+
+#[cfg(test)]
+mod testes_do_relatorio {
+    use super::*;
+
+    #[test]
+    fn lista_as_rotas_publicas_com_metodo_e_path() {
+        let texto = relatorio_de_init(&[("GET", "/health"), ("POST", "/webhooks/stripe")], false);
+
+        assert!(texto.contains("default deny ativo"), "{texto}");
+        assert!(texto.contains("2 rota(s) pública(s)"), "{texto}");
+        assert!(texto.contains("GET /health"), "{texto}");
+        assert!(texto.contains("POST /webhooks/stripe"), "{texto}");
+    }
+
+    #[test]
+    fn sem_rotas_publicas_diz_isso_explicitamente() {
+        let texto = relatorio_de_init(&[], false);
+
+        assert!(texto.contains("nenhuma rota pública"), "{texto}");
+    }
+
+    /// Com o escape hatch ligado, a lista de públicas seria enganosa: tudo
+    /// está aberto. O relatório precisa dizer isso, e não listar.
+    #[test]
+    fn escape_hatch_avisa_em_vez_de_listar() {
+        let texto = relatorio_de_init(&[("GET", "/health")], true);
+
+        assert!(texto.contains("DESLIGADO"), "{texto}");
+        assert!(texto.contains("allow_unannotated"), "{texto}");
+        assert!(
+            !texto.contains("/health"),
+            "listar rotas públicas com o default deny desligado sugere que as \
+             demais estão protegidas — {texto}"
+        );
     }
 }

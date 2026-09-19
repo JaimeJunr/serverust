@@ -95,6 +95,23 @@ pub struct Authenticated;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AuthFailure(pub &'static str);
 
+/// Marcador que **desliga** o [`AuthGate`] em toda a aplicação — o escape
+/// hatch `.allow_unannotated()` da decisão 5 da ADR 0009.
+///
+/// Existe para migração de serviço existente: instalar autenticação fecha
+/// todas as rotas de uma vez, e marcar dezenas de `#[public]` num único PR é
+/// onde o erro entra. Uma linha visível no builder é preferível à omissão
+/// distribuída por N rotas — e é o nome dela que desencoraja permanecer.
+///
+/// Não afeta `#[authorize]`: aquilo é autorização explícita, e afrouxar o
+/// default não é o mesmo que abrir mão do que foi pedido de propósito.
+///
+/// É marcador de request, e não flag de montagem, para que a ordem do builder
+/// continue irrelevante: `.allow_unannotated()` antes ou depois de `.route()`
+/// dá o mesmo resultado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AllowUnannotated;
+
 /// Portão de rota que implementa o **default deny**: com autenticação
 /// instalada, a rota só executa se a requisição estiver autenticada.
 ///
@@ -149,8 +166,9 @@ where
         let extensions = req.extensions();
         let auth_installed = extensions.get::<AuthEnabled>().is_some();
         let authenticated = extensions.get::<Authenticated>().is_some();
+        let afrouxado = extensions.get::<AllowUnannotated>().is_some();
 
-        if auth_installed && !authenticated {
+        if auth_installed && !authenticated && !afrouxado {
             // Repassa o motivo preciso quando a implementação registrou um;
             // sem ele, a rejeição é genérica por política de rota.
             let reason = extensions

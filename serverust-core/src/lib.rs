@@ -47,7 +47,8 @@ mod validation;
 
 pub use app::App;
 pub use auth::{
-    AuthEnabled, AuthFailure, AuthGate, AuthGateFuture, AuthGateService, Authenticated, AuthzFacts,
+    AllowUnannotated, AuthEnabled, AuthFailure, AuthGate, AuthGateFuture, AuthGateService,
+    Authenticated, AuthzFacts,
 };
 pub use config::ServerustConfig;
 pub use container::{Container, Injectable};

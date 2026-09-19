@@ -37,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `serverust-core`: **`App::auth(layer)`** e o log de inicialização que lista as rotas públicas — mitigação 2 da decisão 5 da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). É o mesmo `App::layer`, com duas diferenças: o nome, porque essa linha é a decisão mais consequente do serviço e esconder isso num ponto de extensão genérico não ajuda quem lê o `main`; e o log, que imprime no stderr a superfície anônima a cada boot.
+
+  Lista o que é **aberto**, nunca o que é protegido: a lista curta é a que se lê, e inverter produziria um log do tamanho do serviço. `App::public_routes()` expõe o mesmo conteúdo, para afirmar a superfície anônima num teste em vez de confiar na leitura do log — e há teste conferindo que o inventário bate com o que de fato responde sem token, porque declaração de segurança que ninguém verifica é a categoria de problema que a ADR inteira trata.
+
+  `.layer(AuthLayer::new(...))` continua ativando o default deny; quem faz isso são os marcadores que o layer insere, não o método. O que se perde é a lista no boot. Sem autenticação instalada nada é impresso.
+
+- `serverust-core`: **`App::allow_unannotated()`**, o escape hatch de migração da decisão 5. Desliga o default deny para que um serviço existente seja migrado rota a rota, em vez de marcar dezenas de `#[public]` num único PR — que é onde o erro entra. É uma linha visível no builder em vez de omissão distribuída, e o log de init a denuncia em voz alta a cada boot.
+
+  Não desarma `#[authorize]`: afrouxar o default não é abrir mão da permissão que alguém pediu de propósito. Implementado como marcador de request (`AllowUnannotated`), e não como flag de montagem, para que a ordem do builder continue irrelevante.
+
 - `serverust-macros`: macro **`#[public]`**, a anotação que abre uma rota declarada por macro. É a exceção explícita ao default deny da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md) — o `pub` do Rust, para rotas — e fecha o vão em que só a via programática `Route::public()` conseguia declarar uma rota aberta.
 
   Vem **acima** da macro de rota, como `#[guard]`. Abaixo ela não teria efeito, e em vez de ser ignorada em silêncio **não compila**: `#[public]` deixa um marcador que a macro de rota consome, e o marcador é ele próprio um erro de compilação se ninguém o consumir. Uma rota que se diz pública sem ser é exatamente a falha que o default deny existe para evitar — anunciá-la e não aplicá-la seria pior do que não ter a anotação.

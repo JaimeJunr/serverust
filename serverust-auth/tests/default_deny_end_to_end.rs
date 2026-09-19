@@ -237,3 +237,110 @@ async fn sem_o_layer_instalado_nada_e_negado() {
 
     assert_eq!(resp.status(), StatusCode::OK);
 }
+
+/// `App::auth()` precisa ativar o default deny tanto quanto `App::layer()`.
+/// Um método nomeado "auth" que não autentica seria a repetição exata do
+/// portão que existia sem fazer nada.
+#[tokio::test]
+async fn app_auth_ativa_o_default_deny() {
+    let router = App::new()
+        .without_docs()
+        .auth(AuthLayer::<StandardClaims>::new(JwtAuth::hs256(
+            common::SEGREDO,
+        )))
+        .route(relatorio)
+        .route(Health)
+        .into_router();
+
+    let negado = router
+        .clone()
+        .oneshot(common::req_sem_token("/relatorio"))
+        .await
+        .unwrap();
+    assert_eq!(negado.status(), StatusCode::UNAUTHORIZED);
+
+    let publica = router
+        .oneshot(common::req_sem_token("/health"))
+        .await
+        .unwrap();
+    assert_eq!(publica.status(), StatusCode::OK);
+}
+
+/// O inventário que o log de init imprime precisa bater com o que o portão
+/// realmente deixa passar — senão o log vira uma declaração de segurança
+/// falsa, que é pior do que não ter log.
+#[tokio::test]
+async fn o_inventario_bate_com_o_que_responde_sem_token() {
+    let app = App::new()
+        .without_docs()
+        .auth(AuthLayer::<StandardClaims>::new(JwtAuth::hs256(
+            common::SEGREDO,
+        )))
+        .route(relatorio)
+        .route(ping)
+        .route(Health);
+
+    let inventario: Vec<&str> = app.public_routes().iter().map(|(_, path)| *path).collect();
+    assert_eq!(inventario, vec!["/ping", "/health"]);
+
+    let router = app.into_router();
+    for path in inventario {
+        let resp = router
+            .clone()
+            .oneshot(common::req_sem_token(path))
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "{path} está no inventário de rotas públicas mas não responde sem token"
+        );
+    }
+}
+
+/// O escape hatch com o layer real: abre o que não foi anotado, sem tocar no
+/// que já estava aberto.
+#[tokio::test]
+async fn allow_unannotated_com_o_layer_real() {
+    let router = App::new()
+        .without_docs()
+        .auth(AuthLayer::<StandardClaims>::new(JwtAuth::hs256(
+            common::SEGREDO,
+        )))
+        .allow_unannotated()
+        .route(relatorio)
+        .into_router();
+
+    let resp = router
+        .oneshot(common::req_sem_token("/relatorio"))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+/// Mas não desarma `#[authorize]`: afrouxar o default é uma coisa, ignorar a
+/// permissão que alguém pediu de propósito é outra.
+#[tokio::test]
+async fn allow_unannotated_nao_desarma_authorize() {
+    let router = App::new()
+        .without_docs()
+        .auth(AuthLayer::<StandardClaims>::new(JwtAuth::hs256(
+            common::SEGREDO,
+        )))
+        .allow_unannotated()
+        .route(pedidos)
+        .into_router();
+
+    let resp = router
+        .oneshot(common::req_bearer("/pedidos", &token_com_escopo("profile")))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        ".allow_unannotated() desarmou o #[authorize] — o escape hatch afrouxa \
+         o default, não a autorização explícita"
+    );
+}
