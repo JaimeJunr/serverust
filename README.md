@@ -70,6 +70,7 @@ Leia a análise completa em [`docs/product/philosophy.md`](docs/product/philosop
 - Guards, Pipes e Interceptors para cross-cutting concerns
 - Runtime dual: detecta automaticamente HTTP local vs AWS Lambda
 - Telemetria nativa: logs JSON, tracing X-Ray, métricas EMF
+- Autenticação opt-in via `serverust-auth`: verificação de JWT de IdP externo com `AuthLayer` + extractor `Auth<C>` ([guia](docs/guides/auth.md))
 - CLI: `serverust new/generate/dev/build/deploy/info/openapi`
 - Configuração via `serverust.toml` + env vars (figment)
 
@@ -86,6 +87,7 @@ serverust-macros/     # Proc-macros: #[get], #[post], #[injectable], etc.
 serverust-cli/        # CLI serverust com clap
 serverust-lambda/     # Runtime dual Lambda + HTTP via AppRuntime trait
 serverust-telemetry/  # Logger JSON, tracing, métricas EMF
+serverust-auth/       # Opt-in: verificação de JWT de IdP externo (AuthLayer, Auth<C>)
 examples/
   hello-world/      # Mínimo para benchmark de cold start
   funds-api/        # CRUD completo: validação, OpenAPI, DI
