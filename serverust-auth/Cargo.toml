@@ -13,6 +13,11 @@ categories.workspace = true
 description = "Autenticação e autorização opt-in para serverust: verificação stateless de JWT emitido por IdP externo."
 
 [dependencies]
+# Contrato do default deny: este crate insere `AuthEnabled` e `Authenticated`
+# nas extensions para que o `AuthGate` do core saiba decidir. A dependência é
+# unidirecional — `serverust-core` nunca importa `serverust-auth`, e é isso que
+# mantém o core sem cripto.
+serverust-core = { path = "../serverust-core", version = "0.4.2" }
 axum = "0.8"
 http = "1"
 tower = "0.5"
@@ -39,5 +44,8 @@ jsonwebtoken = { version = "11", default-features = false, features = [
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-serverust-core = { path = "../serverust-core", version = "0.4.2" }
 serverust-macros = { path = "../serverust-macros", version = "0.4.2" }
+# Necessária para montar uma `Route` pública à mão no teste de ponta a ponta:
+# `Route::new` recebe uma `utoipa::openapi::path::Operation`. Sai quando a
+# macro `#[public]` existir e cobrir esse caso.
+utoipa = "5"

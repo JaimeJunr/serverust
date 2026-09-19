@@ -3062,6 +3062,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tower",
+ "utoipa",
 ]
 
 [[package]]
@@ -3084,6 +3085,7 @@ dependencies = [
  "figment",
  "http 1.4.0",
  "http-body-util",
+ "pin-project-lite",
  "serde",
  "serde_json",
  "serverust-macros",
