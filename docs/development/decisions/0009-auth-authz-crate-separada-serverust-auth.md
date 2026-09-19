@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-09-19
 - **Deciders:** maintainers serverust
+- **Emendas:** [Emenda 1](#emenda-1-2026-09-19--mecanismo-do-default-deny) (2026-09-19) — mecanismo do default deny
 
 ---
 
@@ -140,6 +141,67 @@ O trade-off é real e assumido: adicionar `.auth()` a um serviço existente fech
 
 Nota: as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) ficam fora dos layers por design (`App::interceptor`), então seguem públicas mesmo sob default deny — quem precisa fechá-las usa `App::without_docs()`.
 
+O **mecanismo** de aplicação dessa decisão não estava resolvido aqui e foi fixado na [Emenda 1](#emenda-1-2026-09-19--mecanismo-do-default-deny).
+
+## Emenda 1 (2026-09-19) — mecanismo do default deny
+
+- **Status da emenda:** Accepted
+- **Motivação:** a implementação da primeira parcela (PR #46) expôs uma lacuna. A decisão 5 fixou **que** rota sem anotação é negada, mas não **como** a negação é aplicada — e a resposta óbvia não funciona.
+
+### O que não funciona
+
+O `AuthLayer` é instalado por `App::layer` e envolve o router inteiro. Ele não sabe qual rota casou, e o marcador `#[public]` vive no handler, que só executa depois. **Um layer global, sozinho, não distingue rota pública de rota esquecida** — que é exatamente a distinção de que o default deny depende.
+
+### Opções consideradas
+
+**A. Layer global lendo `MatchedPath` contra um registro de rotas públicas.** O `App` montaria, no build, o conjunto de pares (método, path) marcados `#[public]`; o layer consultaria esse conjunto a cada requisição.
+Rejeitada: transforma uma decisão estática em lookup por requisição, e faz a corretude depender de o `MatchedPath` casar exatamente com a string registrada. Path com parâmetro, rota aninhada ou `nest()` viram fonte de divergência silenciosa — e falha silenciosa aqui é falha aberta.
+
+**B. A macro de rota injeta um guard em toda rota que não seja `#[public]`.** Aproveitaria o `GuardCheck` já existente e resolveria a decisão em compile-time.
+Rejeitada por custo imposto a terceiros: o axum implementa `Handler` para no máximo **16 extractors**, e essa abordagem gastaria um slot **de todo handler do ecossistema**, inclusive dos projetos que nunca habilitam auth. Um mecanismo de auth não deve consumir orçamento de assinatura de quem não o usa.
+
+**C. Portão por rota, decidido no registro da rota.** Escolhida.
+
+### Decisão
+
+A rota carrega a própria classificação, e o portão é aplicado só onde precisa existir:
+
+1. **`Route` ganha o flag.** `serverust-core` acrescenta `is_public: bool` a [`Route`](../../../serverust-core/src/route.rs), com um builder `Route::public()`. `Route::new(...)` mantém a assinatura atual e default `false` — as macros constroem por `new()`, então o código gerado hoje continua válido.
+
+2. **`App::route()` embrulha o que não é público.** No registro, uma rota não-pública tem seu `MethodRouter` envolvido por um `AuthGate`. Rota `#[public]` não é envolvida — o portão não existe no caminho dela.
+
+3. **O portão é inerte sem auth.** O `AuthGate` só nega quando as extensions trazem o marcador de que há autenticação instalada. Sem `App::auth(...)`, ele deixa passar. Isso torna a ordem do builder irrelevante: `.auth()` antes ou depois de `.route()` dá o mesmo resultado, porque a decisão é tomada em runtime sobre um marcador, não na montagem.
+
+4. **O contrato fica em `serverust-core`, a identidade em `serverust-auth`.** O core define dois tipos-marcador sem dependência alguma — um dizendo "existe autenticação instalada", outro carregando "este request está autenticado" — mais o `AuthGate`. O `serverust-auth` insere o primeiro sempre e o segundo quando o token é válido.
+
+   São ~50 linhas e **zero dependência nova** no core, na mesma categoria do trait `Guard`, que já mora lá. O ganho é que o mecanismo não pertence ao `serverust-auth`: qualquer implementação de autenticação — inclusive uma do usuário — herda o default deny inserindo os mesmos marcadores.
+
+A ordem de execução sai correta de graça: `App::layer` envolve o router por fora, o `AuthGate` embrulha a rota por dentro. O layer de auth popula as extensions antes de o portão lê-las.
+
+### `#[public]` como atributo próprio
+
+`#[public]` é atributo separado, acima da macro de rota, como `#[guard]` e `#[authorize]`:
+
+```rust
+#[public]
+#[get("/health")]
+async fn health() -> &'static str { "ok" }
+```
+
+Atributos externos expandem de cima para baixo, então `#[public]` expande primeiro e deixa um marcador que a macro de rota consome e remove, emitindo `Route::public()`.
+
+Seria mais simples aceitar um flag dentro da macro de rota (`#[get("/health", public)]`) e não exigiria marcador nenhum. Foi preterido por **auditabilidade**: `grep -rn '#\[public\]'` devolve a superfície exposta inteira, uma linha por rota, sem falso positivo — enquanto `public` dentro de uma lista de atributos se confunde com qualquer outro uso da palavra. A regra 2 do corolário da filosofia (*a exceção é auditável por presença*) vale também para a ferramenta de auditoria.
+
+`#[public]` e `#[authorize]` na mesma rota são contradição e devem ser **erro de compilação**, não precedência silenciosa.
+
+O `.allow_unannotated()` da decisão 5 passa a significar: `App` não embrulha rota nenhuma com o `AuthGate`. Os `#[authorize]` seguem valendo, porque são guards independentes — a migração afrouxa o default, não a autorização explícita.
+
+### Limites que esta emenda não remove
+
+- **Continua sendo runtime, não compile-time.** A macro de rota não sabe se `App::auth(...)` foi chamado, então esquecer a anotação falha fechado na primeira requisição, não no build. É *fail-safe*, não garantia de compilador — e a ambição de transformar isso em erro de compilação segue fora de escopo.
+- **`App::axum_router()` contorna o portão.** Rota registrada direto no `axum::Router` nunca passa por `App::route()` e portanto não é embrulhada. É consequência aceita de manter o escape hatch de primeira classe, e **precisa estar documentada no guia**, porque é o caminho pelo qual alguém abre um endpoint sem perceber.
+- **Adicionar campo a `Route` quebra construção por struct literal.** Quem escreve `Route { .. }` à mão precisa de ajuste; quem usa `Route::new()` ou as macros, não. Aceitável em `0.x` e com `Route` sendo quase sempre gerada por macro, mas é mudança de API pública e entra no CHANGELOG como tal.
+
 ## Consequências
 
 ### Positivas
@@ -160,6 +222,8 @@ Nota: as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) ficam fora
 - Uma associated const nova em `Guard` no core — mitigada pelo default, mas é superfície pública adicional.
 - Adotar `.auth()` em um serviço existente fecha todas as rotas de uma vez, exigindo uma passada para marcar as públicas. É atrito único e guiado pela própria suíte de testes, mas é atrito real.
 - O default deny é imposto em runtime, não em compile-time: a macro de rota não sabe se `App::auth()` foi chamado. É fail-safe, não garantia de compilador — a ambição de transformar isso em erro de compilação fica para uma ADR futura.
+- O mecanismo da [Emenda 1](#emenda-1-2026-09-19--mecanismo-do-default-deny) acrescenta um campo a `Route` e dois tipos-marcador mais o `AuthGate` em `serverust-core`. Sem dependência nova, mas é superfície pública adicional, e o campo quebra construção de `Route` por struct literal.
+- O escape hatch `App::axum_router()` contorna o portão por rota: o que não passa por `App::route()` não é embrulhado. Limitação inerente a manter o escape hatch, a ser documentada no guia.
 
 ## Verificação
 
