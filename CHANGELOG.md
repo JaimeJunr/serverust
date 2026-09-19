@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `serverust-macros`: macro **`#[authorize(scope = "...", role = "...")]`**, autorização por escopo e papel sobre os fatos que o crate de autenticação publica nas extensions. `scope` e `role` são repetíveis e conjuntivos (AND); empilhar `#[authorize]` também conjunta. Sem identidade na requisição a resposta é 401 `authentication_required` — **inclusive em rota `#[public]` e inclusive sem `AuthLayer` instalado**, porque "pedi permissão e não tenho de onde lê-la" não pode resultar em acesso. Com identidade e sem a permissão, 403 `insufficient_scope` (RFC 6750 §3.1).
 
-  `#[public]` e `#[authorize]` na mesma rota **não compilam**, nas duas ordens possíveis: `#[authorize]` já nega sem identidade, então o `#[public]` não abriria nada — só faria a rota aparecer na auditoria de endpoints anônimos sem ser um. Era o que a Emenda 1 da ADR pedia.
+  `#[public]` e `#[authorize]` na mesma rota **não compilam**, nas três ordens possíveis de atributo: `#[authorize]` já nega sem identidade, então o `#[public]` não abriria nada — só faria a rota aparecer na auditoria de endpoints anônimos sem ser um. Era o que a Emenda 1 da ADR pedia.
 
   Exigência alternativa (`any_of`) ficou de fora de propósito: um "qualquer um destes" ambíguo é o tipo de default que a filosofia do projeto pede para não existir. O caso genuinamente alternativo cabe num `#[guard]` escrito à mão.
 

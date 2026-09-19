@@ -134,10 +134,22 @@ const PUBLIC_MARKER: &str = "__serverust_public";
 /// independentemente do que o usuário importou — `is_ident` só casaria com
 /// um caminho de segmento único.
 fn is_public_marker(attr: &syn::Attribute) -> bool {
-    attr.path()
-        .segments
-        .last()
-        .is_some_and(|s| s.ident == PUBLIC_MARKER)
+    ultimo_segmento_e(attr, PUBLIC_MARKER)
+}
+
+/// Se o último segmento do caminho do atributo é `nome`.
+///
+/// Compara o último segmento porque os atributos chegam com caminho variável:
+/// o marcador é emitido absoluto (`::serverust_macros::__serverust_public`) e
+/// o que o usuário escreve pode vir qualificado. `is_ident` só casaria com
+/// caminho de segmento único.
+///
+/// Não enxerga import renomeado (`use serverust_macros::public as aberto;`).
+/// Onde a consequência de não enxergar seria uma rota aberta em silêncio, a
+/// garantia não vem daqui — vem do marcador, que é erro de compilação se
+/// ninguém o consumir.
+fn ultimo_segmento_e(attr: &syn::Attribute, nome: &str) -> bool {
+    attr.path().segments.last().is_some_and(|s| s.ident == nome)
 }
 
 fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -152,12 +164,10 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
     // A ordem `#[public]` acima e `#[authorize]` abaixo da macro de rota faz a
     // contradição chegar aqui em vez de na própria `#[authorize]`.
     if is_public
-        && let Some(autorizacao) = func.attrs.iter().find(|a| {
-            a.path()
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "authorize")
-        })
+        && let Some(autorizacao) = func
+            .attrs
+            .iter()
+            .find(|a| ultimo_segmento_e(a, "authorize"))
     {
         return syn::Error::new(
             autorizacao.span(),
@@ -456,7 +466,16 @@ pub fn authorize(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut func = parse_macro_input!(item as ItemFn);
 
-    if let Some(marcador) = func.attrs.iter().find(|a| is_public_marker(a)) {
+    // Duas formas de o `#[public]` estar aqui, conforme a ordem dos atributos:
+    // já expandido (o marcador, quando `#[public]` estava acima) ou ainda por
+    // expandir (quando estava abaixo desta macro). Olhar só o marcador deixava
+    // passar a ordem `#[authorize]` / `#[public]` / `#[get]`.
+    let contradicao = func
+        .attrs
+        .iter()
+        .find(|a| is_public_marker(a) || ultimo_segmento_e(a, "public"));
+
+    if let Some(marcador) = contradicao {
         return syn::Error::new(
             marcador.span(),
             "#[public] e #[authorize] na mesma rota se contradizem.\n\
