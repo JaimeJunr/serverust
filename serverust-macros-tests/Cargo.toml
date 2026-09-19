@@ -1,0 +1,27 @@
+[package]
+name = "serverust-macros-tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Testes de integração das macros serverust (crate interno, não publicado)."
+publish = false
+
+[dev-dependencies]
+trybuild = "1"
+serverust-macros = { path = "../serverust-macros" }
+serverust-core = { path = "../serverust-core" }
+serverust-events = { path = "../serverust-events", features = ["sqs"] }
+serverust-telemetry = { path = "../serverust-telemetry" }
+aws_lambda_events = { version = "1.2", default-features = false, features = ["kafka"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt"] }
+async-trait = "0.1"
+base64 = "0.22"

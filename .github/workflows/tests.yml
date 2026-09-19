@@ -21,6 +21,8 @@ jobs:
         include:
           - crate: serverust-macros
             features: ""
+          - crate: serverust-macros-tests
+            features: ""
           - crate: serverust-core
             features: ""
           - crate: serverust-telemetry

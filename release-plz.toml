@@ -67,7 +67,12 @@ publish = true
 name = "serverust-cli"
 publish = true
 
-# Crates internas que NÃO devem ser publicadas (examples, baselines).
+# Crates internas que NÃO devem ser publicadas (examples, baselines, testes).
+[[package]]
+name = "serverust-macros-tests"
+publish = false
+release = false
+
 [[package]]
 name = "hello-world"
 publish = false

@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Testes de integração das macros (`trybuild` + `kafka_consumer_runtime`) saíram de `serverust-macros` para o crate interno `serverust-macros-tests` (`publish = false`). `serverust-macros` deixa de ter dev-deps em `serverust-core`/`serverust-events`/`serverust-telemetry`, quebrando os 3 ciclos de dependência que o `cargo-cycles` detectava. Os ~18 testes de core/events/telemetry que usam as macros continuam onde estão.
+
 ### Added
 
 - Novo crate `serverust-auth`: verificação stateless de JWT emitido por IdP externo (Cognito, Auth0, Clerk, Keycloak, Logto), primeira parcela da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). Inclui `JwtAuth` com chave estática (`hs256`, `rs256_pem`, `es256_pem`) e os ajustes `.issuer()`, `.audience()` e `.leeway()`; `AuthLayer<C>`, que valida o token uma única vez e deposita as claims nas extensions sem jamais rejeitar a requisição; os extractors `Auth<C>` (exige identidade, 401 sem ela) e `MaybeAuth<C>` (opcional); e `StandardClaims`, cobrindo os formatos comuns de OAuth 2.0/OIDC. O algoritmo é fixado no construtor e não lido do header, fechando o ataque de confusão de algoritmo. O backend de cripto é Rust puro (feature `rust_crypto` do `jsonwebtoken`), escolhido para não exigir cmake e não quebrar a cross-compilação x86_64 → aarch64. `serverust-core` continua sem dependência de cripto: quem não usa auth não paga nada.

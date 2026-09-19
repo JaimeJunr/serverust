@@ -104,6 +104,7 @@ Referência canônica: [`docs/development/release-checklist.md`](docs/developmen
 ```
 serverust-core/           # App builder, Route, DI Container, pipeline, OpenAPI
 serverust-macros/         # Proc-macros: #[get], #[post], #[injectable], #[guard], ...
+serverust-macros-tests/   # Integração das macros (trybuild + runtime); evita ciclo de dev-deps macros↔core/events/telemetry
 serverust-lambda/         # Adapter Lambda: AppRuntime, detect_runtime, run_lambda()
 serverust-telemetry/      # Logger JSON, tracing X-Ray, métricas EMF, IdempotencyStore
 serverust-cli/            # CLI: new/generate/dev/build/deploy/info/openapi

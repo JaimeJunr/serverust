@@ -2,6 +2,7 @@
 members = [
     "serverust-core",
     "serverust-macros",
+    "serverust-macros-tests",
     "serverust-cli",
     "serverust-lambda",
     "serverust-telemetry",
