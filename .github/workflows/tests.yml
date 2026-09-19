@@ -21,6 +21,15 @@ jobs:
         include:
           - crate: serverust-macros
             features: ""
+            # Único crate sem teste próprio: é proc-macro puro e os testes dele
+            # (trybuild + runtime) vivem em serverust-macros-tests, que não pode
+            # ser dev-dep daqui sem recriar o ciclo. Sem isto o nextest sai 4
+            # ("no tests to run"). A exceção é marcada aqui de propósito, em vez
+            # de `--no-tests=pass` na matriz inteira: assim qualquer OUTRO crate
+            # que fique sem teste continua reprovando em vez de virar verde vazio.
+            no_tests: "pass"
+          - crate: serverust-macros-tests
+            features: ""
           - crate: serverust-core
             features: ""
           - crate: serverust-telemetry
@@ -53,9 +62,12 @@ jobs:
         with:
           tool: cargo-nextest
       - name: Run tests
+        env:
+          # Vazio para todos, menos onde a matriz marca a exceção explicitamente.
+          NO_TESTS: ${{ matrix.no_tests && format('--no-tests={0}', matrix.no_tests) || '' }}
         run: |
           if [ -z "${{ matrix.features }}" ]; then
-            cargo nextest run -p ${{ matrix.crate }}
+            cargo nextest run -p ${{ matrix.crate }} $NO_TESTS
           else
-            cargo nextest run -p ${{ matrix.crate }} --features "${{ matrix.features }}"
+            cargo nextest run -p ${{ matrix.crate }} --features "${{ matrix.features }}" $NO_TESTS
           fi

@@ -104,6 +104,7 @@ Referência canônica: [`docs/development/release-checklist.md`](docs/developmen
 ```
 serverust-core/           # App builder, Route, DI Container, pipeline, OpenAPI
 serverust-macros/         # Proc-macros: #[get], #[post], #[injectable], #[guard], ...
+serverust-macros-tests/   # Integração das macros (trybuild + runtime); evita ciclo de dev-deps macros↔core/events/telemetry
 serverust-lambda/         # Adapter Lambda: AppRuntime, detect_runtime, run_lambda()
 serverust-telemetry/      # Logger JSON, tracing X-Ray, métricas EMF, IdempotencyStore
 serverust-cli/            # CLI: new/generate/dev/build/deploy/info/openapi
@@ -139,8 +140,25 @@ scripts/                  # Shell scripts de qualidade e benchmark
 scripts/quality_fmt.sh        # rustfmt check
 scripts/quality_lint.sh       # clippy --deny warnings
 scripts/quality_complexity.sh # complexidade ciclomática
-scripts/quality_cycles.sh     # dependências cíclicas
+scripts/quality_cycles.sh     # dependências cíclicas (cargo-cycles)
+scripts/quality_machete.sh    # dependências declaradas e não usadas
 ```
+
+### Ferramenta ausente ≠ gate verde
+
+Aplicação direta de "falhe fechado" aos próprios gates: **a ausência de verificação nunca pode ser indistinguível de verificação bem-sucedida.** Todo gate que depende de ferramenta externa distingue três estados, via `require_tool` em [`scripts/lib/tool_guard.sh`](scripts/lib/tool_guard.sh):
+
+| Estado | Comportamento |
+|---|---|
+| Ferramenta presente, checagem passou | exit 0, silencioso |
+| Ferramenta presente, checagem falhou | exit ≠ 0 — bloqueia |
+| Ferramenta **ausente** | aviso alto em stderr (`PULADO: ... NENHUMA verificação`), exit ≠ 0 **em CI** (`$CI`), exit 0 localmente |
+
+O desenvolvedor local não trava por falta de ferramenta; o CI nunca reporta verde sem ter verificado. `quality_coverage.sh` e `quality_mutation.sh` são mais estritos — reprovam na ausência inclusive localmente, porque a instalação é pré-requisito de push.
+
+Ao adicionar um gate novo com dependência externa: use `require_tool`, nunca `if command -v ...; then ...; fi` com `else` silencioso. [`scripts/test_lefthook_hooks.sh`](scripts/test_lefthook_hooks.sh) (pre-commit) guarda os três estados extraindo os `run:` reais do `lefthook.yml`.
+
+No CI (`.github/workflows/lint.yml`) os gates espelhados **instalam a ferramenta em passo explícito** do job — `fmt`, `clippy` e `cycles` hoje. Se a instalação falhar, o guard reprova em vez de passar vazio: verde ali significa que a checagem rodou.
 
 ### Pre-push (automático via lefthook)
 

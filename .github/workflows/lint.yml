@@ -40,3 +40,19 @@ jobs:
         # `--workspace` do script é aceitável no runner do GitHub; localmente a
         # regra do CLAUDE.md continua valendo (build por crate).
         run: bash scripts/quality_lint.sh
+
+  cycles:
+    name: cargo-cycles (dependência cíclica)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cycles"
+      - name: Install cargo-cycles
+        # A instalação é passo explícito do job de propósito: sem ela o guard de
+        # scripts/lib/tool_guard.sh reprova em CI (`$CI`) em vez de passar sem
+        # verificar. Um verde aqui significa que a checagem rodou de verdade.
+        run: cargo install cargo-cycles --locked
+      - name: cycles
+        run: bash scripts/quality_cycles.sh

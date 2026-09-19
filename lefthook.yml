@@ -16,22 +16,23 @@ pre-commit:
       # de amostras. Barato (sem build), roda a cada commit.
       run: ./scripts/test_kpi_metrics_lib.sh
     lefthook_hooks:
-      # Guard dos próprios hooks abaixo: garante que ausência da ferramenta
-      # continua sendo skip e que reprovação dela volta a bloquear.
+      # Guard dos próprios hooks abaixo: garante os três estados — ausência
+      # avisa alto (e reprova em CI), reprovação da ferramenta bloqueia.
       run: ./scripts/test_lefthook_hooks.sh
     machete:
-      # Detecta deps não-usadas (cargo-machete). Skip silencioso só se a tool
-      # estiver ausente — sem força instalação compulsória. Reprovação da
-      # ferramenta (deps não usadas) continua bloqueando o commit.
-      run: if command -v cargo-machete >/dev/null 2>&1; then cargo machete; else echo "[skip] cargo-machete ausente (cargo install cargo-machete)"; fi
+      # Detecta deps não-usadas (cargo-machete). Ausência da ferramenta não é
+      # mais skip silencioso: avisa alto em stderr e reprova em CI
+      # (scripts/lib/tool_guard.sh). Reprovação da ferramenta continua
+      # bloqueando o commit.
+      run: ./scripts/quality_machete.sh
 
 # Valida commit message contra Conventional Commits via cocogitto (cog.toml).
 commit-msg:
   commands:
     cog-verify:
-      # Skip silencioso só se cog estiver ausente. Instalação:
-      #   curl https://raw.githubusercontent.com/cocogitto/cocogitto/main/install.sh | bash
-      run: if command -v cog >/dev/null 2>&1; then cog verify --file {1}; else echo "[skip] cocogitto ausente"; fi
+      # Ausência do cog avisa alto em stderr e reprova em CI
+      # (scripts/lib/tool_guard.sh), em vez de passar em silêncio.
+      run: ./scripts/quality_commit_msg.sh {1}
 
 pre-push:
   parallel: false

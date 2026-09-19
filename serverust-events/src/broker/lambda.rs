@@ -24,7 +24,9 @@ use async_trait::async_trait;
 use aws_lambda_events::event::kafka::KafkaEvent;
 use base64::Engine;
 
-use super::{BoxedHandler, Broker, BrokerError, BrokerMessage, UnhandledTopicPolicy};
+use crate::broker::contract::{
+    BoxedHandler, Broker, BrokerError, BrokerMessage, UnhandledTopicPolicy, unique_topics,
+};
 
 /// Broker sink-only para o modo Lambda.
 ///
@@ -97,7 +99,7 @@ impl LambdaBroker {
                         .map(|s| s.handler.clone())
                         .collect();
                     let registered_topics = if handlers.is_empty() {
-                        super::unique_topics(guard.iter().map(|s| s.topic.as_str()))
+                        unique_topics(guard.iter().map(|s| s.topic.as_str()))
                     } else {
                         Vec::new()
                     };

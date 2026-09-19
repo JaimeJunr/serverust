@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 
-use crate::broker::{BoxedHandler, Broker, BrokerError, BrokerMessage};
+use crate::broker::contract::{BoxedHandler, Broker, BrokerError, BrokerMessage};
 
 /// Broker em memória para uso em testes sem infraestrutura Kafka.
 ///

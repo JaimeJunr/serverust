@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# Extrai os `run:` reais de lefthook.yml e verifica que ausência da ferramenta
-# é skip (exit 0) e reprovação da ferramenta não é mascarada (exit != 0).
+# Extrai os `run:` reais de lefthook.yml e verifica os TRÊS estados que cada
+# gate precisa distinguir (ver scripts/lib/tool_guard.sh):
+#   ferramenta ausente, fora de CI  -> exit 0, mas com aviso alto em stderr
+#   ferramenta ausente, em CI       -> exit != 0 (CI nunca reporta verde sem verificar)
+#   ferramenta presente reprovando  -> exit != 0 (reprovação não é mascarada)
+# O aviso em stderr é parte do contrato, não cosmético: sem ele, "não verifiquei"
+# volta a ser indistinguível de "verifiquei e passou".
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,27 +22,20 @@ trap cleanup EXIT
 
 TMPDIR_ROOT="$(mktemp -d)"
 EMPTY_BIN="${TMPDIR_ROOT}/empty-bin"
-MACHETE_FAIL_BIN="${TMPDIR_ROOT}/machete-fail-bin"
-COG_FAIL_BIN="${TMPDIR_ROOT}/cog-fail-bin"
+FAIL_BIN="${TMPDIR_ROOT}/fail-bin"
 COMMIT_MSG="${TMPDIR_ROOT}/commit-msg.txt"
 
-mkdir -p "$EMPTY_BIN" "$MACHETE_FAIL_BIN" "$COG_FAIL_BIN"
+mkdir -p "$EMPTY_BIN" "$FAIL_BIN"
 printf '%s\n' "test: mensagem qualquer" > "$COMMIT_MSG"
 
 # Stubs que existem no PATH e saem 1 — ferramenta presente e reprovando.
-cat > "${MACHETE_FAIL_BIN}/cargo-machete" <<'EOF'
+for stub in cargo cargo-machete cargo-cycles cog; do
+  cat > "${FAIL_BIN}/${stub}" <<'EOF'
 #!/bin/sh
 exit 1
 EOF
-cat > "${MACHETE_FAIL_BIN}/cargo" <<'EOF'
-#!/bin/sh
-exit 1
-EOF
-cat > "${COG_FAIL_BIN}/cog" <<'EOF'
-#!/bin/sh
-exit 1
-EOF
-chmod +x "${MACHETE_FAIL_BIN}/cargo-machete" "${MACHETE_FAIL_BIN}/cargo" "${COG_FAIL_BIN}/cog"
+  chmod +x "${FAIL_BIN}/${stub}"
+done
 
 extract_run() {
   local section="$1"
@@ -76,10 +74,28 @@ sys.stdout.write(run)
 PY
 }
 
+# run_hook <comando> <bin_dir> <valor_de_CI> -> ecoa o exit code; stderr vai
+# para $STDERR_FILE, para que o teste possa exigir o aviso.
+# `/usr/bin:/bin` entra no PATH porque o shebang dos gates precisa de `env` e
+# `bash`; nenhuma das ferramentas sob teste (cargo, cargo-machete, cargo-cycles,
+# cog) vive lá — elas vêm de ~/.cargo/bin — então a ausência simulada é real.
+STDERR_FILE="${TMPDIR_ROOT}/stderr.txt"
 run_hook() {
   local cmd="$1"
   local bin_dir="$2"
-  PATH="$bin_dir" "$BASH_BIN" -c "$cmd"
+  local ci_value="$3"
+  local rc=0
+
+  # `cd "$ROOT"`: os `run:` do lefthook usam caminho relativo (./scripts/...),
+  # exatamente como o lefthook os executa, a partir da raiz do repo.
+  if [[ -n "$ci_value" ]]; then
+    ( cd "$ROOT" && PATH="${bin_dir}:/usr/bin:/bin" CI="$ci_value" "$BASH_BIN" -c "$cmd" ) \
+      >/dev/null 2>"$STDERR_FILE" || rc=$?
+  else
+    ( cd "$ROOT" && PATH="${bin_dir}:/usr/bin:/bin" env -u CI "$BASH_BIN" -c "$cmd" ) \
+      >/dev/null 2>"$STDERR_FILE" || rc=$?
+  fi
+  echo "$rc"
 }
 
 failures=0
@@ -111,35 +127,55 @@ assert_exit() {
   fi
 }
 
+# O que impede o skip silencioso de voltar: exit 0 sozinho não basta, o gate
+# precisa ter dito em stderr que não verificou nada.
+assert_warns_skip() {
+  local scenario="$1"
+
+  if grep -q "PULADO" "$STDERR_FILE" && grep -q "NENHUMA verificação" "$STDERR_FILE"; then
+    printf 'OK    %s: aviso de skip presente em stderr\n' "$scenario"
+  else
+    printf 'FALHA %s: stderr não contém o aviso de skip. stderr foi:\n%s\n' \
+      "$scenario" "$(cat "$STDERR_FILE")" >&2
+    failures=$((failures + 1))
+  fi
+}
+
 MACHETE_CMD="$(extract_run pre-commit machete)"
+CYCLES_CMD="$(extract_run pre-commit cycles)"
 COG_CMD="$(extract_run commit-msg cog-verify)"
 COG_CMD="${COG_CMD//\{1\}/${COMMIT_MSG}}"
 
-echo "==> comando extraído pre-commit.machete:"
-echo "    $MACHETE_CMD"
-echo "==> comando extraído commit-msg.cog-verify (após substituir {1}):"
-echo "    $COG_CMD"
+echo "==> comandos extraídos de lefthook.yml:"
+echo "    pre-commit.machete:   $MACHETE_CMD"
+echo "    pre-commit.cycles:    $CYCLES_CMD"
+echo "    commit-msg.cog-verify: $COG_CMD"
 
-rc=0
-run_hook "$MACHETE_CMD" "$EMPTY_BIN" || rc=$?
-assert_exit "machete ausente" "$rc" zero
+# gate <nome> <comando>: os três estados, para cada gate com dependência externa.
+gate() {
+  local name="$1"
+  local cmd="$2"
+  local rc
 
-rc=0
-run_hook "$MACHETE_CMD" "$MACHETE_FAIL_BIN" || rc=$?
-assert_exit "machete presente e reprovando" "$rc" nonzero
+  rc="$(run_hook "$cmd" "$EMPTY_BIN" "")"
+  assert_exit "$name ausente (local)" "$rc" zero
+  assert_warns_skip "$name ausente (local)"
 
-rc=0
-run_hook "$COG_CMD" "$EMPTY_BIN" || rc=$?
-assert_exit "cog-verify ausente" "$rc" zero
+  rc="$(run_hook "$cmd" "$EMPTY_BIN" "true")"
+  assert_exit "$name ausente (CI=true)" "$rc" nonzero
 
-rc=0
-run_hook "$COG_CMD" "$COG_FAIL_BIN" || rc=$?
-assert_exit "cog-verify presente e reprovando" "$rc" nonzero
+  rc="$(run_hook "$cmd" "$FAIL_BIN" "")"
+  assert_exit "$name presente e reprovando" "$rc" nonzero
+}
+
+gate "machete" "$MACHETE_CMD"
+gate "cycles" "$CYCLES_CMD"
+gate "cog-verify" "$COG_CMD"
 
 if [[ "$failures" -ne 0 ]]; then
-  echo "FALHOU: $failures cenário(s) com exit code diferente do esperado." >&2
+  echo "FALHOU: $failures cenário(s) fora do esperado." >&2
   exit 1
 fi
 
-echo "OK: 4/4 cenários"
+echo "OK: todos os cenários"
 exit 0
