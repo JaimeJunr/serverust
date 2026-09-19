@@ -30,6 +30,24 @@ Rotas declarativas, validação automática, OpenAPI gerado dos tipos, DI por co
 
 O objetivo é onde a atenção do desenvolvedor é gasta. **O dia deve ser gasto no domínio do problema** — a regra de negócio, o produto — e não em reimplementar o que a linguagem e o framework já deveriam ter resolvido. Ergonomia aqui não é conforto; é para onde o tempo de engenharia vai.
 
+## O corolário: defaults na era dos agentes
+
+Quem escreve a maior parte do código mudou. Hoje uma fração crescente — em muitos times, a maior parte — é escrita por agentes de IA, com revisão humana por amostragem. Isso não substitui os três compromissos acima; muda o **peso** do primeiro, e tem consequência direta sobre como os defaults do framework são escolhidos.
+
+O ponto de partida é como agentes erram. **Eles falham por omissão, não por comissão.** Um agente faz bem o que foi pedido: escreve o handler, escreve o teste, deixa o diff limpo. O que ele omite com frequência é a preocupação transversal que ninguém citou naquela tarefa específica — e segurança quase nunca é citada numa tarefa que pede "um endpoint para exportar faturas".
+
+Disso saem três regras de design:
+
+**1. O default falha fechado.** Sob um default permissivo, a omissão é invisível: o código compila, os testes passam, o diff parece igual ao de todas as outras rotas, e nada no sistema reclama. Sob um default restritivo, a mesma omissão quebra o caminho feliz imediatamente. A diferença é que **um buraco de segurança silencioso vira um bug funcional barulhento** — e bug funcional sempre é corrigido, porque bloqueia o trabalho. Buraco de segurança não é corrigido, porque não bloqueia nada.
+
+**2. Segurança deve ser auditável por presença, não por ausência.** Se a exceção é marcada (`#[public]`), um `grep` devolve a superfície exposta inteira e completa, em segundos, para humano ou agente. Se a proteção é que é marcada, descobrir o que está exposto exige enumerar tudo e verificar a *ausência* de anotação em cada item — e não existe grep para ausência. A diferença é decisiva quando a revisão acontece por trecho, sem o sistema inteiro em contexto.
+
+**3. Política que depende de lembrar degrada com o volume; política que o runtime recusa não degrada.** Conforme sobe a taxa de código novo e cai a fração lida com atenção por alguém que tem o sistema todo na cabeça, qualquer garantia que dependa de disciplina se deteriora. Garantia imposta por tipo, por compilador ou por default restritivo custa o mesmo no primeiro e no milésimo endpoint.
+
+Nada disso é estranho ao Rust — é o idioma da linguagem. Item é privado até se escrever `pub`, binding é imutável até se escrever `mut`, código perigoso exige `unsafe` explícito. Rust é fechado por padrão e aberto por anotação visível, e o framework segue a mesma gramática.
+
+A primeira aplicação concreta é a [ADR 0009](../development/decisions/0009-auth-authz-crate-separada-serverust-auth.md): com autenticação instalada, rota sem anotação é **negada**, e `#[public]` é o `pub` das rotas.
+
 ## A prova: um caso real em produção
 
 Um serviço interno de e-mail transacional foi migrado de **NestJS + Node 20** para serverust. Não é brinquedo nem benchmark sintético: são ~2.900 linhas de Rust de produção (mais ~1.200 de teste), rodando em AWS Lambda ARM64, `provided.al2023`, atrás de API Gateway REST v1, com deploy por Serverless Framework.
@@ -72,6 +90,7 @@ Publicar a ressalva junto com o número é parte da filosofia: um framework que 
 | Feature útil, mas pesa no cold start ou no binário | Vai atrás de feature flag opt-in (Kafka, DynamoDB, rdkafka) |
 | Açúcar sintático conveniente | Macro é permitida, mas sempre com builder programático equivalente por baixo |
 | Abstração que esconderia o Axum | Rejeitada — `App::axum_router()` continua sendo escape hatch de primeira classe |
+| Default de uma feature com efeito de segurança | Falha fechado; a exceção é anotação explícita e auditável, nunca omissão |
 | Regressão de invariante público | Exige ADR aprovada em [`../development/decisions/`](../development/decisions/) |
 
 ## Referências

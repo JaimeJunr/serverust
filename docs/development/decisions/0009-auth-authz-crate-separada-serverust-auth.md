@@ -1,6 +1,6 @@
 # ADR 0009 — Auth/Authz em crate separada serverust-auth: JWT de IdP externo + RBAC em compile-time
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-09-19
 - **Deciders:** maintainers serverust
 
@@ -120,14 +120,25 @@ Resultado: **a rota se documenta sozinha** e o botão "Authorize" do Scalar/Swag
 
 `jsonwebtoken` v11 tem backend plugável: `aws-lc-rs` é opcional, e há implementações Rust puras (`rsa`, `p256`, `p384`, `ed25519-dalek`, `hmac`, `sha2`). O default de `serverust-auth` **não** usa `aws-lc-rs`, que exige cmake e toolchain C e quebra a cross-compilação x86_64 → aarch64 (issue #40, item 4). Quem quiser o backend acelerado o habilita por feature.
 
-## Ponto em aberto (decidir antes de implementar)
+### 5. Default deny: rota sem anotação é negada
 
-**Rota sem `#[authorize]`: pública ou negada?**
+Com `App::auth(...)` instalado, **toda rota exige token válido**, salvo marcação explícita `#[public]`. A alternativa — proteger só o que está anotado — foi rejeitada.
 
-- **Default deny** — toda rota exige token válido, salvo marcação explícita `#[public]`. Alinhado a "segurança vem da linguagem": esquecer a anotação falha fechado. Custo: mais atrito, e quebra o `App` de quem adicionar `.auth()` a um serviço existente.
-- **Default allow** — só rotas anotadas são protegidas. Menos atrito, mas esquecer a anotação deixa o endpoint aberto — exatamente a classe de erro que a filosofia diz que não deve depender de disciplina.
+Três razões, em ordem de peso:
 
-Recomendação: **default deny**, com `#[public]` explícito. Observar que as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) ficam fora dos layers por design (`App::interceptor`), então continuam públicas — quem precisa fechá-las usa `App::without_docs()`.
+**Falha por omissão é invisível sob default allow.** Um endpoint novo sem anotação compila, passa nos testes e produz um diff idêntico ao das outras rotas. Nada no sistema reclama. Sob default deny, a mesma omissão devolve 401 na primeira chamada: **um buraco de segurança silencioso vira um bug funcional barulhento**, e bug funcional é sempre corrigido porque bloqueia o caminho feliz.
+
+**Presença é auditável; ausência não é.** Sob default deny, `grep -r '#\[public\]'` devolve a superfície aberta inteira e completa. Sob default allow, descobrir o que está desprotegido exige enumerar todas as rotas e verificar a *ausência* de anotação em cada uma — e não existe grep para ausência. A diferença é decisiva quando a revisão é feita por trecho, sem o roteador inteiro em contexto.
+
+**É o idioma do Rust.** A linguagem é fechada por padrão em tudo: item é privado até se escrever `pub`, binding é imutável até se escrever `mut`, `unsafe` exige opt-in. `#[public]` é o `pub` das rotas. O mesmo padrão é o recomendado pela documentação de autenticação do NestJS (guard global via `APP_GUARD` + decorator `@Public()`), referência arquitetural declarada do projeto. E é o princípio de *fail-safe defaults* de Saltzer & Schroeder (1975).
+
+O trade-off é real e assumido: adicionar `.auth()` a um serviço existente fecha todas as rotas de uma vez. Mitigações que fazem parte da decisão:
+
+1. **401 que ensina** — o corpo da rejeição por falta de anotação diz o que fazer (`adicione #[authorize(...)] ou #[public]`), em vez de um 401 mudo.
+2. **Log de init com as rotas públicas** — `App::auth()` registra a lista de rotas `#[public]` na inicialização. Em Lambda isso aparece no log de init de todo deploy, mantendo a superfície aberta visível sem auditoria ativa.
+3. **Escape hatch global e explícito** — `.allow_unannotated()` para migração de serviço existente: uma linha visível e auditável em vez de omissão distribuída por N rotas, nomeada para desencorajar permanência.
+
+Nota: as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) ficam fora dos layers por design (`App::interceptor`), então seguem públicas mesmo sob default deny — quem precisa fechá-las usa `App::without_docs()`.
 
 ## Consequências
 
@@ -138,6 +149,8 @@ Recomendação: **default deny**, com `#[public]` explícito. Observar que as ro
 - Autorização custa comparação de `&'static str` — sem I/O, sem alocação, sem estado.
 - OpenAPI com `security` correto sem trabalho manual.
 - `Guard` não muda de assinatura; `#[guard]` segue funcionando.
+- Esquecer de proteger uma rota falha fechado e em voz alta, em vez de publicar um endpoint aberto em silêncio.
+- A superfície pública fica auditável por presença (`grep '#\[public\]'`) e visível no log de init de cada deploy.
 
 ### Negativas / Trade-offs
 
@@ -145,6 +158,8 @@ Recomendação: **default deny**, com `#[public]` explícito. Observar que as ro
 - Não cobre login, senha nem sessão — quem precisa disso usa `torii`/`axum-login` ou um IdaaS. É escopo intencional, não lacuna acidental.
 - RBAC por scopes não expressa regra dependente de recurso ("só o dono edita"); isso fica para os ganchos ABAC de uma futura ADR.
 - Uma associated const nova em `Guard` no core — mitigada pelo default, mas é superfície pública adicional.
+- Adotar `.auth()` em um serviço existente fecha todas as rotas de uma vez, exigindo uma passada para marcar as públicas. É atrito único e guiado pela própria suíte de testes, mas é atrito real.
+- O default deny é imposto em runtime, não em compile-time: a macro de rota não sabe se `App::auth()` foi chamado. É fail-safe, não garantia de compilador — a ambição de transformar isso em erro de compilação fica para uma ADR futura.
 
 ## Verificação
 

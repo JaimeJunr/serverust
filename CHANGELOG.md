@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md) (Accepted): auth/authz em crate separada `serverust-auth` — validação de JWT de IdP externo, RBAC/scopes em compile-time, JWKS aquecido na fase de init por construção da API, cripto em Rust puro e **default deny** (rota sem anotação é negada; `#[public]` é a exceção explícita).
+- Filosofia: novo corolário [defaults na era dos agentes](docs/product/philosophy.md) — falhe fechado, torne a exceção auditável por presença e não dependa de lembrar. Regra espelhada no `CLAUDE.md`.
+
 - Filosofia do projeto em [`docs/product/philosophy.md`](docs/product/philosophy.md): segurança pela linguagem, baixo nível sem escrever baixo nível e DX como requisito — com o caso real de migração NestJS → serverust em produção (Lambda ARM64), os números medidos e a ressalva de como lê-los (#40). Resumo no `README.md`, critério de trade-off e regra de divulgação de performance no `CLAUDE.md`, links em `INDEX.md` e `vision.md`.
 
 ## [0.4.2] - 2026-09-14
