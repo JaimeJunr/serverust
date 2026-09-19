@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- Filosofia do projeto em [`docs/product/philosophy.md`](docs/product/philosophy.md): segurança pela linguagem, baixo nível sem escrever baixo nível e DX como requisito — com o caso real de migração NestJS → serverust em produção (Lambda ARM64), os números medidos e a ressalva de como lê-los (#40). Resumo no `README.md`, critério de trade-off e regra de divulgação de performance no `CLAUDE.md`, links em `INDEX.md` e `vision.md`.
+
 ## [0.4.2] - 2026-09-14
 
 Duas adições à API pública de `serverust-core`, ambas **compatíveis** — nada muda para quem já usa a 0.4.x. O restante é infraestrutura do repositório e não alcança quem consome os crates.

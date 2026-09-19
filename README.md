@@ -36,6 +36,31 @@ O único framework Rust que cobre todo o ciclo — do `serverust new` ao `server
 | Cold start < 50 ms (ARM64 128 MB) | ✅ | ✗ | ✗ | ✗ | ✅ |
 | Binário stripped < 10 MB | ✅ | ✗ | ✗ | ✗ | ✅ |
 
+## Filosofia
+
+Três compromissos, nesta ordem:
+
+1. **Segurança vem da linguagem, não da disciplina do time.** Ownership, ausência de `null` e liberdade de data race são garantias do compilador — não itens de checklist em code review.
+2. **Baixo nível sem escrever baixo nível.** Controle de memória e CPU de linguagem de sistema, com ergonomia de linguagem de alto nível. Em serverless, isso vira conta no fim do mês.
+3. **DX é requisito, não enfeite.** Inspirado em FastAPI, NestJS e Rails: o dia do desenvolvedor deve ser gasto no domínio do problema — não em reimplementar o que a linguagem e o framework já deveriam ter resolvido.
+
+### Isso funciona? Um caso em produção
+
+Serviço interno de e-mail transacional migrado de **NestJS + Node 20** para serverust, em AWS Lambda ARM64. Números de linhas `REPORT` reais do CloudWatch, não de benchmark sintético:
+
+| | NestJS / Node 20 (512 MB) | serverust (128 MB) |
+|---|---:|---:|
+| Init Duration | 830 ms | **105 ms** |
+| Caminho frio completo (init + 1º request) | ~1130 ms | **596 ms** |
+| Memória usada | 141–148 MB | **32 MB** |
+| Request quente (rota trivial) | 112–365 ms | **1,4 ms** |
+
+Custo em Lambda é memória × tempo: **~11x mais barato por chamada fria**.
+
+> **Ressalva honesta:** comparar só o `Init Duration` sugere "8x mais rápido" e é enganoso — parte do custo frio (handshake TLS, resolução de credencial) acontece fora dele. O ganho real do caminho frio é **~2x**.
+
+Leia a análise completa em [`docs/product/philosophy.md`](docs/product/philosophy.md).
+
 ## Features
 
 - Roteamento declarativo via macros (`#[get]`, `#[post]`, `#[put]`, `#[patch]`, `#[delete]`)
