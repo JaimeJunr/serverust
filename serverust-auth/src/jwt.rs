@@ -32,8 +32,14 @@ pub struct JwtAuth {
 
 impl JwtAuth {
     fn with(key: DecodingKey, alg: Algorithm) -> Self {
-        // `Validation::new` já exige a claim `exp` e valida expiração — o
-        // default é fechado, e não o afrouxamos.
+        // `Validation::new` exige a claim `exp` e valida expiração — token sem
+        // `exp` é rejeitado, e não afrouxamos isso.
+        //
+        // Atenção ao que esse default NÃO é: o `jsonwebtoken` embute
+        // `leeway: 60`, então um token expirado há até 60 s ainda passa. É a
+        // tolerância padrão da indústria para desalinhamento de relógio entre
+        // emissor e verificador, e mantemos. Quem precisa de janela diferente
+        // usa [`JwtAuth::leeway`].
         Self {
             key,
             validation: Validation::new(alg),
@@ -54,7 +60,8 @@ impl JwtAuth {
 
     /// Verificador ECDSA P-256 a partir de uma chave **pública** em PEM.
     pub fn es256_pem(pem: &[u8]) -> Result<Self, AuthError> {
-        let key = DecodingKey::from_ec_pem(pem).map_err(|e| AuthError::InvalidKey(e.to_string()))?;
+        let key =
+            DecodingKey::from_ec_pem(pem).map_err(|e| AuthError::InvalidKey(e.to_string()))?;
         Ok(Self::with(key, Algorithm::ES256))
     }
 
@@ -72,6 +79,10 @@ impl JwtAuth {
 
     /// Tolerância, em segundos, na checagem de `exp` e `nbf`. Compensa
     /// desalinhamento de relógio entre emissor e verificador.
+    ///
+    /// O default herdado do `jsonwebtoken` é **60 segundos** — não zero. Passe
+    /// `0` para exigir expiração estrita, ao custo de 401 intermitente quando
+    /// os relógios divergirem.
     pub fn leeway(mut self, seconds: u64) -> Self {
         self.validation.leeway = seconds;
         self
