@@ -27,11 +27,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Novo crate `serverust-auth`: verificação stateless de JWT emitido por IdP externo (Cognito, Auth0, Clerk, Keycloak, Logto), primeira parcela da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). Inclui `JwtAuth` com chave estática (`hs256`, `rs256_pem`, `es256_pem`) e os ajustes `.issuer()`, `.audience()` e `.leeway()`; `AuthLayer<C>`, que valida o token uma única vez e deposita as claims nas extensions sem jamais rejeitar a requisição; os extractors `Auth<C>` (exige identidade, 401 sem ela) e `MaybeAuth<C>` (opcional); e `StandardClaims`, cobrindo os formatos comuns de OAuth 2.0/OIDC. O algoritmo é fixado no construtor e não lido do header, fechando o ataque de confusão de algoritmo. O backend de cripto é Rust puro (feature `rust_crypto` do `jsonwebtoken`), escolhido para não exigir cmake e não quebrar a cross-compilação x86_64 → aarch64. `serverust-core` continua sem dependência de cripto: quem não usa auth não paga nada.
+
+  Ainda **não** implementados, e previstos para incrementos seguintes da mesma ADR: descoberta de JWKS/OIDC com a busca aquecida na fase de init, `#[authorize(scope = "...")]`, o default deny por rota e o `security` automático no OpenAPI. Enquanto o default deny não existe, **uma rota só é protegida se pedir `Auth<C>` na assinatura**.
+
 ### Documentation
 
+- Guia [auth.md](docs/guides/auth.md): setup da dependência, construção do `JwtAuth`, instalação do `AuthLayer` via `App::layer`, handlers com `Auth`/`MaybeAuth`, como implementar `AuthzFacts` num tipo de claims próprio, tabela dos códigos `reason` devolvidos no 401 e a lista do que ainda não está implementado.
 - [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md) (Accepted): auth/authz em crate separada `serverust-auth` — validação de JWT de IdP externo, RBAC/scopes em compile-time, JWKS aquecido na fase de init por construção da API, cripto em Rust puro e **default deny** (rota sem anotação é negada; `#[public]` é a exceção explícita).
 - Filosofia: novo corolário [defaults na era dos agentes](docs/product/philosophy.md) — falhe fechado, torne a exceção auditável por presença e não dependa de lembrar. Regra espelhada no `CLAUDE.md`.
-
 - Filosofia do projeto em [`docs/product/philosophy.md`](docs/product/philosophy.md): segurança pela linguagem, baixo nível sem escrever baixo nível e DX como requisito — com o caso real de migração NestJS → serverust em produção (Lambda ARM64), os números medidos e a ressalva de como lê-los (#40). Resumo no `README.md`, critério de trade-off e regra de divulgação de performance no `CLAUDE.md`, links em `INDEX.md` e `vision.md`.
 
 ## [0.4.2] - 2026-09-14

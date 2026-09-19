@@ -1,0 +1,43 @@
+[package]
+name = "serverust-auth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Autenticação e autorização opt-in para serverust: verificação stateless de JWT emitido por IdP externo."
+
+[dependencies]
+axum = "0.8"
+http = "1"
+tower = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+# Backend de cripto em Rust puro, por decisão da ADR 0009: a alternativa
+# `aws_lc_rs` exige cmake e toolchain C, o que quebra a cross-compilação
+# x86_64 -> aarch64 usada no build ARM64 de Lambda.
+jsonwebtoken = { version = "11", default-features = false, features = [
+    "rust_crypto",
+    "use_pem",
+] }
+
+[dev-dependencies]
+# Integration tests não herdam `[dependencies]`: os testes precisam EMITIR
+# tokens, então `jsonwebtoken` é repetido aqui com exatamente as mesmas
+# features declaradas acima — divergir de features aqui mudaria o backend de
+# cripto sob teste.
+jsonwebtoken = { version = "11", default-features = false, features = [
+    "rust_crypto",
+    "use_pem",
+] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+serverust-core = { path = "../serverust-core", version = "0.4.2" }
+serverust-macros = { path = "../serverust-macros", version = "0.4.2" }

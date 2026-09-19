@@ -32,3 +32,8 @@ sync-prompts.sh
 !.env.example
 *.pem
 *.key
+# Exceção deliberada e estreita: pares de chave descartáveis, gerados só para a
+# suíte de testes de RS256/ES256. Não são segredo e nunca protegeram nada — ver
+# serverust-auth/tests/fixtures/README.md. O `*.pem` acima segue valendo em
+# todo o resto do repositório.
+!serverust-auth/tests/fixtures/*.pem

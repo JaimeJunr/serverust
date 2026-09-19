@@ -6,6 +6,7 @@ members = [
     "serverust-lambda",
     "serverust-telemetry",
     "serverust-events",
+    "serverust-auth",
     "examples/hello-world",
     "examples/funds-api",
     "examples/todo-api",

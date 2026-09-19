@@ -223,4 +223,4 @@ DynamoDB armazena números como string. O `attr_to_json` prioriza `i64` → `u64
 
 - [`serverust-telemetry/src/dynamo.rs`](../../serverust-telemetry/src/dynamo.rs) — implementação completa do `DynamoRepo`.
 - [`examples/kafka-wallet/src/lib.rs`](../../examples/kafka-wallet/src/lib.rs) — exemplo real com `DynamoRepo<Wallet>` + `OnceLock` em Lambda.
-- [ADR 0002](../development/decisions/0002-dynamodb-opt-in.md) — decisão de tornar DynamoDB opt-in via feature flag.
+- [ADR 0002](../development/decisions/0002-dynamodb-feature-opt-in-serverust-telemetry.md) — decisão de tornar DynamoDB opt-in via feature flag.
