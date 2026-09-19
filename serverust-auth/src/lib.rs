@@ -37,25 +37,37 @@
 //!     let auth = JwtAuth::hs256(secret.as_bytes()).issuer("https://idp.exemplo.com/");
 //!
 //!     App::new()
-//!         .layer(AuthLayer::<StandardClaims>::new(auth))
+//!         .auth(AuthLayer::<StandardClaims>::new(auth))
 //!         .route(me)
 //!         .run_http("127.0.0.1:3000")
 //!         .await
 //! }
 //! ```
 //!
-//! # Estado atual
+//! # Origem das chaves
 //!
-//! Esta versão cobre **chave estática**: segredo simétrico ou chave pública
-//! conhecida no boot. Ainda não estão implementados, e virão em incrementos
-//! seguintes previstos pela ADR 0009:
+//! Duas, e a escolha é do emissor que você usa:
 //!
-//! - descoberta de JWKS/OIDC, com a busca aquecida na fase de init;
-//! - `#[authorize(scope = "...")]` e o default deny por rota;
-//! - `security` automático no OpenAPI.
+//! - [`JwtAuth`] — **chave estática** conhecida no boot: segredo simétrico de
+//!   variável de ambiente ou Secrets Manager, ou chave pública embutida no
+//!   binário. Não toca a rede.
+//! - [`JwksAuth`] — **chaves do JWKS do emissor**, com descoberta de OIDC. O
+//!   construtor é `async` de propósito: é o que põe a ida à rede na fase de
+//!   init da Lambda, onde há burst de CPU, em vez de na primeira requisição de
+//!   cada container frio. Não existe construtor síncrono com busca preguiçosa,
+//!   então esquecer de aquecer não é um erro que se possa cometer.
 //!
-//! Enquanto o default deny não existe, **uma rota só é protegida se pedir
-//! [`Auth`]** na assinatura.
+//! As duas implementam [`Verifier`], e é isso que o [`AuthLayer`] consome —
+//! inclusive uma terceira, escrita por você.
+//!
+//! # O que ainda não está implementado
+//!
+//! - **Refresh do JWKS sob demanda.** As chaves são carregadas na construção e
+//!   não mudam depois. Se o emissor rotacionar enquanto o processo vive, token
+//!   assinado com a chave nova recebe 401 com `unknown_key_id` até o container
+//!   ser reciclado. Ver a nota sobre rotação em [`JwksAuth`].
+//! - **`security` automático no OpenAPI.** O botão "Authorize" do
+//!   Scalar/Swagger UI ainda precisa de configuração manual.
 //!
 //! # Cripto
 //!
@@ -66,11 +78,15 @@
 mod claims;
 mod error;
 mod extract;
+mod jwks;
 mod jwt;
 mod layer;
+mod verifier;
 
 pub use claims::{AuthzFacts, Claims, StandardClaims};
 pub use error::{AuthError, unauthorized};
 pub use extract::{Auth, MaybeAuth};
+pub use jwks::JwksAuth;
 pub use jwt::JwtAuth;
 pub use layer::{AuthLayer, AuthService};
+pub use verifier::Verifier;

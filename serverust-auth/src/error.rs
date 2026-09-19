@@ -41,6 +41,23 @@ pub enum AuthError {
     /// Ocorre na inicialização, não no caminho de request.
     #[error("chave inválida: {0}")]
     InvalidKey(String),
+
+    /// O token aponta, via `kid`, para uma chave que não está no JWKS
+    /// carregado — ou não traz `kid` e o JWKS tem mais de uma chave, caso em
+    /// que não há como escolher sem adivinhar.
+    ///
+    /// Na prática significa que o emissor rotacionou as chaves depois deste
+    /// processo ter carregado o JWKS. Tem código próprio porque a ação do
+    /// operador é diferente de um token inválido: aqui quem precisa mudar é o
+    /// servidor, não o cliente.
+    #[error("kid desconhecido no JWKS carregado")]
+    UnknownKeyId,
+
+    /// Falha ao descobrir ou buscar o JWKS do emissor. Ocorre na
+    /// inicialização, nunca no caminho de request — é por construção: o
+    /// verificador não existe antes de a busca ter dado certo.
+    #[error("descoberta do emissor falhou: {0}")]
+    Discovery(String),
 }
 
 impl AuthError {
@@ -55,6 +72,8 @@ impl AuthError {
             Self::InvalidAudience => "invalid_audience",
             Self::InvalidToken => "invalid_token",
             Self::InvalidKey(_) => "invalid_key",
+            Self::UnknownKeyId => "unknown_key_id",
+            Self::Discovery(_) => "discovery_failed",
         }
     }
 }

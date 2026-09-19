@@ -10,6 +10,7 @@ use tower::{Layer, Service};
 
 use crate::claims::{AuthzFacts, Claims};
 use crate::jwt::{JwtAuth, bearer_token};
+use crate::verifier::Verifier;
 
 /// Layer que valida o token da requisição e deposita o resultado nas
 /// extensions, para que extractors e guards o leiam sem revalidar.
@@ -26,29 +27,39 @@ use crate::jwt::{JwtAuth, bearer_token};
 /// mudança de comportamento para quem já usava o layer contando apenas com o
 /// extractor.
 ///
-/// Registre com `App::layer`:
+/// Registre com `App::auth`:
 ///
 /// ```no_run
 /// use serverust_auth::{AuthLayer, JwtAuth, StandardClaims};
 /// use serverust_core::App;
 ///
 /// let auth = JwtAuth::hs256(b"segredo");
-/// let app = App::new().layer(AuthLayer::<StandardClaims>::new(auth));
+/// let app = App::new().auth(AuthLayer::<StandardClaims>::new(auth));
 /// ```
-pub struct AuthLayer<C> {
-    auth: Arc<JwtAuth>,
+///
+/// O parâmetro `V` é a origem das chaves, e tem default [`JwtAuth`] para que
+/// `AuthLayer::<C>` continue significando o que sempre significou. Com outro
+/// verificador — [`crate::JwksAuth`], ou um escrito por você — deixe a
+/// inferência resolver:
+///
+/// ```text
+/// let auth = JwksAuth::discover("https://idp.exemplo.com/").await?;
+/// let app = App::new().auth(AuthLayer::<StandardClaims, _>::new(auth));
+/// ```
+pub struct AuthLayer<C, V = JwtAuth> {
+    auth: Arc<V>,
     _claims: PhantomData<fn() -> C>,
 }
 
-impl<C> AuthLayer<C> {
+impl<C, V> AuthLayer<C, V> {
     /// Cria o layer tomando posse do verificador.
-    pub fn new(auth: JwtAuth) -> Self {
+    pub fn new(auth: V) -> Self {
         Self::shared(Arc::new(auth))
     }
 
     /// Cria o layer a partir de um verificador já compartilhado — útil quando
-    /// o mesmo `JwtAuth` alimenta mais de um ponto da aplicação.
-    pub fn shared(auth: Arc<JwtAuth>) -> Self {
+    /// o mesmo verificador alimenta mais de um ponto da aplicação.
+    pub fn shared(auth: Arc<V>) -> Self {
         Self {
             auth,
             _claims: PhantomData,
@@ -56,9 +67,9 @@ impl<C> AuthLayer<C> {
     }
 }
 
-// Clone manual: o derivado exigiria `C: Clone` sem necessidade — `C` só
-// aparece em `PhantomData`.
-impl<C> Clone for AuthLayer<C> {
+// Clone manual: o derivado exigiria `C: Clone` e `V: Clone` sem necessidade —
+// `C` só aparece em `PhantomData` e `V` vive atrás de `Arc`.
+impl<C, V> Clone for AuthLayer<C, V> {
     fn clone(&self) -> Self {
         Self {
             auth: Arc::clone(&self.auth),
@@ -67,8 +78,8 @@ impl<C> Clone for AuthLayer<C> {
     }
 }
 
-impl<S, C> Layer<S> for AuthLayer<C> {
-    type Service = AuthService<S, C>;
+impl<S, C, V> Layer<S> for AuthLayer<C, V> {
+    type Service = AuthService<S, C, V>;
 
     fn layer(&self, inner: S) -> Self::Service {
         AuthService {
@@ -80,13 +91,13 @@ impl<S, C> Layer<S> for AuthLayer<C> {
 }
 
 /// Service produzido por [`AuthLayer`].
-pub struct AuthService<S, C> {
+pub struct AuthService<S, C, V = JwtAuth> {
     inner: S,
-    auth: Arc<JwtAuth>,
+    auth: Arc<V>,
     _claims: PhantomData<fn() -> C>,
 }
 
-impl<S: Clone, C> Clone for AuthService<S, C> {
+impl<S: Clone, C, V> Clone for AuthService<S, C, V> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -96,15 +107,17 @@ impl<S: Clone, C> Clone for AuthService<S, C> {
     }
 }
 
-impl<S, C> Service<Request> for AuthService<S, C>
+impl<S, C, V> Service<Request> for AuthService<S, C, V>
 where
     S: Service<Request>,
     C: Claims,
+    V: Verifier,
 {
     type Response = S::Response;
     type Error = S::Error;
-    // A verificação com chave estática é síncrona e não falha o service, então
-    // o future do inner passa direto: sem box, sem pin-project, sem alocação.
+    // A verificação é síncrona por contrato da trait `Verifier` — todo o I/O
+    // acontece na construção do verificador — então o future do inner passa
+    // direto: sem box, sem pin-project, sem alocação no caminho quente.
     type Future = S::Future;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
