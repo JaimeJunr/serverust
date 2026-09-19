@@ -11,6 +11,7 @@ use axum::routing::get;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use utoipa::{PartialSchema, ToSchema};
 
+use crate::auth::AuthGate;
 use crate::config::ServerustConfig;
 use crate::container::Container;
 use crate::events::{EventDispatcher, EventHandler, EventHandlerRegistry};
@@ -187,11 +188,24 @@ impl App {
     }
 
     /// Registra um handler anotado por `#[get]`, `#[post]`, etc.
+    ///
+    /// Rota que não seja marcada pública (via [`crate::Route::public`]) é
+    /// embrulhada pelo [`AuthGate`], que aplica o default deny da ADR 0009. O
+    /// portão é inerte enquanto não houver autenticação instalada, então a
+    /// ordem do builder é irrelevante: registrar a rota antes ou depois de
+    /// configurar autenticação dá o mesmo resultado.
     pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
         let route = handler.into_route();
         self.openapi
             .push_operation(route.path, route.method, route.operation);
-        self.router = self.router.route(route.path, route.method_router);
+
+        let method_router = if route.is_public {
+            route.method_router
+        } else {
+            route.method_router.layer(AuthGate)
+        };
+
+        self.router = self.router.route(route.path, method_router);
         self
     }
 

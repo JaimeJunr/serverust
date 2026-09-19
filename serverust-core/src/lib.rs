@@ -35,6 +35,7 @@
 //! <https://github.com/JaimeJunr/serverust/blob/main/docs/guides/lambda-tutorial.md>.
 
 mod app;
+mod auth;
 pub mod config;
 mod container;
 mod error;
@@ -45,6 +46,7 @@ mod route;
 mod validation;
 
 pub use app::App;
+pub use auth::{AuthEnabled, AuthGate, AuthGateFuture, AuthGateService, Authenticated};
 pub use config::ServerustConfig;
 pub use container::{Container, Injectable};
 pub use error::{ApiError, validation_error_response};

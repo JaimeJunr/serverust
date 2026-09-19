@@ -19,6 +19,12 @@ http = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tower = "0.5"
+# Future do `AuthGate` é um enum (seguiu / negado) e precisa projetar `Pin`.
+# `pin-project-lite` é macro_rules puro, sem deps transitivas e sem custo de
+# runtime. A alternativa sem dep nova seria `axum::middleware::from_fn`, que
+# boxa um future por requisição em TODA rota não-pública — inaceitável num
+# crate cujo invariante é request quente na casa de 1 ms.
+pin-project-lite = "0.2"
 validator = { version = "0.20", features = ["derive"] }
 utoipa = { version = "5", features = ["macros"] }
 uuid = { version = "1", features = ["v4"] }

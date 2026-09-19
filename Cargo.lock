@@ -3084,6 +3084,7 @@ dependencies = [
  "figment",
  "http 1.4.0",
  "http-body-util",
+ "pin-project-lite",
  "serde",
  "serde_json",
  "serverust-macros",
