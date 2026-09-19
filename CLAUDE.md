@@ -160,6 +160,23 @@ Ao adicionar um gate novo com dependência externa: use `require_tool`, nunca `i
 
 No CI os gates espelhados **instalam a ferramenta em passo explícito** do job: os de pre-commit em `.github/workflows/lint.yml` (`fmt`, `clippy`, `cycles`) e os de pre-push em `.github/workflows/quality.yml` (`coverage`, `mutation`). Se a instalação falhar, o gate reprova em vez de passar vazio: verde ali significa que a checagem rodou.
 
+### Crate novo é testado sem ninguém lembrar
+
+Mesma regra, aplicada à cobertura do CI: **a ausência de uma linha de matriz nunca pode ser indistinguível de um crate testado e verde.**
+
+A matriz de `.github/workflows/tests.yml` é derivada do workspace por [`scripts/ci_test_matrix.sh`](scripts/ci_test_matrix.sh) — crate novo entra sozinho. Escrita à mão ela era uma allowlist por presença, e foi assim que `serverust-auth` (65 testes), `funds-api` e `todo-api` (13 testes) ficaram fora do CI sem nenhum sinal: faltava uma linha de YAML que nenhum `grep` procura.
+
+O que sobrou de decisão humana são duas listas no gerador, e nenhuma consegue esconder um crate:
+
+| Lista | Se esquecerem de atualizar |
+|---|---|
+| `SEM_TESTES` — crates autorizados a não ter testes | o `nextest` reprova por 0 testes — falha alto |
+| `COMBINACOES_EXTRA` — feature flags além do default | o crate segue testado com as features default — degrada, não some |
+
+[`scripts/test_ci_test_matrix.sh`](scripts/test_ci_test_matrix.sh) roda no CI e guarda as três invariantes: todo membro do workspace aparece na matriz, nenhuma dispensa de `SEM_TESTES` está obsoleta (crate que ganhou testes sai da lista), e crate sem testes precisa declarar a exceção com motivo.
+
+Ao criar um crate: não é preciso tocar em `tests.yml`. Se ele nascer sem testes, o CI diz exatamente onde declarar isso.
+
 ### Pre-push (automático via lefthook)
 
 ```bash
