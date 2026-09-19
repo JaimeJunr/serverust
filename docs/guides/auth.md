@@ -87,14 +87,16 @@ Pedir `Auth<C>` na assinatura é o que protege a rota: sem token válido o extra
 
 ```rust
 use serverust_auth::{Auth, MaybeAuth, StandardClaims};
-use serverust_macros::get;
+use serverust_macros::{get, public};
 
 #[get("/me")]
 async fn me(user: Auth<StandardClaims>) -> String {
     format!("olá, {}", user.sub)
 }
 
-// Sem `Auth` na assinatura, a rota responde a todo mundo.
+// Atenção: sem `Auth` na assinatura a rota NÃO fica aberta — com o layer
+// instalado ela é protegida pelo default deny. Abrir exige `#[public]`.
+#[public]
 #[get("/health")]
 async fn health() -> &'static str {
     "ok"
@@ -197,33 +199,82 @@ O motivo preciso atravessa a rejeição: uma rota protegida só pelo default den
 
 ### Abrindo uma rota
 
-A exceção é explícita e auditável — `grep` acha marcação, nunca a falta dela. Enquanto a macro `#[public]` não existe, use a via programática:
+A exceção é explícita e auditável — `grep` acha marcação, nunca a falta dela. `grep -rn '#\[public\]' src/` lista todo endpoint anônimo do serviço, e essa lista é completa por construção.
 
 ```rust
-use serverust_core::{IntoRoute, Route};
-use utoipa::openapi::{HttpMethod, path::Operation};
+use serverust_macros::{get, public};
 
-struct Health;
-
-impl IntoRoute for Health {
-    fn into_route(self) -> Route {
-        Route::new("/health", HttpMethod::Get, axum::routing::get(|| async { "ok" }), Operation::new())
-            .public()
-    }
+#[public]
+#[get("/health")]
+async fn health() -> &'static str {
+    "ok"
 }
 ```
 
+`#[public]` vem **acima** da macro de rota, como `#[guard]`. Abaixo ela não teria efeito — a rota já teria sido construída — então isso **não compila**: uma rota que se diz pública sem ser é a falha silenciosa que o default deny existe para evitar.
+
+A via programática continua disponível, para quem constrói a `Route` à mão:
+
+```rust
+Route::new("/health", HttpMethod::Get, axum::routing::get(|| async { "ok" }), Operation::new())
+    .public()
+```
+
 > **Adotando em serviço existente:** instalar o layer fecha todas as rotas de uma vez. Rode a suíte de testes — as falhas são a sua checklist do que precisa ser marcado público.
+
+## Autorização por escopo e papel
+
+Autenticação diz *quem* é; autorização diz *o que pode*. `#[authorize]` cobre a segunda, lendo os fatos que o `AuthLayer` publicou:
+
+```rust
+use serverust_macros::{authorize, get, post};
+
+#[authorize(scope = "orders:read")]
+#[get("/orders")]
+async fn listar() -> &'static str { "pedidos" }
+
+#[authorize(scope = "orders:write", role = "admin")]
+#[post("/orders")]
+async fn criar() -> &'static str { "criado" }
+```
+
+`scope` e `role` são repetíveis, e **todos** os valores listados são exigidos. Empilhar `#[authorize]` também conjunta:
+
+```rust
+#[authorize(scope = "a")]
+#[authorize(scope = "b")]   // exige a E b
+```
+
+Exigência alternativa (`any_of`) não existe hoje, de propósito: um "qualquer um destes" ambíguo é o tipo de default que a [filosofia do projeto](../product/philosophy.md#o-corolário-defaults-na-era-dos-agentes) pede para não existir. Enquanto isso, um caso genuinamente alternativo cabe num `#[guard]` escrito à mão.
+
+Ao contrário de `#[public]`, `#[authorize]` funciona acima ou abaixo da macro de rota.
+
+`#[public]` e `#[authorize]` na mesma rota **não compilam**: `#[authorize]` já nega sem identidade, então o `#[public]` não abriria nada — só faria a rota aparecer na auditoria de endpoints anônimos sem ser um.
+
+### Respostas
+
+| Situação | Resposta |
+|---|---|
+| Sem identidade na requisição | `401` `authentication_required` |
+| Identidade sem o escopo/papel | `403` `insufficient_scope` (RFC 6750 §3.1) |
+
+O 403 tem o mesmo formato do 401 (`{"error": ..., "reason": ...}`), com `error` igual a `"forbidden"`.
+
+A ausência de identidade nega **inclusive em rota `#[public]`** e **inclusive sem `AuthLayer` instalado**. `#[authorize]` numa aplicação sem autenticação configurada rejeita tudo em vez de liberar tudo: a combinação "pedi permissão e não tenho de onde lê-la" não pode resultar em acesso.
+
+### De onde vêm os fatos
+
+`#[authorize]` consulta `serverust_core::AuthzFacts` — a mesma trait que o seu tipo de claims implementa. Quem escreveu um tipo próprio (veja [Claims](#tipo-de-claims-próprio)) já está coberto: `has_scope` e `has_role` são exatamente o que a macro chama. Quem não implementou nenhum dos dois nega toda autorização, porque os defaults da trait são `false`.
 
 **O que o portão não alcança:** as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) não passam por `App::route()` e seguem abertas; feche-as com `App::without_docs()`. E rota registrada direto no `axum::Router`, fora do `App`, também não é embrulhada.
 
 ## O que ainda não está implementado
 
-Esta é a primeira parcela da ADR 0009. Está fora do que existe hoje:
+A ADR 0009 é entregue em parcelas. Está fora do que existe hoje:
 
 - **Descoberta de JWKS/OIDC.** Só há chave estática. O construtor `async` com a busca do JWKS aquecida na fase de init, e o refresh sob demanda em caso de `kid` desconhecido, vêm em incremento seguinte.
-- **`#[authorize(scope = "...")]`.** A trait `AuthzFacts` já existe e o layer já publica os fatos apagados de tipo nas extensions, mas a macro que gera o `Guard` correspondente ainda não. Autorização por escopo hoje é checagem manual dentro do handler.
-- **Marcar rota pública por macro.** O default deny já vale (veja abaixo), mas a macro `#[public]` ainda não existe. Enquanto isso, a única forma de declarar uma rota aberta é a via programática `Route::public()`, implementando `IntoRoute` à mão.
+- **Log de inicialização listando as rotas públicas.** A anotação já é auditável por `grep`; ver a lista no boot do serviço ainda não é possível.
+- **Exigência alternativa em `#[authorize]`.** Só há conjunção (AND). Um `any_of` cabe hoje num `#[guard]` escrito à mão.
 - **`security` automático no OpenAPI.** O botão "Authorize" do Scalar/Swagger UI ainda precisa de configuração manual.
 
 ## Veja também

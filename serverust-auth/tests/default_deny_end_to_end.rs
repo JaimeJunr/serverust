@@ -17,7 +17,7 @@ use http::StatusCode;
 use serde_json::json;
 use serverust_auth::{Auth, AuthLayer, JwtAuth, StandardClaims};
 use serverust_core::{App, IntoRoute, Route};
-use serverust_macros::get as get_route;
+use serverust_macros::{authorize, get as get_route, public};
 use tower::ServiceExt;
 use utoipa::openapi::HttpMethod;
 use utoipa::openapi::path::Operation;
@@ -50,6 +50,21 @@ impl IntoRoute for Health {
     }
 }
 
+/// A mesma rota aberta, agora pela macro. Se `#[public]` e `Route::public()`
+/// divergirem, um destes dois testes cai.
+#[public]
+#[get_route("/ping")]
+async fn ping() -> &'static str {
+    "pong"
+}
+
+/// Autorização por escopo, com o token real alimentando os fatos.
+#[authorize(scope = "orders:read")]
+#[get_route("/pedidos")]
+async fn pedidos() -> &'static str {
+    "pedidos"
+}
+
 fn app() -> axum::Router {
     App::new()
         .without_docs()
@@ -59,7 +74,16 @@ fn app() -> axum::Router {
         .route(relatorio)
         .route(eu)
         .route(Health)
+        .route(ping)
+        .route(pedidos)
         .into_router()
+}
+
+fn token_com_escopo(scope: &str) -> String {
+    common::assinar_hs256(
+        &json!({ "sub": "user-42", "exp": common::instante(3600), "scope": scope }),
+        common::SEGREDO,
+    )
 }
 
 /// O teste que o vão deixava passar: rota sem `Auth<C>` na assinatura,
@@ -146,6 +170,58 @@ async fn rota_com_extractor_segue_entregando_a_identidade() {
 
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(common::corpo_texto(resp).await, "user-42");
+}
+
+/// `#[public]` com o `AuthLayer` real: a macro tem que chegar ao mesmo
+/// resultado da via programática.
+#[tokio::test]
+async fn macro_public_abre_a_rota_com_o_layer_real() {
+    let resp = app().oneshot(common::req_sem_token("/ping")).await.unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(common::corpo_texto(resp).await, "pong");
+}
+
+/// `#[authorize]` lendo os fatos que o `AuthLayer` publicou a partir de um
+/// token de verdade — a ponte entre os dois crates, sem dublê.
+#[tokio::test]
+async fn macro_authorize_le_o_escopo_do_token_real() {
+    let resp = app()
+        .oneshot(common::req_bearer(
+            "/pedidos",
+            &token_com_escopo("orders:read orders:write"),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(common::corpo_texto(resp).await, "pedidos");
+}
+
+#[tokio::test]
+async fn macro_authorize_nega_token_sem_o_escopo() {
+    let resp = app()
+        .oneshot(common::req_bearer("/pedidos", &token_com_escopo("profile")))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        StatusCode::FORBIDDEN,
+        "token válido sem o escopo passou pelo #[authorize]"
+    );
+}
+
+/// Sem token, quem rejeita é o portão — antes de o guard rodar — e o motivo
+/// preciso do layer sobrevive.
+#[tokio::test]
+async fn macro_authorize_sem_token_e_401_do_portao() {
+    let resp = app()
+        .oneshot(common::req_sem_token("/pedidos"))
+        .await
+        .unwrap();
+
+    common::assert_401(resp, "missing_credentials").await;
 }
 
 /// Sem o layer instalado, o portão é inerte — quem não usa autenticação não

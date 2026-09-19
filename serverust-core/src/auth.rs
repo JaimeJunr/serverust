@@ -27,14 +27,43 @@
 //! comportamento.
 
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use axum::extract::Request;
 use axum::response::{IntoResponse, Response};
 use http::StatusCode;
 use http::header::WWW_AUTHENTICATE;
+use http::request::Parts;
 use pin_project_lite::pin_project;
 use tower::{Layer, Service};
+
+/// Visão de autorização sobre a identidade da requisição, apagada de tipo.
+///
+/// Vive no core, e não no crate de autenticação, porque é **contrato** e não
+/// implementação: não toca cripto, não sabe o que é um JWT, e é o que permite
+/// que a macro `#[authorize]` gere código sem depender de qual crate
+/// autenticou a requisição.
+///
+/// A implementação de autenticação publica um `Arc<dyn AuthzFacts>` nas
+/// extensions; os guards de autorização leem de lá.
+///
+/// `has_scope` e `has_role` têm default `false`: um tipo de claims que só
+/// carrega identidade nega toda autorização em vez de concedê-la por omissão.
+pub trait AuthzFacts: Send + Sync + 'static {
+    /// Identificador do principal — tipicamente a claim `sub`.
+    fn subject(&self) -> &str;
+
+    /// Se o principal possui o escopo informado.
+    fn has_scope(&self, _scope: &str) -> bool {
+        false
+    }
+
+    /// Se o principal possui o papel informado.
+    fn has_role(&self, _role: &str) -> bool {
+        false
+    }
+}
 
 /// Marcador de que **existe autenticação instalada** nesta aplicação.
 ///
@@ -198,6 +227,58 @@ fn unauthorized(reason: &'static str) -> Response {
         StatusCode::UNAUTHORIZED,
         [(WWW_AUTHENTICATE, "Bearer")],
         axum::Json(body),
+    )
+        .into_response()
+}
+
+/// Verificação de autorização gerada pela macro `#[authorize]`.
+///
+/// Fica no core, e não na macro, por dois motivos: o código emitido no crate
+/// do usuário encolhe para uma chamada, e a política de rejeição passa a ter
+/// um lugar só — corrigi-la não exige recompilar quem já gerou o guard com
+/// uma versão antiga da macro.
+///
+/// Semântica: **todos** os escopos e **todos** os papéis listados são
+/// exigidos (AND). Empilhar `#[authorize]` também conjunta. Exigência
+/// alternativa (OR) não é expressável hoje, de propósito: um `any_of`
+/// ambíguo entre "qualquer um destes" e "qualquer um de tudo" é exatamente o
+/// tipo de default que a ADR 0009 pede para não existir.
+///
+/// Falha fechado em duas frentes:
+///
+/// - **Sem fatos nas extensions** — seja porque não há autenticação
+///   instalada, seja porque a rota é pública — a resposta é 401. Uma rota que
+///   pede autorização e não tem de onde extrair identidade não pode executar.
+/// - **Fatos presentes sem o escopo/papel** — 403 `insufficient_scope`,
+///   o código da RFC 6750 §3.1.
+#[doc(hidden)]
+// O `Result<_, Response>` é a assinatura do `Guard::check`, que esta função
+// alimenta: boxar aqui só adicionaria uma alocação no caminho de rejeição
+// para desboxar em seguida.
+#[allow(clippy::result_large_err)]
+pub fn check_authz(parts: &Parts, scopes: &[&str], roles: &[&str]) -> Result<(), Response> {
+    let Some(facts) = parts.extensions.get::<Arc<dyn AuthzFacts>>() else {
+        return Err(unauthorized("authentication_required"));
+    };
+
+    if scopes.iter().all(|s| facts.has_scope(s)) && roles.iter().all(|r| facts.has_role(r)) {
+        return Ok(());
+    }
+
+    Err(forbidden("insufficient_scope"))
+}
+
+/// Resposta 403 de autorização negada.
+///
+/// O corpo espelha o do 401 (`error` + `reason` estável) para que o cliente
+/// ramifique da mesma forma nos dois casos. Sem `hint` mesmo em debug: aqui a
+/// rota **está** anotada, e o que falta é permissão do principal — não há
+/// anotação a sugerir ao desenvolvedor.
+fn forbidden(reason: &'static str) -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        [(WWW_AUTHENTICATE, "Bearer")],
+        axum::Json(serde_json::json!({ "error": "forbidden", "reason": reason })),
     )
         .into_response()
 }

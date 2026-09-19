@@ -47,7 +47,7 @@ mod validation;
 
 pub use app::App;
 pub use auth::{
-    AuthEnabled, AuthFailure, AuthGate, AuthGateFuture, AuthGateService, Authenticated,
+    AuthEnabled, AuthFailure, AuthGate, AuthGateFuture, AuthGateService, Authenticated, AuthzFacts,
 };
 pub use config::ServerustConfig;
 pub use container::{Container, Injectable};
@@ -69,6 +69,7 @@ pub mod extract {
 /// Itens internos usados pelas macros geradas. Não fazem parte da API pública estável.
 #[doc(hidden)]
 pub mod __private {
+    pub use crate::auth::check_authz;
     pub use axum;
     pub use http;
     pub use serde_json;

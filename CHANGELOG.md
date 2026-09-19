@@ -29,11 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `serverust-auth`: a trait `AuthzFacts` **mudou de casa** para `serverust-core` e é reexportada por `serverust-auth`, então `use serverust_auth::AuthzFacts` segue funcionando e nenhum código de usuário quebra. O motivo é de contrato, não de organização: `AuthzFacts` não toca cripto, e `#[authorize]` precisa gerar código contra ela sem arrastar o crate de autenticação para dentro de quem só usa a macro. O core continua sem dependência de cripto.
+
 - `serverust-core`: `Route` ganha o campo público `is_public`. `Route::new()` mantém a assinatura e o default `false`, então as macros de rota e todo código que constrói por `new()` seguem compilando — mas **construção por struct literal (`Route { .. }`) quebra** e precisa passar a usar `new()`. Mudança de API pública, aceitável em `0.x` e mitigada por `Route` ser quase sempre gerada por macro.
 - `serverust-core`: nova dependência `pin-project-lite`. O future do `AuthGate` é um enum (seguiu / negado) e precisa projetar `Pin`. A alternativa sem dependência nova seria `axum::middleware::from_fn`, que boxa um future por requisição em toda rota não-pública — inaceitável num crate cujo invariante é request quente na casa de 1 ms. `pin-project-lite` é `macro_rules` puro, sem dependências transitivas e sem custo de runtime, e já era usado por `serverust-events`.
 - Testes de integração das macros (`trybuild` + `kafka_consumer_runtime`) saíram de `serverust-macros` para o crate interno `serverust-macros-tests` (`publish = false`). `serverust-macros` deixa de ter dev-deps em `serverust-core`/`serverust-events`/`serverust-telemetry`, quebrando os 3 ciclos de dependência que o `cargo-cycles` detectava. Os ~18 testes de core/events/telemetry que usam as macros continuam onde estão.
 
 ### Added
+
+- `serverust-macros`: macro **`#[public]`**, a anotação que abre uma rota declarada por macro. É a exceção explícita ao default deny da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md) — o `pub` do Rust, para rotas — e fecha o vão em que só a via programática `Route::public()` conseguia declarar uma rota aberta.
+
+  Vem **acima** da macro de rota, como `#[guard]`. Abaixo ela não teria efeito, e em vez de ser ignorada em silêncio **não compila**: `#[public]` deixa um marcador que a macro de rota consome, e o marcador é ele próprio um erro de compilação se ninguém o consumir. Uma rota que se diz pública sem ser é exatamente a falha que o default deny existe para evitar — anunciá-la e não aplicá-la seria pior do que não ter a anotação.
+
+- `serverust-macros`: macro **`#[authorize(scope = "...", role = "...")]`**, autorização por escopo e papel sobre os fatos que o crate de autenticação publica nas extensions. `scope` e `role` são repetíveis e conjuntivos (AND); empilhar `#[authorize]` também conjunta. Sem identidade na requisição a resposta é 401 `authentication_required` — **inclusive em rota `#[public]` e inclusive sem `AuthLayer` instalado**, porque "pedi permissão e não tenho de onde lê-la" não pode resultar em acesso. Com identidade e sem a permissão, 403 `insufficient_scope` (RFC 6750 §3.1).
+
+  `#[public]` e `#[authorize]` na mesma rota **não compilam**, nas duas ordens possíveis: `#[authorize]` já nega sem identidade, então o `#[public]` não abriria nada — só faria a rota aparecer na auditoria de endpoints anônimos sem ser um. Era o que a Emenda 1 da ADR pedia.
+
+  Exigência alternativa (`any_of`) ficou de fora de propósito: um "qualquer um destes" ambíguo é o tipo de default que a filosofia do projeto pede para não existir. O caso genuinamente alternativo cabe num `#[guard]` escrito à mão.
 
 - `serverust-core`: portão de rota que implementa o **default deny** da [ADR 0009, Emenda 1](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). `Route` ganha o flag `is_public` com o builder `Route::public()`, e `App::route()` embrulha com o novo `AuthGate` toda rota que não seja pública. Os marcadores `AuthEnabled` e `Authenticated` formam o contrato que uma implementação de autenticação insere nas extensions — o core não ganha dependência de cripto, e qualquer implementação, inclusive uma escrita pelo usuário, herda o default deny inserindo os mesmos marcadores.
 
