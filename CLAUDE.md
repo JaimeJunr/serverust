@@ -158,7 +158,7 @@ O desenvolvedor local não trava por falta de ferramenta; o CI nunca reporta ver
 
 Ao adicionar um gate novo com dependência externa: use `require_tool`, nunca `if command -v ...; then ...; fi` com `else` silencioso. [`scripts/test_lefthook_hooks.sh`](scripts/test_lefthook_hooks.sh) (pre-commit) guarda os três estados extraindo os `run:` reais do `lefthook.yml`.
 
-No CI (`.github/workflows/lint.yml`) os gates espelhados **instalam a ferramenta em passo explícito** do job — `fmt`, `clippy` e `cycles` hoje. Se a instalação falhar, o guard reprova em vez de passar vazio: verde ali significa que a checagem rodou.
+No CI os gates espelhados **instalam a ferramenta em passo explícito** do job: os de pre-commit em `.github/workflows/lint.yml` (`fmt`, `clippy`, `cycles`) e os de pre-push em `.github/workflows/quality.yml` (`coverage`, `mutation`). Se a instalação falhar, o gate reprova em vez de passar vazio: verde ali significa que a checagem rodou.
 
 ### Pre-push (automático via lefthook)
 

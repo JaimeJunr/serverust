@@ -1,0 +1,58 @@
+name: quality
+
+# Espelha no CI os gates de PRE-PUSH do `lefthook.yml` — cobertura e mutation
+# testing. Até aqui eles só existiam na máquina de quem dava push: com o
+# lefthook não instalado, `.git/hooks/pre-push` não existe e os dois
+# simplesmente não rodavam em lugar nenhum. É o mesmo buraco que deixou fmt e
+# clippy apodrecerem no `main` (ver o cabeçalho de `lint.yml`, PR #30).
+# Os gates de pre-commit ficam em `lint.yml`; aqui rodamos os MESMOS scripts do
+# hook, não comandos reescritos, para que gate local e CI não divirjam.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: cobertura (cargo-llvm-cov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "coverage"
+      - name: Install llvm-tools-preview
+        # `rust-toolchain.toml` pina só rustfmt+clippy; cargo-llvm-cov precisa
+        # deste componente e falha sem ele.
+        run: rustup component add llvm-tools-preview
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: cobertura
+        # O script reprova sozinho se a ferramenta faltar (exit != 0 com
+        # instrução), então uma instalação quebrada não vira verde vazio.
+        run: bash scripts/quality_coverage.sh
+
+  mutation:
+    name: mutation testing (cargo-mutants)
+    runs-on: ubuntu-latest
+    # `--check` só type-checa cada mutante, sem rodar a suíte — na máquina do
+    # mantenedor fecha em ~3 min. O teto evita que uma regressão de performance
+    # da ferramenta segure a fila de CI indefinidamente.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "mutation"
+      - name: Install cargo-mutants
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-mutants
+      - name: mutation
+        run: bash scripts/quality_mutation.sh
