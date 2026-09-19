@@ -37,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **CI**: a matriz de testes passa a ser derivada do workspace ([`scripts/ci_test_matrix.sh`](scripts/ci_test_matrix.sh)) em vez de escrita à mão em `tests.yml`.
+
+  Escrita à mão, ela era uma allowlist por presença: crate novo que ninguém lembrasse de adicionar não reprovava — sumia. Foi o que aconteceu com o `serverust-auth` (65 testes, incluindo todos os de default deny), o `funds-api` e o `todo-api` (13 testes): nunca rodaram no CI, porque faltava uma linha de YAML que nenhum `grep` procura. É a regra 3 do corolário da filosofia — *não dependa de lembrar* — aplicada à própria pipeline.
+
+  O que sobrou de decisão humana são duas listas no gerador, escolhidas para que nenhuma consiga esconder um crate: esquecer uma dispensa em `SEM_TESTES` faz o `nextest` reprovar por 0 testes, e esquecer uma combinação de features reduz cobertura sem tirar o crate da matriz. A necessidade de toolchain de C (librdkafka) é derivada das dependências reais, não de uma lista.
+
+  [`scripts/test_ci_test_matrix.sh`](scripts/test_ci_test_matrix.sh) guarda as invariantes no próprio CI, inclusive a dispensa obsoleta — um crate que ganhe testes e continue em `SEM_TESTES` seria de novo o verde vazio.
+
 - `serverust-core`: **`App::auth(layer)`** e o log de inicialização que lista as rotas públicas — mitigação 2 da decisão 5 da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). É o mesmo `App::layer`, com duas diferenças: o nome, porque essa linha é a decisão mais consequente do serviço e esconder isso num ponto de extensão genérico não ajuda quem lê o `main`; e o log, que imprime no stderr a superfície anônima a cada boot.
 
   Lista o que é **aberto**, nunca o que é protegido: a lista curta é a que se lê, e inverter produziria um log do tamanho do serviço. `App::public_routes()` expõe o mesmo conteúdo, para afirmar a superfície anônima num teste em vez de confiar na leitura do log — e há teste conferindo que o inventário bate com o que de fato responde sem token, porque declaração de segurança que ninguém verifica é a categoria de problema que a ADR inteira trata.
