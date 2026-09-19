@@ -1,6 +1,8 @@
 # Visão de Produto — serverust
 
 > Última atualização: 2026-05-16
+>
+> Para a tese que orienta estas decisões — e o caso real de migração NestJS → serverust em produção — veja [philosophy.md](philosophy.md).
 
 ## O que é
 
@@ -48,6 +50,7 @@ serverust fecha esse gap: a mesma aplicação roda em Lambda (via `lambda_http`)
 
 ## Referências
 
+- [product/philosophy.md](philosophy.md) — a tese por trás dos princípios acima e o caso em produção que a sustenta
 - [CHANGELOG.md](../../CHANGELOG.md) — histórico de versões com o que foi entregue
 - [product/roadmap.md](roadmap.md) — o que foi construído e o que vem a seguir
 - [architecture/overview.md](../architecture/overview.md) — como o framework é estruturado internamente

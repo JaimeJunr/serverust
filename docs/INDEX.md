@@ -12,6 +12,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 ## Produto
 
+- [**product/philosophy.md**](product/philosophy.md) — A tese do projeto: segurança pela linguagem, baixo nível sem escrever baixo nível, DX como requisito. Inclui o caso real de migração NestJS → serverust em produção, com os números medidos e a ressalva honesta sobre como lê-los.
 - [**product/vision.md**](product/vision.md) — O que é, por que existe, objetivos mensuráveis, princípios de design e não-objetivos.
 - [**product/roadmap.md**](product/roadmap.md) — O que foi entregue (v0.1.x, v0.2.0, v0.3.0) e o que está planejado (v0.3.x+, v0.4, backlog).
 - [**product/competitors/axum.md**](product/competitors/axum.md) — Análise de Axum: mesma stack Tower/Tokio, gaps em DI nativa, OpenAPI e Lambda.
@@ -43,7 +44,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 - **Usando o framework pela primeira vez?** [guides/getting-started.md](guides/getting-started.md) → [guides/lambda-tutorial.md](guides/lambda-tutorial.md).
 - **Quer entender a arquitetura?** [architecture/overview.md](architecture/overview.md) → diagramas em [architecture/diagrams/](architecture/diagrams/).
 - **Contribuindo com código?** [development/decisions/](development/decisions/) (ADRs) → [development/ralph-progress.md](development/ralph-progress.md) (learnings de implementação).
-- **Entendendo o "porquê"?** [product/vision.md](product/vision.md) (filosofia e objetivos) → [product/roadmap.md](product/roadmap.md) (o que foi construído e por quê).
+- **Entendendo o "porquê"?** [product/philosophy.md](product/philosophy.md) (a tese e o caso em produção) → [product/vision.md](product/vision.md) (objetivos e princípios) → [product/roadmap.md](product/roadmap.md) (o que foi construído e por quê).
 - **Referência completa de API?** `cargo doc --workspace --no-deps --open`.
 
 ## Histórico de versões

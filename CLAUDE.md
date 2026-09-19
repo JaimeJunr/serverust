@@ -5,6 +5,28 @@
 
 ---
 
+## Filosofia (o critério quando houver trade-off)
+
+Contexto completo em [`docs/product/philosophy.md`](docs/product/philosophy.md). Resumo operacional — use isto para decidir, não só para entender:
+
+1. **Segurança vem da linguagem.** Prefira erro de compilação a verificação em runtime. Rotas, schema OpenAPI e providers são resolvidos em compile-time; mantenha assim.
+2. **Baixo nível sem escrever baixo nível.** Custo em Lambda é memória × tempo — por isso cold start e tamanho de binário são invariantes com gate, não aspirações (tabela abaixo).
+3. **DX é requisito, não enfeite.** O usuário do framework deve gastar o tempo dele no domínio do problema. Boilerplate que o framework poderia absorver é bug de design.
+
+Como isso resolve os conflitos mais comuns:
+
+| Situação | Decisão |
+|---|---|
+| Feature útil que pesa no cold start ou no binário | Feature flag opt-in — nunca default em `serverust-core` |
+| Performance × DX | Resolva em compile-time (macro ou builder); não empurre a complexidade pro usuário |
+| Macro nova | Permitida, mas exige builder programático equivalente por baixo |
+| Abstração que esconderia o Axum | Rejeitada — `App::axum_router()` é escape hatch de primeira classe |
+| Regressão de invariante público | Exige ADR aprovada antes do merge |
+
+**Ao divulgar performance** (README, docs, release notes): publique a ressalva junto com o número. O caso de produção documentado rende "8x" se medido só pelo `Init Duration`, e **~2x** no caminho frio completo — o número honesto é o que vale. Nunca cite `Init Duration` isolado como ganho de cold start.
+
+---
+
 ## Invariantes (SLOs públicos — não negociáveis sem ADR)
 
 Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR aprovada em `docs/development/decisions/`.
