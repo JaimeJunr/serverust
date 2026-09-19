@@ -164,8 +164,15 @@ Nota: as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) ficam fora
 ## Verificação
 
 ```bash
-# serverust-core deve continuar sem cripto e sem auth
-cargo tree -p serverust-core | grep -E "jsonwebtoken|rsa|p256|aws-lc-rs|ring"
+# serverust-core deve continuar sem cripto e sem auth.
+# Compara NOME DE PACOTE exato: um `grep -E "...|ring"` solto casa dentro de
+# `inlinable_string` e acusa regressão que não existe.
+cargo tree -p serverust-core --prefix none | awk '{print $1}' | sort -u \
+  | grep -xE "jsonwebtoken|rsa|p256|p384|ed25519-dalek|aws-lc-rs|ring|sha2|hmac" \
+  && echo "REGRESSÃO: cripto entrou no core" || echo "ok: core sem cripto"
+
+# nenhum membro do workspace deve depender de serverust-auth por acidente
+cargo tree -i serverust-auth --workspace
 
 # hello-world não pode ganhar peso: invariante de 10 MB
 scripts/benchmark_ci.sh
