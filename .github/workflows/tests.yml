@@ -32,6 +32,8 @@ jobs:
             features: ""
           - crate: serverust-core
             features: ""
+          - crate: serverust-auth
+            features: ""
           - crate: serverust-telemetry
             features: ""
           - crate: serverust-events
