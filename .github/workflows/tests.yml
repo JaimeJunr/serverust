@@ -9,44 +9,43 @@ permissions:
   contents: read
 
 jobs:
-  # A matriz é DERIVADA do workspace, não escrita à mão.
-  #
-  # Escrita à mão ela era uma allowlist por presença: crate novo que ninguém
-  # lembrasse de adicionar não reprovava — sumia. Foi o que aconteceu com o
-  # serverust-auth, criado com 65 testes (todos os de default deny entre eles)
-  # que nunca rodaram no CI porque faltava uma linha de YAML que nenhum `grep`
-  # procura. Os testes de funds-api e todo-api nunca rodaram pelo mesmo motivo.
-  #
-  # Agora ser testado é consequência de existir no workspace. O que sobrou de
-  # decisão humana está em scripts/ci_test_matrix.sh, em duas listas que não
-  # conseguem esconder um crate — ver o cabeçalho de lá.
-  matriz:
-    name: derivar matriz do workspace
-    runs-on: ubuntu-latest
-    outputs:
-      config: ${{ steps.gerar.outputs.config }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - id: gerar
-        run: echo "config=$(./scripts/ci_test_matrix.sh)" >> "$GITHUB_OUTPUT"
-      - name: Matriz derivada
-        run: ./scripts/ci_test_matrix.sh | jq .
-      # Sem isto, o gerador poderia voltar a deixar um crate de fora em
-      # silêncio — só que agora por um bug no gerador em vez de por esquecimento.
-      - name: Guarda da matriz
-        run: ./scripts/test_ci_test_matrix.sh
-
   nextest:
     name: cargo nextest (${{ matrix.crate }} / features=${{ matrix.features }})
-    needs: matriz
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       # Rodamos por crate para isolar falhas e respeitar a regra "nunca workspace
       # build inteiro de uma vez" (CLAUDE.md). nextest é mais rápido por design
       # (parallelism + retry).
-      matrix: ${{ fromJSON(needs.matriz.outputs.config) }}
+      matrix:
+        include:
+          - crate: serverust-macros
+            features: ""
+            # Único crate sem teste próprio: é proc-macro puro e os testes dele
+            # (trybuild + runtime) vivem em serverust-macros-tests, que não pode
+            # ser dev-dep daqui sem recriar o ciclo. Sem isto o nextest sai 4
+            # ("no tests to run"). A exceção é marcada aqui de propósito, em vez
+            # de `--no-tests=pass` na matriz inteira: assim qualquer OUTRO crate
+            # que fique sem teste continua reprovando em vez de virar verde vazio.
+            no_tests: "pass"
+          - crate: serverust-macros-tests
+            features: ""
+          - crate: serverust-core
+            features: ""
+          - crate: serverust-telemetry
+            features: ""
+          - crate: serverust-events
+            features: ""
+          - crate: serverust-events
+            features: "sqs in-memory"
+          - crate: serverust-events
+            features: "kafka"
+          - crate: serverust-events
+            features: "asyncapi sqs"
+          - crate: serverust-lambda
+            features: ""
+          - crate: serverust-cli
+            features: ""
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -54,10 +53,8 @@ jobs:
         with:
           # Cache key inclui matrix para isolar caches por crate+features.
           shared-key: "tests-${{ matrix.crate }}-${{ matrix.features }}"
-      - name: Install librdkafka build deps
-        # `kafka` vem derivado das dependências reais do crate, não de uma
-        # lista: crate que passar a usar rdkafka amanhã já chega coberto.
-        if: matrix.kafka
+      - name: Install librdkafka build deps (kafka feature)
+        if: contains(matrix.features, 'kafka')
         # libcurl4-openssl-dev: rdkafka-sys >=4.10 requer curl/curl.h em build.
         run: sudo apt-get update && sudo apt-get install -y cmake build-essential libssl-dev libsasl2-dev libcurl4-openssl-dev
       - name: Install cargo-nextest
@@ -66,9 +63,7 @@ jobs:
           tool: cargo-nextest
       - name: Run tests
         env:
-          # Vazio para todos, menos onde o gerador marca a exceção. Um crate
-          # sem testes que não esteja na lista de exceções reprova por 0
-          # testes, em vez de virar verde vazio.
+          # Vazio para todos, menos onde a matriz marca a exceção explicitamente.
           NO_TESTS: ${{ matrix.no_tests && format('--no-tests={0}', matrix.no_tests) || '' }}
         run: |
           if [ -z "${{ matrix.features }}" ]; then

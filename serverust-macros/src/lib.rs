@@ -36,12 +36,6 @@
 //!
 //! # Atributos de pipeline
 //!
-//! - `#[public]` — coloca **acima** de `#[get/post/...]`; marca a rota como
-//!   aberta, a exceção explícita ao default deny da ADR 0009. Abaixo da macro
-//!   de rota não compila, em vez de ser ignorada em silêncio.
-//! - `#[authorize(scope = "...", role = "...")]` — exige escopos/papéis do
-//!   principal autenticado. Repetível e conjuntivo. Contradiz `#[public]`, e
-//!   a combinação dos dois não compila.
 //! - `#[guard(MyGuard)]` — coloca **acima** de `#[get/post/...]`; injeta
 //!   `GuardCheck<MyGuard>` no início da assinatura. Múltiplos `#[guard]` são
 //!   empilháveis.
@@ -123,59 +117,9 @@ fn type_ident_str(ty: &Type) -> String {
     String::new()
 }
 
-/// Nome do atributo inerte que `#[public]` deixa para a macro de rota
-/// consumir. Ver [`public`] para o porquê do mecanismo.
-const PUBLIC_MARKER: &str = "__serverust_public";
-
-/// Se o atributo é o marcador deixado por `#[public]`.
-///
-/// Compara o último segmento porque o marcador é emitido com caminho
-/// absoluto (`::serverust_macros::__serverust_public`) para resolver
-/// independentemente do que o usuário importou — `is_ident` só casaria com
-/// um caminho de segmento único.
-fn is_public_marker(attr: &syn::Attribute) -> bool {
-    attr.path()
-        .segments
-        .last()
-        .is_some_and(|s| s.ident == PUBLIC_MARKER)
-}
-
 fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream {
     let route_attr = parse_macro_input!(attr as RouteAttr);
-    let mut func = parse_macro_input!(item as ItemFn);
-
-    // Consome o marcador de `#[public]`: ele não pode sobreviver à expansão,
-    // porque a macro que o define é um erro de compilação de propósito.
-    let is_public = func.attrs.iter().any(is_public_marker);
-    func.attrs.retain(|a| !is_public_marker(a));
-
-    // A ordem `#[public]` acima e `#[authorize]` abaixo da macro de rota faz a
-    // contradição chegar aqui em vez de na própria `#[authorize]`.
-    if is_public
-        && let Some(autorizacao) = func.attrs.iter().find(|a| {
-            a.path()
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "authorize")
-        })
-    {
-        return syn::Error::new(
-            autorizacao.span(),
-            "#[public] e #[authorize] na mesma rota se contradizem.\n\
-             #[authorize] já nega sem identidade, então o #[public] aqui não \
-             abre nada — só faz a rota aparecer na auditoria de endpoints \
-             anônimos (`grep '#[public]'`) sem ser um.\n\
-             Remova um dos dois: #[authorize] sozinho para exigir a permissão, \
-             #[public] sozinho para abrir a rota.",
-        )
-        .to_compile_error()
-        .into();
-    }
-    let public_call = if is_public {
-        quote! { .public() }
-    } else {
-        quote! {}
-    };
+    let func = parse_macro_input!(item as ItemFn);
 
     let vis = func.vis.clone();
     let fn_name = func.sig.ident.clone();
@@ -269,7 +213,6 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
                     ::serverust_core::__private::axum::routing::#method_ident(#fn_name),
                     operation,
                 )
-                #public_call
             }
         }
     };
@@ -302,237 +245,6 @@ pub fn delete(attr: TokenStream, item: TokenStream) -> TokenStream {
     make_route("delete", attr, item)
 }
 
-/// Marca a rota como **pública**: ela responde sem identidade, mesmo com
-/// autenticação instalada.
-///
-/// É a exceção explícita ao default deny da ADR 0009 — o `pub` do Rust, para
-/// rotas. Marcar o que é aberto, em vez do que é protegido, é o que torna a
-/// superfície exposta auditável por presença: `grep -r '#\[public\]'` lista
-/// todo endpoint anônimo do serviço, e nenhuma omissão escapa dessa lista.
-///
-/// Posicione **acima** da macro de rota, como `#[guard]`:
-///
-/// ```ignore
-/// #[public]
-/// #[get("/health")]
-/// async fn health() -> &'static str { "ok" }
-/// ```
-///
-/// # Por que a ordem importa
-///
-/// Atributos expandem de fora para dentro. Acima, `#[public]` roda primeiro e
-/// deixa um marcador inerte que `#[get]` consome ao construir a `Route`.
-/// Abaixo, `#[get]` já teria construído a rota antes de `#[public]` existir —
-/// a anotação não teria efeito nenhum. Em vez de falhar em silêncio nesse
-/// caso, o marcador que esta macro deixa é ele próprio um erro de compilação
-/// caso ninguém o consuma: se a rota não foi marcada, não compila.
-///
-/// A garantia vem do marcador, e não de inspecionar os atributos abaixo,
-/// porque `#[get]` pode chegar com qualquer nome — `use serverust_macros::get
-/// as rota;` é código legítimo, e uma checagem por nome o rejeitaria sem
-/// motivo.
-#[proc_macro_attribute]
-pub fn public(attr: TokenStream, item: TokenStream) -> TokenStream {
-    if !attr.is_empty() {
-        return syn::Error::new(
-            Span::call_site(),
-            "#[public] não recebe argumentos: ou a rota é aberta, ou não é",
-        )
-        .to_compile_error()
-        .into();
-    }
-
-    let mut func = parse_macro_input!(item as ItemFn);
-
-    // No fim da lista: a macro de rota está antes e expande primeiro, que é
-    // quem consome o marcador.
-    let marker = Ident::new(PUBLIC_MARKER, Span::call_site());
-    func.attrs
-        .push(parse_quote! { #[::serverust_macros::#marker] });
-
-    quote! { #func }.into()
-}
-
-/// Marcador interno de `#[public]`. Nunca deve chegar a expandir: a macro de
-/// rota o remove antes.
-///
-/// Se ele expandir, a rota **não** foi marcada como pública e a anotação do
-/// usuário não teve efeito. Falhar em compilar é a única resposta aceitável —
-/// o outro caminho é anunciar uma rota aberta que o portão fecha, ou pior, o
-/// inverso.
-#[doc(hidden)]
-#[proc_macro_attribute]
-pub fn __serverust_public(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let span = proc_macro2::TokenStream::from(item)
-        .into_iter()
-        .next()
-        .map_or_else(Span::call_site, |t| t.span());
-
-    syn::Error::new(
-        span,
-        "#[public] não teve efeito: nenhuma macro de rota o consumiu.\n\
-         Ele precisa vir ACIMA de #[get]/#[post]/#[put]/#[patch]/#[delete] — \
-         abaixo, a rota já foi construída e a anotação seria decorativa.\n\
-         Uma rota que se diz pública sem ser é exatamente a falha silenciosa \
-         que o default deny existe para evitar, então isto não compila.",
-    )
-    .to_compile_error()
-    .into()
-}
-
-/// Exige escopos e/ou papéis do principal autenticado antes do handler.
-///
-/// ```ignore
-/// #[authorize(scope = "orders:write")]
-/// #[post("/orders")]
-/// async fn criar() -> &'static str { "ok" }
-/// ```
-///
-/// Aceita `scope = "..."` e `role = "..."`, repetíveis. **Todos** os escopos e
-/// papéis listados são exigidos (AND); empilhar `#[authorize]` também
-/// conjunta. A leitura vem dos fatos que o crate de autenticação publicou nas
-/// extensions (`serverust_core::AuthzFacts`), então funciona com qualquer
-/// formato de claims.
-///
-/// Sem fatos na requisição a resposta é 401 — rota que pede autorização e não
-/// tem de onde extrair identidade não executa, inclusive se for `#[public]`.
-/// Com fatos mas sem a permissão, 403 `insufficient_scope` (RFC 6750 §3.1).
-///
-/// Como `#[guard]`, funciona acima ou abaixo da macro de rota.
-#[proc_macro_attribute]
-pub fn authorize(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr2: proc_macro2::TokenStream = attr.into();
-    let parser = Punctuated::<Meta, Token![,]>::parse_terminated;
-    let metas = match syn::parse::Parser::parse2(parser, attr2) {
-        Ok(m) => m,
-        Err(e) => return e.to_compile_error().into(),
-    };
-
-    let mut scopes: Vec<LitStr> = Vec::new();
-    let mut roles: Vec<LitStr> = Vec::new();
-
-    for meta in &metas {
-        let Meta::NameValue(nv) = meta else {
-            return syn::Error::new(
-                meta.span(),
-                "argumento inválido em #[authorize]: use `scope = \"...\"` ou `role = \"...\"`",
-            )
-            .to_compile_error()
-            .into();
-        };
-
-        let Expr::Lit(ExprLit {
-            lit: Lit::Str(s), ..
-        }) = &nv.value
-        else {
-            return syn::Error::new(nv.value.span(), "o valor precisa ser uma string literal")
-                .to_compile_error()
-                .into();
-        };
-
-        if nv.path.is_ident("scope") {
-            scopes.push(s.clone());
-        } else if nv.path.is_ident("role") {
-            roles.push(s.clone());
-        } else {
-            return syn::Error::new(
-                nv.path.span(),
-                "chave desconhecida em #[authorize]: só `scope` e `role` existem",
-            )
-            .to_compile_error()
-            .into();
-        }
-    }
-
-    if scopes.is_empty() && roles.is_empty() {
-        return syn::Error::new(
-            Span::call_site(),
-            "#[authorize] sem `scope` nem `role` não exigiria nada — remova a \
-             anotação ou diga o que ela exige",
-        )
-        .to_compile_error()
-        .into();
-    }
-
-    let mut func = parse_macro_input!(item as ItemFn);
-
-    if let Some(marcador) = func.attrs.iter().find(|a| is_public_marker(a)) {
-        return syn::Error::new(
-            marcador.span(),
-            "#[public] e #[authorize] na mesma rota se contradizem.\n\
-             #[authorize] já nega sem identidade, então o #[public] aqui não \
-             abre nada — só faz a rota aparecer na auditoria de endpoints \
-             anônimos (`grep '#[public]'`) sem ser um.\n\
-             Remova um dos dois: #[authorize] sozinho para exigir a permissão, \
-             #[public] sozinho para abrir a rota.",
-        )
-        .to_compile_error()
-        .into();
-    }
-
-    let (param_ident, idx) = novo_param_de_guard(&func);
-    let guard_ty = Ident::new(
-        &format!("__serverust_authz_{}_{idx}", func.sig.ident),
-        Span::call_site(),
-    );
-
-    let new_param: syn::FnArg = parse_quote! {
-        #param_ident: ::serverust_core::GuardCheck<#guard_ty>
-    };
-    func.sig.inputs.insert(0, new_param);
-
-    quote! {
-        #[doc(hidden)]
-        #[allow(non_camel_case_types)]
-        struct #guard_ty;
-
-        impl ::serverust_core::Guard for #guard_ty {
-            fn check(
-                parts: &::serverust_core::__private::http::request::Parts,
-            ) -> impl ::core::future::Future<
-                Output = ::core::result::Result<
-                    (),
-                    ::serverust_core::__private::axum::response::Response,
-                >,
-            > + Send {
-                // A checagem é síncrona: só lê extensions. O `async move`
-                // existe para satisfazer a assinatura da trait, sem I/O nem
-                // alocação no caminho permitido.
-                let resultado = ::serverust_core::__private::check_authz(
-                    parts,
-                    &[#(#scopes),*],
-                    &[#(#roles),*],
-                );
-                async move { resultado }
-            }
-        }
-
-        #func
-    }
-    .into()
-}
-
-/// Nome livre para o parâmetro `GuardCheck` injetado, varrendo os já
-/// existentes — `#[guard]` e `#[authorize]` empilham e dividem o namespace.
-fn novo_param_de_guard(func: &ItemFn) -> (Ident, usize) {
-    let mut idx = 0usize;
-    loop {
-        let candidato = format!("__serverust_guard_check_{idx}");
-        let colide = func.sig.inputs.iter().any(|arg| {
-            if let syn::FnArg::Typed(pt) = arg
-                && let syn::Pat::Ident(pi) = &*pt.pat
-            {
-                return pi.ident == candidato;
-            }
-            false
-        });
-        if !colide {
-            return (Ident::new(&candidato, Span::call_site()), idx);
-        }
-        idx += 1;
-    }
-}
-
 /// Aplica um `Guard` antes do handler.
 ///
 /// Uso: posicione `#[guard(MyGuard)]` ACIMA da macro de rota
@@ -546,8 +258,26 @@ pub fn guard(attr: TokenStream, item: TokenStream) -> TokenStream {
     let guard_ty = parse_macro_input!(attr as Type);
     let mut func = parse_macro_input!(item as ItemFn);
 
-    // Nome único entre `#[guard(...)]` e `#[authorize(...)]` empilhados.
-    let (param_ident, _) = novo_param_de_guard(&func);
+    // Garante nome único entre múltiplos `#[guard(...)]` empilhados,
+    // varrendo os parâmetros existentes.
+    let mut idx = 0usize;
+    let unique_name = loop {
+        let candidate = format!("__serverust_guard_check_{idx}");
+        let collides = func.sig.inputs.iter().any(|arg| {
+            if let syn::FnArg::Typed(pt) = arg {
+                if let syn::Pat::Ident(pi) = &*pt.pat {
+                    return pi.ident == candidate;
+                }
+            }
+            false
+        });
+        if !collides {
+            break candidate;
+        }
+        idx += 1;
+    };
+
+    let param_ident = Ident::new(&unique_name, Span::call_site());
     let new_param: syn::FnArg = parse_quote! {
         #param_ident: ::serverust_core::GuardCheck<#guard_ty>
     };

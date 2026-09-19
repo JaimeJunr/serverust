@@ -5,10 +5,26 @@ use serde::de::DeserializeOwned;
 
 /// Visão de autorização sobre um conjunto de claims, apagada de tipo.
 ///
-/// Definida no `serverust-core` — é contrato, não implementação, e a macro
-/// `#[authorize]` precisa dela sem arrastar cripto junto. Reexportada aqui
-/// porque é onde quem escreve um tipo de claims próprio vai procurá-la.
-pub use serverust_core::AuthzFacts;
+/// Os guards de autorização consomem esta trait em vez do tipo concreto de
+/// claims — é o que permite que um guard genérico funcione com qualquer
+/// formato de token.
+///
+/// `has_scope` e `has_role` têm default `false`: um tipo de claims que só
+/// carrega identidade nega toda autorização em vez de concedê-la por omissão.
+pub trait AuthzFacts: Send + Sync + 'static {
+    /// Identificador do principal — tipicamente a claim `sub`.
+    fn subject(&self) -> &str;
+
+    /// Se o principal possui o escopo informado.
+    fn has_scope(&self, _scope: &str) -> bool {
+        false
+    }
+
+    /// Se o principal possui o papel informado.
+    fn has_role(&self, _role: &str) -> bool {
+        false
+    }
+}
 
 /// Claims desserializáveis de um JWT que expõem fatos de autorização.
 ///

@@ -3155,10 +3155,7 @@ version = "0.4.2"
 dependencies = [
  "async-trait",
  "aws_lambda_events",
- "axum",
  "base64",
- "http 1.4.0",
- "http-body-util",
  "serde",
  "serde_json",
  "serverust-core",
@@ -3166,7 +3163,6 @@ dependencies = [
  "serverust-macros",
  "serverust-telemetry",
  "tokio",
- "tower",
  "trybuild",
 ]
 
