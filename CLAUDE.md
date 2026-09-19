@@ -21,7 +21,16 @@ Como isso resolve os conflitos mais comuns:
 | Performance × DX | Resolva em compile-time (macro ou builder); não empurre a complexidade pro usuário |
 | Macro nova | Permitida, mas exige builder programático equivalente por baixo |
 | Abstração que esconderia o Axum | Rejeitada — `App::axum_router()` é escape hatch de primeira classe |
+| Default com efeito de segurança | Falha fechado; a exceção é anotação explícita, nunca omissão (ver abaixo) |
 | Regressão de invariante público | Exige ADR aprovada antes do merge |
+
+**Defaults na era dos agentes.** Boa parte do código deste projeto — e dos projetos que o usam — é escrita por agentes de IA, que **falham por omissão, não por comissão**. Daí três regras ao desenhar qualquer default:
+
+1. **Falhe fechado.** Sob default permissivo a omissão é invisível (compila, passa nos testes, diff limpo). Sob default restritivo ela quebra o caminho feliz na hora — um buraco silencioso vira bug barulhento, e bug barulhento é corrigido.
+2. **Torne a exceção auditável por presença.** Marque o que é perigoso (`#[public]`), não o que é seguro: `grep` encontra presença, nunca ausência.
+3. **Não dependa de lembrar.** Garantia imposta por tipo, compilador ou default restritivo custa o mesmo no primeiro e no milésimo endpoint; disciplina não.
+
+Contexto completo em [`philosophy.md`](docs/product/philosophy.md#o-corolário-defaults-na-era-dos-agentes); primeira aplicação na [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md).
 
 **Ao divulgar performance** (README, docs, release notes): publique a ressalva junto com o número. O caso de produção documentado rende "8x" se medido só pelo `Init Duration`, e **~2x** no caminho frio completo — o número honesto é o que vale. Nunca cite `Init Duration` isolado como ganho de cold start.
 

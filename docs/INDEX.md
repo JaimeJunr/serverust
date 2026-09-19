@@ -12,7 +12,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 
 ## Produto
 
-- [**product/philosophy.md**](product/philosophy.md) — A tese do projeto: segurança pela linguagem, baixo nível sem escrever baixo nível, DX como requisito. Inclui o caso real de migração NestJS → serverust em produção, com os números medidos e a ressalva honesta sobre como lê-los.
+- [**product/philosophy.md**](product/philosophy.md) — A tese do projeto: segurança pela linguagem, baixo nível sem escrever baixo nível, DX como requisito. Inclui o corolário sobre defaults na era dos agentes de IA e o caso real de migração NestJS → serverust em produção, com os números medidos e a ressalva honesta sobre como lê-los.
 - [**product/vision.md**](product/vision.md) — O que é, por que existe, objetivos mensuráveis, princípios de design e não-objetivos.
 - [**product/roadmap.md**](product/roadmap.md) — O que foi entregue (v0.1.x, v0.2.0, v0.3.0) e o que está planejado (v0.3.x+, v0.4, backlog).
 - [**product/competitors/axum.md**](product/competitors/axum.md) — Análise de Axum: mesma stack Tower/Tokio, gaps em DI nativa, OpenAPI e Lambda.
@@ -32,7 +32,7 @@ Ponto de entrada da documentação técnica. Comece pelo [README.md](../README.m
 ## Desenvolvimento
 
 - [**development/decisions.md**](development/decisions.md) — Decision Log das 10 questões fechadas no PRD + decisões adicionais descobertas durante a implementação.
-- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines), 0006 (rdkafka vs RSKafka), 0007 (event API design).
+- [**development/decisions/**](development/decisions/) — ADRs no formato MADR 4.0: 0001 (HTTP-first), 0002 (DynamoDB opt-in), 0003 (serverust-events), 0004 (rdkafka opt-in), 0005 (baselines), 0006 (rdkafka vs RSKafka), 0007 (event API design), 0008 (tolerância de KPI no startup local), 0009 (auth/authz em `serverust-auth`).
 - [**development/ralph-progress.md**](development/ralph-progress.md) — Learnings de implementação por versão. Codebase Patterns + relato detalhado por user story com o que funcionou e o que não funcionou.
 
 ## Guia para Contribuidores e AI Agents
