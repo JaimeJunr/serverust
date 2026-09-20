@@ -109,11 +109,24 @@ Nesse caminho o aquecimento é por sua conta, porque a busca é sua.
 
 #### Rotação de chaves
 
-As chaves são carregadas na construção e não mudam depois. Se o emissor rotacionar enquanto o processo vive, token assinado com a chave nova recebe `401` com `unknown_key_id` até o container ser reciclado.
+Quando o emissor rotaciona e chega um token com `kid` desconhecido, o verificador **rebusca o JWKS e tenta de novo** — a requisição que encontrou a chave nova é atendida, não rejeitada. Nada a configurar.
 
-Na prática isso costuma não doer: emissores sérios publicam a chave nova no JWKS antes de assinar com ela, e containers de Lambda vivem minutos a horas. Mas é risco real se a janela de publicação do seu emissor for menor que a vida dos seus containers.
+Isso vale só para quem construiu com `discover` ou `from_jwks_uri`: são os construtores que guardam de onde rebuscar. `from_jwks_json` não tem URL, então não revalida — a busca é sua, e repeti-la também.
 
-`unknown_key_id` tem código próprio justamente para ser alertável: um pico dele significa rotação, e quem precisa agir é o operador, não o cliente. O refresh sob demanda vem em incremento seguinte.
+**A rebusca é limitada a uma por minuto.** Não é afinação de performance, é controle de segurança: o caminho de revalidação é alcançável por requisição não autenticada — basta inventar um `kid` — e sem limite o seu serviço vira um amplificador contra o próprio IdP. Com o limite, o pior caso é uma busca por janela, independentemente do volume do ataque.
+
+```rust
+let auth = JwksAuth::discover(issuer).await?
+    .revalidation_interval(Duration::from_secs(300)); // mais conservador
+```
+
+Baixar o intervalo aumenta a exposição do emissor; zerá-lo o entrega ao primeiro laço `for`.
+
+Requisições concorrentes com o mesmo `kid` desconhecido rendem **uma** busca, não N — o que importa quando a rotação pega um serviço sob carga. E só `unknown_key_id` dispara a rebusca: token ausente, expirado, de outro emissor ou com assinatura inválida continuariam inválidos depois dela, então tentar seria I/O garantidamente inútil.
+
+Se a rebusca não resolver — emissor fora do ar, ou dentro da janela de limite — a resposta continua sendo `401 unknown_key_id`. O erro de infraestrutura nunca vaza para o cliente: ele descreveria um problema nosso, sobre uma credencial que é dele.
+
+O código `unknown_key_id` segue alertável, e agora significa outra coisa: não "rotação em andamento", e sim "rotação que a rebusca não resolveu" — emissor inacessível, ou `kid` que nunca existiu.
 
 ## Instalando o layer
 
@@ -395,10 +408,11 @@ Escopos empilhados somam. **Papéis não entram** no documento: a lista do OpenA
 
 ## O que ainda não está implementado
 
-A ADR 0009 é entregue em parcelas. Está fora do que existe hoje:
+A [ADR 0009](../development/decisions/0009-auth-authz-crate-separada-serverust-auth.md) está entregue. O que ficou de fora dela, e continua fora:
 
-- **Refresh do JWKS sob demanda.** A descoberta e o aquecimento existem; a recarga quando o `kid` é desconhecido, não. Ver [Rotação de chaves](#rotação-de-chaves).
 - **Exigência alternativa em `#[authorize]`.** Só há conjunção (AND). Um `any_of` cabe hoje num `#[guard]` escrito à mão.
+- **Escopo exigido por `#[guard]` no OpenAPI.** Guard escrito à mão verifica o que quiser, mas não declara o que exige (veja acima).
+- **Login, senha e sessão.** Escopo intencional, não lacuna: exige estado e banco, e é território de `torii` e `axum-login`.
 
 ## Veja também
 

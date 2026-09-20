@@ -51,7 +51,8 @@
 //! - [`JwtAuth`] — **chave estática** conhecida no boot: segredo simétrico de
 //!   variável de ambiente ou Secrets Manager, ou chave pública embutida no
 //!   binário. Não toca a rede.
-//! - [`JwksAuth`] — **chaves do JWKS do emissor**, com descoberta de OIDC. O
+//! - [`JwksAuth`] — **chaves do JWKS do emissor**, com descoberta de OIDC e
+//!   rebusca sob demanda quando o emissor rotaciona. O
 //!   construtor é `async` de propósito: é o que põe a ida à rede na fase de
 //!   init da Lambda, onde há burst de CPU, em vez de na primeira requisição de
 //!   cada container frio. Não existe construtor síncrono com busca preguiçosa,
@@ -59,13 +60,6 @@
 //!
 //! As duas implementam [`Verifier`], e é isso que o [`AuthLayer`] consome —
 //! inclusive uma terceira, escrita por você.
-//!
-//! # O que ainda não está implementado
-//!
-//! - **Refresh do JWKS sob demanda.** As chaves são carregadas na construção e
-//!   não mudam depois. Se o emissor rotacionar enquanto o processo vive, token
-//!   assinado com a chave nova recebe 401 com `unknown_key_id` até o container
-//!   ser reciclado. Ver a nota sobre rotação em [`JwksAuth`].
 //!
 //! # Cripto
 //!
