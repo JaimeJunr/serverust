@@ -1,10 +1,13 @@
 //! Tower layer que autentica a requisição uma única vez.
 
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use axum::extract::Request;
+use pin_project_lite::pin_project;
 use serverust_core::{AuthEnabled, AuthFailure, Authenticated};
 use tower::{Layer, Service};
 
@@ -109,16 +112,16 @@ impl<S: Clone, C, V> Clone for AuthService<S, C, V> {
 
 impl<S, C, V> Service<Request> for AuthService<S, C, V>
 where
-    S: Service<Request>,
+    S: Service<Request> + Clone + Send + 'static,
+    S::Future: Send + 'static,
+    S::Response: 'static,
+    S::Error: 'static,
     C: Claims,
     V: Verifier,
 {
     type Response = S::Response;
     type Error = S::Error;
-    // A verificação é síncrona por contrato da trait `Verifier` — todo o I/O
-    // acontece na construção do verificador — então o future do inner passa
-    // direto: sem box, sem pin-project, sem alocação no caminho quente.
-    type Future = S::Future;
+    type Future = AuthFuture<S::Future, Self::Response, Self::Error>;
 
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -132,29 +135,125 @@ where
         // mesmo quando o token é inválido — é o caso em que negar importa.
         req.extensions_mut().insert(AuthEnabled);
 
-        match bearer_token(req.headers()).and_then(|token| self.auth.verify::<C>(token)) {
-            Ok(claims) => {
-                let claims = Arc::new(claims);
-                // Duas entradas apontando para a MESMA alocação: a tipada,
-                // consumida por `Auth<C>`, e a apagada de tipo, consumida por
-                // guards genéricos que não conhecem `C`. A coerção de
-                // `Arc<C>` para `Arc<dyn AuthzFacts>` não copia nada.
-                let facts: Arc<dyn AuthzFacts> = claims.clone();
-                req.extensions_mut().insert(claims);
-                req.extensions_mut().insert(facts);
-                // Marcador apagado de tipo que o `AuthGate` lê. Só aqui: o
-                // ramo de erro não pode inseri-lo, sob pena de o portão
-                // liberar requisição com token inválido.
-                req.extensions_mut().insert(Authenticated);
-            }
-            Err(err) => {
-                // O portão rejeita antes de qualquer extractor rodar, então o
-                // motivo preciso só chega ao cliente se for registrado aqui.
-                req.extensions_mut().insert(AuthFailure(err.reason()));
-                req.extensions_mut().insert(err);
-            }
-        }
+        let resultado = bearer_token(req.headers()).and_then(|token| self.auth.verify::<C>(token));
 
-        self.inner.call(req)
+        // O caminho lento existe para um caso só: o emissor rotacionou as
+        // chaves depois de este processo ter carregado o JWKS. `can_revalidate`
+        // é uma comparação de enum, e devolve `false` para todo verificador de
+        // chave estática — então nem o `Box` nem o `clone` do inner service
+        // abaixo chegam a existir para quem não usa JWKS.
+        match resultado {
+            Err(err) if self.auth.can_revalidate(&err) => self.revalidar(req, err),
+            outro => AuthFuture::Direto {
+                inner: self.inner.call(depositar(req, outro)),
+            },
+        }
+    }
+}
+
+impl<S, C, V> AuthService<S, C, V>
+where
+    S: Service<Request> + Clone + Send + 'static,
+    S::Future: Send + 'static,
+    S::Response: 'static,
+    S::Error: 'static,
+    C: Claims,
+    V: Verifier,
+{
+    /// Caminho lento: rebusca material de chave e tenta uma segunda vez.
+    ///
+    /// Boxa o encadeamento inteiro — revalidar, depositar o resultado, chamar
+    /// o inner — em vez de modelar cada passo como variante do future. Uma
+    /// alocação aqui não custa nada perto da ida à rede que ela acompanha, e
+    /// mantém o caminho quente com uma variante só.
+    fn revalidar(
+        &mut self,
+        req: Request,
+        err: crate::error::AuthError,
+    ) -> AuthFuture<S::Future, S::Response, S::Error> {
+        let auth = Arc::clone(&self.auth);
+        // O contrato do tower diz que `poll_ready` reserva capacidade para UMA
+        // chamada. Clonar o service e chamar o clone — deixando o original com
+        // a reserva — é o padrão que o próprio tower documenta para quando a
+        // chamada não acontece já.
+        let mut inner = self.inner.clone();
+        std::mem::swap(&mut inner, &mut self.inner);
+
+        let token = bearer_token(req.headers()).map(str::to_owned);
+
+        AuthFuture::Lento {
+            fut: Box::pin(async move {
+                let resultado = match token {
+                    Ok(token) => auth.revalidate::<C>(&token, err).await,
+                    // Não chega aqui: sem token o erro é `Missing`, e nenhum
+                    // verificador revalida sobre ele.
+                    Err(e) => Err(e),
+                };
+
+                inner.call(depositar(req, resultado)).await
+            }),
+        }
+    }
+}
+
+/// Deposita o resultado da verificação nas extensions da requisição.
+///
+/// Em função separada porque os dois caminhos — rápido e lento — precisam
+/// depositar exatamente a mesma coisa. Duplicar isto seria abrir espaço para
+/// uma metade inserir `Authenticated` e a outra não.
+fn depositar<C: Claims>(
+    mut req: Request,
+    resultado: Result<C, crate::error::AuthError>,
+) -> Request {
+    match resultado {
+        Ok(claims) => {
+            let claims = Arc::new(claims);
+            // Duas entradas apontando para a MESMA alocação: a tipada,
+            // consumida por `Auth<C>`, e a apagada de tipo, consumida por
+            // guards genéricos que não conhecem `C`. A coerção de `Arc<C>`
+            // para `Arc<dyn AuthzFacts>` não copia nada.
+            let facts: Arc<dyn AuthzFacts> = claims.clone();
+            req.extensions_mut().insert(claims);
+            req.extensions_mut().insert(facts);
+            // Marcador apagado de tipo que o `AuthGate` lê. Só aqui: o ramo de
+            // erro não pode inseri-lo, sob pena de o portão liberar requisição
+            // com token inválido.
+            req.extensions_mut().insert(Authenticated);
+        }
+        Err(err) => {
+            // O portão rejeita antes de qualquer extractor rodar, então o
+            // motivo preciso só chega ao cliente se for registrado aqui.
+            req.extensions_mut().insert(AuthFailure(err.reason()));
+            req.extensions_mut().insert(err);
+        }
+    }
+    req
+}
+
+pin_project! {
+    /// Future do [`AuthService`].
+    ///
+    /// Duas variantes, e a assimetria entre elas é o ponto: `Direto` repassa o
+    /// future do inner service sem box nem alocação, e é por onde passa
+    /// essencialmente toda requisição. `Lento` só é construída quando o
+    /// verificador disse que vale rebuscar material de chave.
+    #[project = AuthFutureProj]
+    pub enum AuthFuture<F, R, E> {
+        Direto { #[pin] inner: F },
+        Lento { #[pin] fut: Pin<Box<dyn Future<Output = Result<R, E>> + Send>> },
+    }
+}
+
+impl<F, R, E> Future for AuthFuture<F, R, E>
+where
+    F: Future<Output = Result<R, E>>,
+{
+    type Output = Result<R, E>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.project() {
+            AuthFutureProj::Direto { inner } => inner.poll(cx),
+            AuthFutureProj::Lento { fut } => fut.poll(cx),
+        }
     }
 }

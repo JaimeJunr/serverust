@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `serverust-auth`: o future do `AuthLayer` passou de `S::Future` para um enum de duas variantes. A variante rápida repassa o future do inner service sem box nem alocação, como antes, e é por onde passa toda requisição que não precise de rebusca; a lenta só é construída quando o verificador diz que vale tentar de novo. Quem usa `JwtAuth` nunca a alcança — `can_revalidate` devolve `false` antes de qualquer alocação acontecer. O `examples/hello-world`, que mede o KPI de cold start, não linka `serverust-auth`: o impacto no gate é zero, verificado.
+
+- `serverust-auth`: nova dependência `tokio` com `default-features = false, features = ["sync"]`, para o mutex assíncrono que serializa as revalidações. É Rust puro, sem runtime e sem I/O; o runtime do tokio já está em qualquer binário serverust por via do core. Também `pin-project-lite`, pelo mesmo motivo do `serverust-core`: o future do layer é um enum e precisa projetar `Pin`.
+
+
 - `serverust-macros`: **`#[authorize]` passa a exigir posição acima da macro de rota**, como `#[public]` e `#[guard]`. Abaixo não compila mais. A verificação em runtime continuaria valendo naquela posição, mas a rota já teria sido construída quando a macro roda, então os escopos não chegariam ao `security` do OpenAPI — e um documento que descreve como aberta uma rota fechada é pior do que documento nenhum. Mudança de comportamento em relação ao que foi anunciado no `[Unreleased]` anterior; nada publicado a alcança.
 
 
@@ -31,6 +36,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- `serverust-auth`: **revalidação do JWKS sob demanda**. Quando chega um token com `kid` desconhecido, o verificador rebusca o JWKS e tenta de novo — a requisição que encontrou a chave nova é atendida, não rejeitada. Fecha o último item em aberto da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md), que o [#54](https://github.com/JaimeJunr/serverust/pull/54) tinha declarado fora de escopo.
+
+  **O limite de uma rebusca por minuto é controle de segurança, não afinação.** Este caminho é alcançável por requisição não autenticada — basta inventar um `kid` — e sem limite o serviço vira um amplificador contra o próprio emissor. Com o limite, o pior caso é uma busca por janela, independentemente do volume do ataque. Ajustável por `JwksAuth::revalidation_interval`.
+
+  Requisições concorrentes com o mesmo `kid` desconhecido rendem **uma** busca, não N: o mutex é mantido através da busca, e quem chega depois encontra o trabalho feito. Importa quando a rotação pega um serviço sob carga — que é justamente quando ela acontece.
+
+  Só `unknown_key_id` dispara a rebusca. Token ausente, expirado, de outro emissor ou com assinatura inválida continuariam inválidos depois dela, então tentar seria I/O garantidamente inútil em caminho que qualquer requisição alcança.
+
+  Erro de rebusca nunca vaza para o cliente: se o emissor não responde, a resposta segue `401 unknown_key_id`. `discovery_failed` descreveria um problema de infraestrutura nossa, sobre uma credencial que é do cliente.
+
+  Vale só para `discover` e `from_jwks_uri`, que guardam de onde rebuscar. `from_jwks_json` não tem URL e se comporta exatamente como antes.
+
+- `serverust-auth`: `Verifier` ganha `can_revalidate` e `revalidate`, ambos com default que não revalida nada. Chave estática não muda de comportamento nem paga por esta capacidade.
+
+- `serverust-auth`: `JwksAuth::revalidation_interval` e a constante pública `INTERVALO_MINIMO_DE_REVALIDACAO` (60 s).
+
 
 - `serverust-core`: **`security` automático no OpenAPI** — etapa 5 e última da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). Com `App::auth(...)` instalado, o `/openapi.json` passa a declarar o esquema `bearerAuth` (`type: http`, `bearerFormat: JWT`) e a exigência de cada operação, então o botão "Authorize" do Scalar e do Swagger UI aparece configurado sozinho.
 

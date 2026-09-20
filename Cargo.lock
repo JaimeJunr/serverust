@@ -3213,6 +3213,7 @@ dependencies = [
  "http 1.4.0",
  "http-body-util",
  "jsonwebtoken",
+ "pin-project-lite",
  "reqwest",
  "serde",
  "serde_json",
