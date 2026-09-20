@@ -16,7 +16,7 @@ use crate::auth::{AllowUnannotated, AuthGate};
 use crate::config::ServerustConfig;
 use crate::container::Container;
 use crate::events::{EventDispatcher, EventHandler, EventHandlerRegistry};
-use crate::openapi::{OpenApiState, redoc_html, swagger_ui_html};
+use crate::openapi::{OpenApiState, SegurancaDaRota, redoc_html, swagger_ui_html};
 use crate::pipeline::Interceptor;
 use crate::route::IntoRoute;
 
@@ -274,8 +274,21 @@ impl App {
     pub fn route<R: IntoRoute>(mut self, handler: R) -> Self {
         let route = handler.into_route();
         let route_method = metodo_str(&route.method);
+
+        // O que o documento vai dizer sobre esta rota. Derivado das MESMAS
+        // marcações que decidem o comportamento em runtime — `is_public` e os
+        // escopos do `#[authorize]` — para que documento e portão não possam
+        // divergir sem alguém mexer nos dois.
+        let seguranca = if route.is_public {
+            SegurancaDaRota::Publica
+        } else if route.required_scopes.is_empty() {
+            SegurancaDaRota::ExigeIdentidade
+        } else {
+            SegurancaDaRota::ExigeEscopos(route.required_scopes)
+        };
+
         self.openapi
-            .push_operation(route.path, route.method, route.operation);
+            .push_operation(route.path, route.method, route.operation, seguranca);
 
         let method_router = if route.is_public {
             self.public_routes.push((route_method, route.path));
@@ -350,7 +363,7 @@ impl App {
             return user_router.with_state(self.container);
         }
 
-        let doc = self.openapi.build();
+        let doc = self.openapi.build(self.auth_installed);
         let json = doc.to_json().unwrap_or_else(|_| "{}".to_string());
         let swagger_html = swagger_ui_html(self.openapi_path);
         let redoc_page = redoc_html(self.openapi_path);

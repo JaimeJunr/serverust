@@ -66,8 +66,6 @@
 //!   não mudam depois. Se o emissor rotacionar enquanto o processo vive, token
 //!   assinado com a chave nova recebe 401 com `unknown_key_id` até o container
 //!   ser reciclado. Ver a nota sobre rotação em [`JwksAuth`].
-//! - **`security` automático no OpenAPI.** O botão "Authorize" do
-//!   Scalar/Swagger UI ainda precisa de configuração manual.
 //!
 //! # Cripto
 //!

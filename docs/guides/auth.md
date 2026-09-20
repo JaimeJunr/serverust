@@ -341,7 +341,7 @@ async fn criar() -> &'static str { "criado" }
 
 Exigência alternativa (`any_of`) não existe hoje, de propósito: um "qualquer um destes" ambíguo é o tipo de default que a [filosofia do projeto](../product/philosophy.md#o-corolário-defaults-na-era-dos-agentes) pede para não existir. Enquanto isso, um caso genuinamente alternativo cabe num `#[guard]` escrito à mão.
 
-Ao contrário de `#[public]`, `#[authorize]` funciona acima ou abaixo da macro de rota.
+`#[authorize]` vem **acima** da macro de rota, como `#[public]`. Abaixo não compila: a rota já teria sido construída, e o escopo exigido não chegaria ao `security` do OpenAPI — um documento que descreve como aberta uma rota fechada é pior do que documento nenhum.
 
 `#[public]` e `#[authorize]` na mesma rota **não compilam**: `#[authorize]` já nega sem identidade, então o `#[public]` não abriria nada — só faria a rota aparecer na auditoria de endpoints anônimos sem ser um.
 
@@ -360,6 +360,37 @@ A ausência de identidade nega **inclusive em rota `#[public]`** e **inclusive s
 
 `#[authorize]` consulta `serverust_core::AuthzFacts` — a mesma trait que o seu tipo de claims implementa. Quem escreveu um tipo próprio (veja [Claims](#tipo-de-claims-próprio)) já está coberto: `has_scope` e `has_role` são exatamente o que a macro chama. Quem não implementou nenhum dos dois nega toda autorização, porque os defaults da trait são `false`.
 
+## O documento reflete a proteção
+
+Com `App::auth(...)` instalado, o `/openapi.json` passa a descrever a segurança sozinho — e o botão **Authorize** do Scalar e do Swagger UI aparece configurado.
+
+```json
+{
+  "security": [{ "bearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT" }
+    }
+  }
+}
+```
+
+A exigência global espelha o default deny: o padrão do serviço é pedir credencial, e cada operação só aparece no documento quando **diverge** disso.
+
+| Rota | `security` da operação |
+|---|---|
+| `#[public]` | `[]` — não exige nada, sobrescrevendo o global |
+| protegida pelo default deny | `[{"bearerAuth": []}]` |
+| `#[authorize(scope = "...")]` | `[{"bearerAuth": ["orders:read"]}]` |
+
+O `[]` da rota pública é um vetor vazio, e não a ausência do campo: ausência herdaria o requisito global e faria o documento afirmar que a rota aberta é protegida.
+
+Sem autenticação instalada, **o documento não fala de segurança**. Declarar um esquema ali descreveria uma exigência que não existe.
+
+Escopos empilhados somam. **Papéis não entram** no documento: a lista do OpenAPI é uma só, e misturar escopo com papel produziria um documento em que ninguém distingue os dois. O guard continua exigindo o papel — o que falta é a descrição, não a verificação.
+
+**Guard escrito à mão não aparece.** `#[guard(MeuGuard)]` verifica o que quiser, mas não tem como declarar o que exige, então a operação fica só com o requisito de identidade. Descrever isso exigiria uma associated const na trait `Guard`, e a troca não pareceu valer: mais superfície pública para todo mundo, por um caso que já é escape hatch.
+
 **O que o portão não alcança:** as rotas de documentação (`/openapi.json`, `/docs`, `/redoc`) não passam por `App::route()` e seguem abertas; feche-as com `App::without_docs()`. E rota registrada direto no `axum::Router`, fora do `App`, também não é embrulhada.
 
 ## O que ainda não está implementado
@@ -368,7 +399,6 @@ A ADR 0009 é entregue em parcelas. Está fora do que existe hoje:
 
 - **Refresh do JWKS sob demanda.** A descoberta e o aquecimento existem; a recarga quando o `kid` é desconhecido, não. Ver [Rotação de chaves](#rotação-de-chaves).
 - **Exigência alternativa em `#[authorize]`.** Só há conjunção (AND). Um `any_of` cabe hoje num `#[guard]` escrito à mão.
-- **`security` automático no OpenAPI.** O botão "Authorize" do Scalar/Swagger UI ainda precisa de configuração manual.
 
 ## Veja também
 

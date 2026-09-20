@@ -18,6 +18,17 @@ pub struct Route {
     /// instalada, [`crate::App::route`] embrulha toda rota que **não** tenha
     /// isto ligado com o [`crate::AuthGate`]. Ligue via [`Route::public`].
     pub is_public: bool,
+    /// Escopos que a rota exige, para o `security` do OpenAPI.
+    ///
+    /// Preenchido pela macro `#[authorize]`. **Não é o que aplica a
+    /// exigência** — quem faz isso é o `Guard` que a macro injeta. Aqui é só
+    /// o que o documento precisa declarar, para que o botão "Authorize" do
+    /// Scalar/Swagger UI peça os escopos certos.
+    ///
+    /// Separar as duas coisas é o que permite documentar sem mexer na trait
+    /// [`crate::Guard`]; o custo é que um guard escrito à mão não aparece no
+    /// documento, por não ter como declarar o que exige.
+    pub required_scopes: &'static [&'static str],
 }
 
 impl Route {
@@ -33,6 +44,7 @@ impl Route {
             method_router,
             operation,
             is_public: false,
+            required_scopes: &[],
         }
     }
 
@@ -53,6 +65,16 @@ impl Route {
     /// ```
     pub fn public(mut self) -> Self {
         self.is_public = true;
+        self
+    }
+
+    /// Declara os escopos que a rota exige, para o `security` do OpenAPI.
+    ///
+    /// Chamada pela macro `#[authorize]`. Chamar à mão documenta a exigência
+    /// sem aplicá-la — o que é pior do que não documentar, porque passa a
+    /// mentir. Use junto com o guard que realmente verifica.
+    pub fn scopes(mut self, scopes: &'static [&'static str]) -> Self {
+        self.required_scopes = scopes;
         self
     }
 }

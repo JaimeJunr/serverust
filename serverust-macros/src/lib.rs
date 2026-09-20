@@ -39,9 +39,10 @@
 //! - `#[public]` — coloca **acima** de `#[get/post/...]`; marca a rota como
 //!   aberta, a exceção explícita ao default deny da ADR 0009. Abaixo da macro
 //!   de rota não compila, em vez de ser ignorada em silêncio.
-//! - `#[authorize(scope = "...", role = "...")]` — exige escopos/papéis do
-//!   principal autenticado. Repetível e conjuntivo. Contradiz `#[public]`, e
-//!   a combinação dos dois não compila.
+//! - `#[authorize(scope = "...", role = "...")]` — coloca **acima** de
+//!   `#[get/post/...]`; exige escopos/papéis do principal autenticado.
+//!   Repetível e conjuntivo, e os escopos vão para o `security` do OpenAPI.
+//!   Contradiz `#[public]`, e a combinação dos dois não compila.
 //! - `#[guard(MyGuard)]` — coloca **acima** de `#[get/post/...]`; injeta
 //!   `GuardCheck<MyGuard>` no início da assinatura. Múltiplos `#[guard]` são
 //!   empilháveis.
@@ -127,6 +128,10 @@ fn type_ident_str(ty: &Type) -> String {
 /// consumir. Ver [`public`] para o porquê do mecanismo.
 const PUBLIC_MARKER: &str = "__serverust_public";
 
+/// Nome do atributo inerte que `#[authorize]` deixa com os escopos exigidos,
+/// para a macro de rota consumir e declarar no OpenAPI.
+const AUTHZ_MARKER: &str = "__serverust_authz";
+
 /// Se o atributo é o marcador deixado por `#[public]`.
 ///
 /// Compara o último segmento porque o marcador é emitido com caminho
@@ -160,6 +165,36 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
     // porque a macro que o define é um erro de compilação de propósito.
     let is_public = func.attrs.iter().any(is_public_marker);
     func.attrs.retain(|a| !is_public_marker(a));
+
+    // Mesma mecânica para os escopos que `#[authorize]` deixou. São o que a
+    // rota declara no `security` do OpenAPI; quem os exige de verdade é o
+    // guard que aquela macro injetou.
+    let mut escopos: Vec<LitStr> = Vec::new();
+    let mut erro_de_escopo = None;
+    for attr in func
+        .attrs
+        .iter()
+        .filter(|a| ultimo_segmento_e(a, AUTHZ_MARKER))
+    {
+        match attr.parse_args_with(Punctuated::<LitStr, Token![,]>::parse_terminated) {
+            Ok(lista) => escopos.extend(lista),
+            Err(e) => erro_de_escopo = Some(e),
+        }
+    }
+    if let Some(e) = erro_de_escopo {
+        return e.to_compile_error().into();
+    }
+    func.attrs.retain(|a| !ultimo_segmento_e(a, AUTHZ_MARKER));
+
+    // Empilhar `#[authorize]` pode repetir um escopo; o documento não deve.
+    let mut vistos = std::collections::HashSet::new();
+    escopos.retain(|s| vistos.insert(s.value()));
+
+    let scopes_call = if escopos.is_empty() {
+        quote! {}
+    } else {
+        quote! { .scopes(&[#(#escopos),*]) }
+    };
 
     // A ordem `#[public]` acima e `#[authorize]` abaixo da macro de rota faz a
     // contradição chegar aqui em vez de na própria `#[authorize]`.
@@ -280,6 +315,7 @@ fn make_route(method: &str, attr: TokenStream, item: TokenStream) -> TokenStream
                     operation,
                 )
                 #public_call
+                #scopes_call
             }
         }
     };
@@ -390,6 +426,34 @@ pub fn __serverust_public(_attr: TokenStream, item: TokenStream) -> TokenStream 
     .into()
 }
 
+/// Marcador interno de `#[authorize]`, carregando os escopos exigidos para a
+/// macro de rota declarar no `security` do OpenAPI.
+///
+/// Nunca deve chegar a expandir: a macro de rota o remove antes. Se expandir,
+/// significa que `#[authorize]` ficou **abaixo** da macro de rota — a
+/// verificação em runtime ainda aconteceria, mas o documento sairia sem
+/// declarar a exigência, e documento que descreve como aberta uma rota que
+/// exige escopo é pior do que documento omisso.
+#[doc(hidden)]
+#[proc_macro_attribute]
+pub fn __serverust_authz(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let span = proc_macro2::TokenStream::from(item)
+        .into_iter()
+        .next()
+        .map_or_else(Span::call_site, |t| t.span());
+
+    syn::Error::new(
+        span,
+        "#[authorize] precisa vir ACIMA de #[get]/#[post]/#[put]/#[patch]/#[delete].\n\
+         Abaixo, a rota já foi construída quando esta macro roda: a verificação \
+         em runtime continuaria valendo, mas o `security` do OpenAPI sairia sem \
+         o escopo exigido — e documento que descreve como aberta uma rota \
+         fechada é pior do que documento nenhum.",
+    )
+    .to_compile_error()
+    .into()
+}
+
 /// Exige escopos e/ou papéis do principal autenticado antes do handler.
 ///
 /// ```ignore
@@ -408,7 +472,15 @@ pub fn __serverust_public(_attr: TokenStream, item: TokenStream) -> TokenStream 
 /// tem de onde extrair identidade não executa, inclusive se for `#[public]`.
 /// Com fatos mas sem a permissão, 403 `insufficient_scope` (RFC 6750 §3.1).
 ///
-/// Como `#[guard]`, funciona acima ou abaixo da macro de rota.
+/// Vem **acima** da macro de rota, como `#[public]` e `#[guard]`. Abaixo não
+/// compila: a rota já teria sido construída, e o `security` do OpenAPI sairia
+/// sem o escopo exigido — documento que descreve como aberta uma rota fechada
+/// é pior do que documento nenhum.
+///
+/// Os escopos aparecem no `security` da operação; **papéis não**. A lista do
+/// OpenAPI é uma só, e misturar as duas coisas produziria um documento em que
+/// ninguém distingue escopo de papel. Incompleto e sem ambiguidade é melhor do
+/// que completo e ambíguo.
 #[proc_macro_attribute]
 pub fn authorize(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr2: proc_macro2::TokenStream = attr.into();
@@ -499,6 +571,15 @@ pub fn authorize(attr: TokenStream, item: TokenStream) -> TokenStream {
         #param_ident: ::serverust_core::GuardCheck<#guard_ty>
     };
     func.sig.inputs.insert(0, new_param);
+
+    // Deixa os escopos para a macro de rota declarar no OpenAPI. No fim da
+    // lista, para que a macro de rota — que está antes — expanda primeiro e
+    // consuma. Só escopos: ver o doc acima sobre papéis.
+    if !scopes.is_empty() {
+        let marcador = Ident::new(AUTHZ_MARKER, Span::call_site());
+        func.attrs
+            .push(parse_quote! { #[::serverust_macros::#marcador(#(#scopes),*)] });
+    }
 
     quote! {
         #[doc(hidden)]

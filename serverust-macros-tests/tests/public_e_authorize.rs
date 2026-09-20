@@ -125,14 +125,6 @@ async fn dois_escopos() -> &'static str {
     "ambos"
 }
 
-/// `#[authorize]` **abaixo** da macro de rota: o guard vira um item dentro do
-/// corpo de `into_route`, mas a verificação é a mesma.
-#[get("/abaixo")]
-#[authorize(scope = "orders:read")]
-async fn abaixo() -> &'static str {
-    "abaixo"
-}
-
 fn app(auth: AutenticacaoFalsa) -> axum::Router {
     App::new()
         .without_docs()
@@ -142,7 +134,6 @@ fn app(auth: AutenticacaoFalsa) -> axum::Router {
         .route(pedidos)
         .route(pedidos_admin)
         .route(dois_escopos)
-        .route(abaixo)
         .into_router()
 }
 
@@ -264,21 +255,6 @@ async fn authorize_empilhado_conjunta() {
         .await
         .unwrap();
     assert_eq!(ambos.status(), StatusCode::OK);
-}
-
-#[tokio::test]
-async fn authorize_funciona_abaixo_da_macro_de_rota() {
-    let negado = app(AutenticacaoFalsa::com(&[], &[]))
-        .oneshot(req("/abaixo"))
-        .await
-        .unwrap();
-    assert_eq!(negado.status(), StatusCode::FORBIDDEN);
-
-    let permitido = app(AutenticacaoFalsa::com(&["orders:read"], &[]))
-        .oneshot(req("/abaixo"))
-        .await
-        .unwrap();
-    assert_eq!(permitido.status(), StatusCode::OK);
 }
 
 /// Nem mesmo sem autenticação instalada: um `#[authorize]` que passa porque
