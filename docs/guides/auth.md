@@ -18,7 +18,7 @@ serverust-core = "0.4"
 serverust-macros = "0.4"
 ```
 
-O crate é opt-in: quem não o declara não paga cripto em binário nem em cold start. O backend é Rust puro (feature `rust_crypto` do `jsonwebtoken`), escolhido para não exigir cmake nem toolchain C — é o que mantém funcionando a cross-compilação x86_64 → aarch64 do build ARM64 de Lambda.
+O crate é opt-in: quem não o declara não paga cripto em binário nem em cold start. A feature `jwks` (desligada por default) acrescenta cliente HTTP e pilha TLS, e só é necessária para [buscar as chaves do emissor](#chaves-do-emissor-por-jwks). O backend é Rust puro (feature `rust_crypto` do `jsonwebtoken`), escolhido para não exigir cmake nem toolchain C — é o que mantém funcionando a cross-compilação x86_64 → aarch64 do build ARM64 de Lambda.
 
 ## Como as peças se encaixam
 
@@ -56,6 +56,64 @@ let auth = JwtAuth::es256_pem(include_bytes!("../keys/idp-ec.pem"))?;
 O algoritmo é fixado no construtor e **não** é lido do header do token. Isso fecha a classe de ataque de confusão de algoritmo, em que um token forjado declara `alg: HS256` para que a chave pública RSA do servidor seja usada como segredo HMAC.
 
 A validação já exige a claim `exp` e checa expiração por default. `issuer`, `audience` e `leeway` são opcionais e acumulativos.
+
+### Chaves do emissor, por JWKS
+
+Quando o IdP publica as chaves em vez de você as embutir, use `JwksAuth`. Habilite a feature:
+
+```toml
+serverust-auth = { version = "0.4", features = ["jwks"] }
+```
+
+```rust
+use serverust_auth::JwksAuth;
+
+let auth = JwksAuth::discover("https://idp.exemplo.com/")
+    .await?
+    .audience("minha-api");
+```
+
+`discover` busca `/.well-known/openid-configuration`, lê o `jwks_uri` e carrega as chaves. O `issuer` do documento é aplicado como emissor esperado — **validação de `iss` fica ligada sem você pedir**. Para emissores sem documento de descoberta, `JwksAuth::from_jwks_uri(url)` carrega o JWKS direto; aí o `issuer` é por sua conta.
+
+**O construtor é `async` de propósito.** Chame no `main`, antes de montar o `App`:
+
+```rust
+#[tokio::main]
+async fn main() -> std::io::Result<()> {
+    let auth = JwksAuth::discover("https://idp.exemplo.com/").await.unwrap();
+
+    App::new()
+        .auth(AuthLayer::<StandardClaims, _>::new(auth))
+        .route(me)
+        .run_http("127.0.0.1:3000")
+        .await
+}
+```
+
+Em Lambda, é isso que coloca a ida à rede na **fase de init**, onde há burst de CPU e a busca sai de graça. A alternativa — buscar preguiçosamente na primeira requisição — faria cada container frio pagar a latência, e sumiria dos testes, porque em teste o container está sempre quente. Não existe construtor síncrono: esquecer de aquecer não é um erro que se possa cometer.
+
+A escolha da chave é pelo `kid` do token, e **o algoritmo vem da chave, nunca do header do token**. Chave simétrica (`oct`) publicada num JWKS é recusada na construção: JWKS é documento público, e uma chave simétrica ali é o próprio segredo de assinatura.
+
+Busca de JWKS por `http://` sem TLS é recusada fora de loopback — quem responder por aquela URL escolhe a chave pública que valida os tokens da sua API.
+
+#### Trazendo o seu próprio transporte
+
+Quem já tem cliente HTTP configurado — proxy corporativo, CA própria, credenciais de VPC — busca o JWKS com ele e entrega o corpo, sem a feature e sem cliente HTTP no binário:
+
+```rust
+let corpo = meu_cliente.get(jwks_uri).await?.text().await?;
+let auth = JwksAuth::from_jwks_json(&corpo)?.issuer("https://idp.exemplo.com/");
+```
+
+Nesse caminho o aquecimento é por sua conta, porque a busca é sua.
+
+#### Rotação de chaves
+
+As chaves são carregadas na construção e não mudam depois. Se o emissor rotacionar enquanto o processo vive, token assinado com a chave nova recebe `401` com `unknown_key_id` até o container ser reciclado.
+
+Na prática isso costuma não doer: emissores sérios publicam a chave nova no JWKS antes de assinar com ela, e containers de Lambda vivem minutos a horas. Mas é risco real se a janela de publicação do seu emissor for menor que a vida dos seus containers.
+
+`unknown_key_id` tem código próprio justamente para ser alertável: um pico dele significa rotação, e quem precisa agir é o operador, não o cliente. O refresh sob demanda vem em incremento seguinte.
 
 ## Instalando o layer
 
@@ -195,6 +253,8 @@ O campo `reason` é código estável e **faz parte da API pública** — cliente
 | `invalid_audience` | claim `aud` diferente da audiência esperada |
 | `invalid_token` | assinatura inválida, algoritmo divergente ou payload indesserializável |
 | `invalid_key` | falha ao construir o verificador a partir do material de chave — ocorre na inicialização, não no caminho de request |
+| `unknown_key_id` | o `kid` do token não está no JWKS carregado — tipicamente rotação de chave no emissor |
+| `discovery_failed` | descoberta de OIDC ou busca do JWKS falhou — ocorre na inicialização, nunca no caminho de request |
 
 O esquema `Bearer` é comparado sem diferenciar maiúsculas, como manda a RFC 7235 §2.1.
 
@@ -306,7 +366,7 @@ A ausência de identidade nega **inclusive em rota `#[public]`** e **inclusive s
 
 A ADR 0009 é entregue em parcelas. Está fora do que existe hoje:
 
-- **Descoberta de JWKS/OIDC.** Só há chave estática. O construtor `async` com a busca do JWKS aquecida na fase de init, e o refresh sob demanda em caso de `kid` desconhecido, vêm em incremento seguinte.
+- **Refresh do JWKS sob demanda.** A descoberta e o aquecimento existem; a recarga quando o `kid` é desconhecido, não. Ver [Rotação de chaves](#rotação-de-chaves).
 - **Exigência alternativa em `#[authorize]`.** Só há conjunção (AND). Um `any_of` cabe hoje num `#[guard]` escrito à mão.
 - **`security` automático no OpenAPI.** O botão "Authorize" do Scalar/Swagger UI ainda precisa de configuração manual.
 

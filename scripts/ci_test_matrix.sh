@@ -56,6 +56,7 @@ SEM_TESTES=(
 
 # Combinações de features além do default, uma linha por combinação.
 COMBINACOES_EXTRA='[
+  {"crate": "serverust-auth", "features": "jwks"},
   {"crate": "serverust-events", "features": "sqs in-memory"},
   {"crate": "serverust-events", "features": "kafka"},
   {"crate": "serverust-events", "features": "asyncapi sqs"}

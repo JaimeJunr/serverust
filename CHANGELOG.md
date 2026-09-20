@@ -27,7 +27,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `serverust-auth`: **`JwksAuth`** — verificação com as chaves publicadas pelo emissor, com descoberta de OIDC. Etapa 4 da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md).
+
+  ```rust
+  let auth = JwksAuth::discover("https://idp.exemplo.com/").await?.audience("minha-api");
+  App::new().auth(AuthLayer::<StandardClaims, _>::new(auth))
+  ```
+
+  **O construtor é `async` de propósito, e não existe versão síncrona.** É o que põe a ida à rede na fase de init da Lambda, onde há burst de CPU, em vez de na primeira requisição de cada container frio — onde ela viraria latência que some dos testes, porque em teste o container está sempre quente. Não dá para ter o objeto sem ter buscado, então esquecer de aquecer não é um erro que se possa cometer.
+
+  Decisões de segurança embutidas: o `issuer` do documento de descoberta é aplicado como emissor esperado (validação de `iss` ligada sem pedir) e precisa bater com a URL usada para chegar nele (RFC 8414 §3.3); **o algoritmo vem da chave, nunca do header do token**; chave simétrica (`oct`) no JWKS é recusada na construção, porque JWKS é documento público e uma chave simétrica ali é o próprio segredo de assinatura; `http://` sem TLS é recusado fora de loopback; redirecionamentos são desligados, para que a URL verificada seja a URL buscada.
+
+  Dois códigos novos em `AuthError`: `unknown_key_id` (o `kid` do token não está no JWKS carregado — tipicamente rotação) e `discovery_failed` (só na inicialização). `unknown_key_id` é distinto de `invalid_token` para ser alertável: um pico dele significa rotação, e quem precisa agir é o operador.
+
+- `serverust-auth`: feature **`jwks`**, desligada por default, com o cliente HTTP e a pilha TLS da descoberta. Quem usa chave estática não paga isso em binário nem em cold start. `JwksAuth::from_jwks_json` fica disponível **sem** a feature, para quem prefere buscar o JWKS com o próprio cliente.
+
+- `serverust-auth`: trait **`Verifier`**, o que o `AuthLayer` consome. `JwtAuth` e `JwksAuth` a implementam, e nada impede uma terceira implementação escrita pelo usuário. A trait é síncrona de propósito: todo o I/O acontece na construção, então o layer continua repassando o future do inner service sem box nem alocação no caminho quente.
+
 ### Changed
+
+- `serverust-auth`: `AuthLayer<C>` virou `AuthLayer<C, V = JwtAuth>`, genérico sobre o verificador. O default mantém `AuthLayer::<C>` significando o que sempre significou, então nenhum código existente quebra; com outro verificador, use `AuthLayer::<C, _>::new(auth)` e deixe a inferência resolver.
+
+- **CI**: `serverust-auth` com a feature `jwks` entrou nas combinações extras da matriz. Sem isso os testes de JWKS não rodariam no CI — exatamente o buraco que a matriz derivada fechou para crates, aplicado a uma feature.
+
 
 - `serverust-auth`: a trait `AuthzFacts` **mudou de casa** para `serverust-core` e é reexportada por `serverust-auth`, então `use serverust_auth::AuthzFacts` segue funcionando e nenhum código de usuário quebra. O motivo é de contrato, não de organização: `AuthzFacts` não toca cripto, e `#[authorize]` precisa gerar código contra ela sem arrastar o crate de autenticação para dentro de quem só usa a macro. O core continua sem dependência de cripto.
 

@@ -12,6 +12,13 @@ keywords.workspace = true
 categories.workspace = true
 description = "Autenticação e autorização opt-in para serverust: verificação stateless de JWT emitido por IdP externo."
 
+[features]
+# Descoberta de OIDC e busca do JWKS por HTTP. Opt-in porque arrasta cliente
+# HTTP e pilha TLS: quem usa chave estática (`JwtAuth`) ou busca o JWKS com o
+# próprio cliente (`JwksAuth::from_jwks_json`) não paga isso em binário nem em
+# cold start.
+jwks = ["dep:reqwest"]
+
 [dependencies]
 # Contrato do default deny: este crate insere `AuthEnabled` e `Authenticated`
 # nas extensions para que o `AuthGate` do core saiba decidir. A dependência é
@@ -31,6 +38,15 @@ jsonwebtoken = { version = "11", default-features = false, features = [
     "rust_crypto",
     "use_pem",
 ] }
+# Só com a feature `jwks`. `default-features = false` derruba o TLS nativo (que
+# exigiria OpenSSL do sistema) e o resto do default; `rustls-tls-webpki-roots`
+# embute as raízes da Mozilla no binário, em vez de depender do repositório de
+# certificados do SO — é o que faz a verificação de certificado funcionar no
+# container mínimo da Lambda sem configuração.
+reqwest = { version = "0.12", optional = true, default-features = false, features = [
+    "rustls-tls-webpki-roots",
+    "http2",
+] }
 
 [dev-dependencies]
 # Integration tests não herdam `[dependencies]`: os testes precisam EMITIR
@@ -49,3 +65,13 @@ serverust-macros = { path = "../serverust-macros", version = "0.4.2" }
 # `Route::new` recebe uma `utoipa::openapi::path::Operation`. Sai quando a
 # macro `#[public]` existir e cobrir esse caso.
 utoipa = "5"
+# Servidor de IdP falso nos testes de JWKS: os testes sobem um axum local que
+# serve o documento de descoberta e o JWKS, para exercitar o caminho HTTP real
+# em vez de um dublê do cliente.
+axum = "0.8"
+serde_json = "1"
+
+# Sem isto, a API de JWKS não apareceria no docs.rs: a feature é opt-in, e o
+# docs.rs constrói com as features default.
+[package.metadata.docs.rs]
+all-features = true

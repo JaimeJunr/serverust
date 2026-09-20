@@ -10,6 +10,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 
 use crate::claims::Claims;
 use crate::error::AuthError;
+use crate::verifier::Verifier;
 
 /// Verificador de tokens com chave estática.
 ///
@@ -89,10 +90,19 @@ impl JwtAuth {
     }
 
     /// Verifica assinatura e claims registradas, devolvendo o payload tipado.
+    ///
+    /// Inerente ao tipo além da trait [`Verifier`], para que quem tem um
+    /// `JwtAuth` concreto em mãos não precise importar a trait.
     pub fn verify<C: Claims>(&self, token: &str) -> Result<C, AuthError> {
         decode::<C>(token, &self.key, &self.validation)
             .map(|data| data.claims)
             .map_err(AuthError::from)
+    }
+}
+
+impl Verifier for JwtAuth {
+    fn verify<C: Claims>(&self, token: &str) -> Result<C, AuthError> {
+        JwtAuth::verify(self, token)
     }
 }
 
