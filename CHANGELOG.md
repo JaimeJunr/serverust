@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `serverust-macros`: **`#[authorize]` passa a exigir posição acima da macro de rota**, como `#[public]` e `#[guard]`. Abaixo não compila mais. A verificação em runtime continuaria valendo naquela posição, mas a rota já teria sido construída quando a macro roda, então os escopos não chegariam ao `security` do OpenAPI — e um documento que descreve como aberta uma rota fechada é pior do que documento nenhum. Mudança de comportamento em relação ao que foi anunciado no `[Unreleased]` anterior; nada publicado a alcança.
+
+
 - `serverust-cli`: `version.workspace = true` em `Cargo.toml`, alinhado aos demais crates publicáveis (#19).
 
 ### Documentation
@@ -28,6 +31,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- `serverust-core`: **`security` automático no OpenAPI** — etapa 5 e última da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md). Com `App::auth(...)` instalado, o `/openapi.json` passa a declarar o esquema `bearerAuth` (`type: http`, `bearerFormat: JWT`) e a exigência de cada operação, então o botão "Authorize" do Scalar e do Swagger UI aparece configurado sozinho.
+
+  A exigência global espelha o default deny — o padrão do serviço é pedir credencial, e cada operação só aparece no documento quando diverge disso. Rota `#[public]` recebe `security: []`, um vetor vazio e não a ausência do campo: ausência herdaria o requisito global e faria o documento afirmar que a rota aberta é protegida. Rota com `#[authorize]` recebe os escopos exigidos.
+
+  **Sem autenticação instalada o documento não fala de segurança**, porque declarar um esquema ali descreveria uma exigência que não existe.
+
+  A derivação parte das mesmas marcações que decidem o comportamento em runtime (`is_public` e os escopos do `#[authorize]`), e há teste conferindo rota a rota que o que o documento declara aberto é exatamente o que responde sem credencial. Um documento que mente sobre segurança é pior do que um documento omisso, porque alguém confia nele.
+
+  **Não foi preciso mexer na trait `Guard`**, ao contrário do que a ADR previa: os escopos viajam da `#[authorize]` para a macro de rota pelo mesmo mecanismo de marcador do `#[public]`. O custo é que um `#[guard]` escrito à mão não aparece no documento — descrevê-lo exigiria uma associated const na trait, mais superfície pública para todo mundo por um caso que já é escape hatch.
+
+- `serverust-core`: `Route` ganha `required_scopes` e o builder `Route::scopes()`, preenchidos pela macro. Declaram o que a rota exige **para o documento**; quem aplica a exigência continua sendo o guard.
+
 
 - `serverust-auth`: **`JwksAuth`** — verificação com as chaves publicadas pelo emissor, com descoberta de OIDC. Etapa 4 da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md).
 
