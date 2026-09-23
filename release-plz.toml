@@ -5,7 +5,10 @@
 #   2. Abre Release PR com bump de versão + CHANGELOG atualizado + tag annotation
 #   3. Quando o Release PR é mergeado, dispara cargo publish + git tag + GitHub Release
 #
-# Tags geradas: `<package_name>-v<version>` (per-crate, estilo tokio/axum).
+# Versão ÚNICA do workspace (`version.workspace = true` nos crates, tag `vX.Y.Z`),
+# que é como o projeto de fato versiona — ver release-checklist.md. Todos os
+# crates publicáveis ficam no mesmo `version_group`, e só o `serverust-core`
+# cria a tag e o GitHub Release (receita "single tag" do release-plz).
 # CHANGELOG: gerado por git-cliff (config em cliff.toml).
 # Breaking changes: detectadas por cargo-semver-checks integrado.
 
@@ -20,16 +23,21 @@ changelog_update = false
 # (feat = minor, fix = patch, feat!/BREAKING CHANGE = major).
 changelog_config = "cliff.toml"
 
+# Falha fechado: `release` só publica quando o commit vem de uma Release PR
+# mergeada. Com o default (true), qualquer crate cuja versão local não está no
+# crates.io é publicado direto — em 2026-09-22 o job tentou publicar o
+# `serverust-auth` sem PR nenhuma e só não publicou porque não compilou.
+release_always = false
+
 # Habilita cargo-semver-checks para detectar breaking changes em código que
 # o autor marcou como `fix:` sem `!:` — protege contra patch release acidental.
 semver_check = true
 
-# Cria GitHub Releases para cada tag. Body = changelog do crate.
-git_release_enable = true
+# Tag e GitHub Release desligados no workspace e ligados só no crate âncora
+# (serverust-core), senão cada crate tentaria criar a mesma tag `vX.Y.Z`.
+git_tag_enable = false
+git_release_enable = false
 git_release_type = "auto"  # prerelease se versão tem -alpha/-beta/-rc
-
-# Tag pattern por crate — encaixa com release-plz workflow.
-git_tag_name = "{{ package }}-v{{ version }}"
 
 # Comentário no Release PR explicando o que mudou por crate.
 pr_branch_prefix = "release-plz/"
@@ -46,26 +54,40 @@ dependencies_update = true
 name = "serverust-macros"
 publish = true
 publish_features = []
+version_group = "workspace"
 
 [[package]]
 name = "serverust-core"
 publish = true
+version_group = "workspace"
+git_tag_enable = true
+git_tag_name = "v{{ version }}"
+git_release_enable = true
 
 [[package]]
 name = "serverust-telemetry"
 publish = true
+version_group = "workspace"
 
 [[package]]
 name = "serverust-events"
 publish = true
+version_group = "workspace"
 
 [[package]]
 name = "serverust-lambda"
 publish = true
+version_group = "workspace"
 
 [[package]]
 name = "serverust-cli"
 publish = true
+version_group = "workspace"
+
+[[package]]
+name = "serverust-auth"
+publish = true
+version_group = "workspace"
 
 # Crates internas que NÃO devem ser publicadas (examples, baselines, testes).
 [[package]]

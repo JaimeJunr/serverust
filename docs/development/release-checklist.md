@@ -2,7 +2,7 @@
 
 Checklist obrigatório para toda release. Referência canônica linkada em CLAUDE.md.
 
-A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada crate ganha tag próprio `<crate-name>-vX.Y.Z`. Pré-v0.4 usava workspace-wide unified versioning.
+**Versão única do workspace**: todos os crates `serverust-*` herdam `[workspace.package].version` (`version.workspace = true`) e a release gera uma tag só, `vX.Y.Z`. Per-crate foi planejado para a v0.4, mas nunca adotado — v0.4.0, v0.4.1 e v0.4.2 saíram com tag única.
 
 ---
 
@@ -26,8 +26,8 @@ A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada
 
 ### Decisão: workspace-wide vs per-crate
 
-- **Per-crate** (default a partir de v0.4): bump apenas o(s) crate(s) que mudaram. Tag `serverust-events-v0.3.1`.
-- **Workspace-wide** (legado v0.1.x..v0.3.x): bump `workspace.package.version` em `Cargo.toml`. Tag `v0.3.0`.
+- **Workspace-wide** (o que o projeto usa): bump `workspace.package.version` em `Cargo.toml`. Tag `v0.4.2`. É o que o `release-plz.toml` faz (`version_group = "workspace"`).
+- **Per-crate** (não adotado): exigiria tirar o `version.workspace = true` dos crates e voltar a tag para `<crate>-vX.Y.Z` no `release-plz.toml`.
 
 ### Etapas
 
@@ -62,14 +62,15 @@ A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Cada
 [`release-plz`](https://release-plz.dev) é Rust-native (inspirado pelo Google `release-please` mas otimizado pra Rust). Roda automaticamente em CI:
 
 1. **Você merge commits** no `main` seguindo Conventional Commits (`feat:`, `fix:`, `chore:`).
-2. **release-plz abre um Release PR** com bump de versão (per-crate, baseado nos commits) + CHANGELOG atualizado via git-cliff + breaking changes detectadas via cargo-semver-checks.
-3. **Você mergea o Release PR** → release-plz dispara `cargo publish` (na ordem certa) + cria git tags `<crate>-v<X.Y.Z>` + abre GitHub Release.
+2. **release-plz abre um Release PR** com o bump da versão do workspace (baseado nos commits) + breaking changes detectadas via cargo-semver-checks. O CHANGELOG **não** é gerado (`changelog_update = false`): mova o `[Unreleased]` para a nova versão num commit na própria Release PR.
+3. **Você mergea o Release PR** → release-plz dispara `cargo publish` (na ordem certa) + cria a tag `vX.Y.Z` + abre GitHub Release. Sem Release PR mergeada, o job `release` não publica nada (`release_always = false`).
 
 Configuração:
 - `release-plz.toml` na raiz — quais crates publicar, política de tags.
 - `cliff.toml` na raiz — template do CHANGELOG.
 - `.github/workflows/release-plz.yml` — CI workflow.
 - Secret `CARGO_REGISTRY_TOKEN` no environment GitHub (gere em https://crates.io/me).
+- Secret `RELEASE_PLZ_TOKEN`: PAT fine-grained só deste repo, com Contents e Pull requests em read/write. Com o `GITHUB_TOKEN` o GitHub recusa abrir a PR (403) e os checks exigidos do `main` não rodariam nela; o workflow reprova se o secret faltar.
 
 Trigger manual: vá em Actions → release-plz → "Run workflow".
 
