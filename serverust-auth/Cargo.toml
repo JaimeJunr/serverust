@@ -66,7 +66,7 @@ jsonwebtoken = { version = "11", default-features = false, features = [
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-serverust-macros = { path = "../serverust-macros", version = "0.5.0" }
+serverust-macros = { path = "../serverust-macros" }
 # Necessária para montar uma `Route` pública à mão no teste de ponta a ponta:
 # `Route::new` recebe uma `utoipa::openapi::path::Operation`. Sai quando a
 # macro `#[public]` existir e cobrir esse caso.
