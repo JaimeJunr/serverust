@@ -1,6 +1,6 @@
 # Análise Competitiva — Axum
 
-> Última atualização: 2026-05-16
+> Última atualização: 2026-09-26 (correção das claims de cold start)
 > Versão analisada: axum v0.8.x (2025/2026)
 > Fonte: https://github.com/tokio-rs/axum · https://docs.rs/axum
 
@@ -42,9 +42,9 @@ Axum pode rodar em Lambda via `lambda_http` (crate oficial da AWS). A integraç�
 
 - O usuário precisa chamar `lambda_http::run(app)` explicitamente.
 - Sem detecção automática de runtime (Lambda vs long-running).
-- Cold start: sem otimizações específicas para Lambda — o binário inclui todo o hyper stack, tipicamente resultando em >100ms no ARM64 128MB.
+- Cold start: **não é diferencial.** O motor do serverust é o próprio axum + `lambda_http`, então os dois ficam no mesmo patamar de um binário Rust puro — ~47 ms ARM64 / ~35 ms x86_64 a 128 MB no [lambda-perf](https://maxday.github.io/lambda-perf/) (medido em 2026-09-25). O que separa um do outro é o que o *seu* código faz no init, não o framework.
 
-serverust detecta `AWS_LAMBDA_FUNCTION_NAME` automaticamente e usa `serverust-lambda` sem config extra. O cold start é otimizado desde o design: binário stripped < 10MB, p95 < 50ms no ARM64 128MB.
+serverust detecta `AWS_LAMBDA_FUNCTION_NAME` automaticamente e usa `serverust-lambda` sem config extra. O ganho é de DX (zero cola entre HTTP local e Lambda), não de velocidade: o compromisso do serverust é **não perder** do Rust puro — binário stripped < 10MB e p95 < 50ms no ARM64 128MB como teto.
 
 ### OpenAPI
 
@@ -83,7 +83,7 @@ serverust tem `serverust-cli` com `new`, `generate`, `dev`, `build`, `deploy` e 
 | Dependency Injection nativo | ✅ | ❌ (State<Arc<T>> manual) |
 | CLI scaffolding | ✅ | ❌ |
 | Binário stripped < 10 MB | ✅ | ⚠️ (depende do projeto) |
-| Cold start < 50 ms (Lambda ARM64) | ✅ | ❌ (tipicamente >100ms) |
+| Cold start < 50 ms (Lambda ARM64) | ✅ | ✅ (mesmo motor) |
 | Middleware Tower | ⚠️ (API própria) | ✅ (ecosystem completo) |
 | WebSockets | ✅ (via axum-ws) | ✅ nativo |
 | Comunidade / ecossistema | menor | grande |
@@ -92,7 +92,7 @@ serverust tem `serverust-cli` com `new`, `generate`, `dev`, `build`, `deploy` e 
 
 ## Por que serverust sobre axum
 
-**Se o deployment é AWS Lambda**: serverust foi projetado para Lambda desde o primeiro commit. Axum pode rodar em Lambda, mas sem otimizações de cold start, sem detecção automática de runtime e sem event sources nativos — o resultado é mais boilerplate e cold starts mais altos.
+**Se o deployment é AWS Lambda**: serverust foi projetado para Lambda desde o primeiro commit. Axum roda em Lambda com o mesmo cold start, mas sem detecção automática de runtime e sem event sources nativos — o resultado é mais boilerplate, não mais latência.
 
 **Se o projeto usa Kafka/SQS junto com HTTP**: serverust unifica os dois em um projeto, com o mesmo DI e mesmas macros. Com Axum, o desenvolvedor mantém dois projetos separados com stacks diferentes.
 
@@ -114,4 +114,4 @@ serverust tem `serverust-cli` com `new`, `generate`, `dev`, `build`, `deploy` e 
 | HTTP + Kafka no mesmo projeto | **serverust** |
 | OpenAPI automático sem config manual | **serverust** |
 | DI escalável em projeto grande | **serverust** |
-| Cold start crítico em Lambda | **serverust** |
+| Cold start crítico em Lambda | **empate** — qualquer um dos dois; o ganho vem de Rust, não do framework |

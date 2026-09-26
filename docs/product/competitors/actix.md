@@ -1,6 +1,6 @@
 # Análise Competitiva — actix-web
 
-> Última atualização: 2026-05-16
+> Última atualização: 2026-09-26 (correção das claims de cold start)
 > Versão analisada: actix-web v4.13.0 (maio 2026)
 > Fonte: https://actix.rs · https://github.com/actix/actix-web/releases
 
@@ -51,7 +51,7 @@ actix-web é a escolha certa quando o requisito é throughput HTTP máximo em se
 | Binário stripped < 10 MB | ✅ | ✗ não otimizado para Lambda |
 | Cold start < 50 ms (Lambda ARM64) | ✅ | ✗ não aplicável ao modelo |
 
-**Ponto crítico sobre Lambda**: actix-web pode rodar em Lambda via `lambda_web` (crate community, não oficial). Entretanto, cold starts típicos são >100ms — o próprio repositório do projeto documenta overhead de inicialização em discussões de issues ([actix/actix-web#2785](https://github.com/actix/actix-web/issues/2785)) e benchmarks comunitários consistentemente registram >150ms no ARM64 128MB. Isso ultrapassa o SLO de 50ms p95 do serverust. A razão é estrutural: actix-web não foi projetado para inicialização única — assume um servidor persistente.
+**Ponto crítico sobre Lambda**: actix-web pode rodar em Lambda via `lambda_web` (crate community, não oficial). Não há benchmark público de cold start do actix-web em Lambda que sustente um número (versões anteriores desta página citavam ">100ms"/">150ms" sem fonte verificável — removido em 2026-09-26). O piso de um binário Rust em Lambda é ~47 ms ARM64 a 128 MB ([lambda-perf](https://maxday.github.io/lambda-perf/), 2026-09-25), e nada indica que actix fique muito acima disso. O problema real é outro: o adapter `lambda_web` não é oficial, e o modelo do actix (workers próprios, `HttpServer` persistente) não casa com o ciclo de uma invocação por vez.
 
 **Segundo gap**: event sources. actix-web é HTTP-only por design. Kafka, SQS, EventBridge e S3 events simplesmente não existem no modelo de programação. Para cobrir esses casos, o desenvolvedor precisa de um segundo binário com outra stack (lambda_runtime + rdkafka crus), duplicando boilerplate e context-switching.
 
@@ -74,7 +74,7 @@ serverust resolve isso com `serverust-events` (opt-in): o mesmo projeto, o mesmo
 | WebSockets em escala | **actix-web** |
 | AWS Lambda (HTTP e/ou Kafka/SQS) | **serverust** |
 | HTTP + Kafka no mesmo handler/projeto | **serverust** |
-| Cold start otimizado (edge, Lambda@Edge) | **serverust** |
+| Lambda com adapter oficial e cold start de Rust puro | **serverust** |
 | OpenAPI automático sem config manual | **serverust** |
 
 ---
@@ -83,4 +83,4 @@ serverust resolve isso com `serverust-events` (opt-in): o mesmo projeto, o mesmo
 
 actix-web e serverust não são concorrentes diretos em foco: actix-web maximiza throughput em servidor persistente; serverust maximiza DX e cold start em Lambda serverless.
 
-O risco real é um time que conhece actix-web e tenta portá-lo para Lambda — a experiência é frustrante (cold start alto, sem event sources, lambda_web não oficial). serverust foi desenhado para o modelo Lambda desde o primeiro commit, o que elimina esse atrito por construção.
+O risco real é um time que conhece actix-web e tenta portá-lo para Lambda — a experiência é frustrante (adapter `lambda_web` não oficial, modelo de servidor persistente, sem event sources). serverust foi desenhado para o modelo Lambda desde o primeiro commit, o que elimina esse atrito por construção.

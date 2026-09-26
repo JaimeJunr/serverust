@@ -115,3 +115,14 @@ Criado `docs/product/competitors/axum.md` com:
 | Cenário | serverust | axum-raw-kafka (baseline) | Ratio |
 |---|---|---|---|
 | Kafka handler completo | 16 LOC | 64 LOC | 4,0× menos LOC |
+
+---
+
+## Correção — 2026-09-26
+
+A entrada acima afirma "axum via `lambda_http` (manual, cold start >100ms)". **Isso estava errado** e foi corrigido em `axum.md`, `actix.md` e `loco.md`:
+
+- O motor do serverust é o próprio axum + `lambda_http`; os dois ficam no mesmo patamar de cold start.
+- Referência pública ([lambda-perf](https://maxday.github.io/lambda-perf/), dados de 2026-09-25, 128 MB, zip): Rust al2023 ~47 ms ARM64 / ~35 ms x86_64; Go ~63 ms ARM64; Python 3.12 ~75 ms ARM64.
+- O diferencial do serverust contra axum é DX (OpenAPI, DI, runtime dual, event sources), não velocidade. Contra Node/Python/Java, o ganho de cold start existe — e deve ser citado com a ressalva do caminho frio completo (ver `philosophy.md`).
+- Os ">150ms" do actix e as "centenas de milissegundos" do Loco não tinham fonte verificável e foram removidos.
