@@ -1,6 +1,6 @@
 # Análise Competitiva — Loco.rs
 
-> Última atualização: 2026-05-13
+> Última atualização: 2026-09-26 (correção das claims de cold start)
 > Versão analisada: Loco.rs v0.16.3 (julho 2025)
 > Fonte: https://loco.rs · https://github.com/loco-rs/loco
 
@@ -36,7 +36,7 @@ Loco.rs é a opção mais próxima de NestJS/Rails em termos de produtividade pa
 |---|:---:|:---:|
 | AWS Lambda nativo | ✅ | ❌ |
 | Runtime dual HTTP ↔ Lambda | ✅ | ❌ |
-| Cold start < 50 ms (Lambda ARM64) | ✅ | ❌ (framework pesado) |
+| Cold start < 50 ms (Lambda ARM64) | ✅ | ❌ (sem adapter Lambda) |
 | Binário stripped < 10 MB | ✅ | ❌ (muitas deps) |
 | Dependency Injection nativo | ✅ | ❌ |
 | OpenAPI 3.1 automático | ✅ | via plugin |
@@ -44,7 +44,7 @@ Loco.rs é a opção mais próxima de NestJS/Rails em termos de produtividade pa
 | Sem acoplamento a ORM | ✅ | ❌ (Sea-ORM obrigatório) |
 | Deploy serverless sem adapter | ✅ | ❌ |
 
-**Ponto crítico**: Loco.rs foi projetado para servidores long-running com banco de dados. O framework carrega ORM, migrator, jobs e mailers — tudo isso aumenta o tempo de cold start para centenas de milissegundos, inviabilizando uso em Lambda com requisitos de latência.
+**Ponto crítico**: Loco.rs foi projetado para servidores long-running com banco de dados. O framework carrega ORM, migrator, jobs e mailers, e o boot típico abre conexão com o banco — isso tende a pesar no cold start, embora não exista medição pública do Loco em Lambda (não há adapter oficial). O bloqueio concreto é a ausência de adapter, não um número de latência.
 
 **Segundo gap**: DI não é nativo. Apesar do CLI excelente, o Loco usa o pattern de State do Axum subjacente, sem container de injeção tipado. Para arquiteturas com múltiplos serviços abstraídos por trait, a solução é manual.
 
