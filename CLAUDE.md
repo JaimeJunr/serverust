@@ -56,15 +56,15 @@ Estas propriedades são compromissos públicos. Violá-las exige uma nova ADR ap
 
 ## Processo de Release
 
-A partir de v0.4: **per-crate independent versioning** (estilo tokio/axum). Tag por crate `<crate-name>-vX.Y.Z`. Pré-v0.4 usava workspace-wide unified versioning.
+**Versão única do workspace** (`version.workspace = true`, tag `vX.Y.Z`). Per-crate foi planejado para a v0.4 e nunca adotado.
 
 ### Fluxo recomendado (release-plz, automatizado via CI)
 
 [`release-plz`](https://release-plz.dev) é Rust-native, dispara automaticamente:
 
 1. Merge commits seguindo Conventional Commits (`feat:`, `fix:`, `chore:`) no `main`.
-2. release-plz abre Release PR com bump per-crate + CHANGELOG via git-cliff + cargo-semver-checks.
-3. Merge do Release PR → `cargo publish` (ordem certa) + git tags `<crate>-v<X.Y.Z>` + GitHub Release.
+2. release-plz abre Release PR com bump da versão do workspace + cargo-semver-checks. CHANGELOG é curado à mão: mova o `[Unreleased]` num commit na própria Release PR.
+3. Merge do Release PR → `cargo publish` (ordem certa) + tag `vX.Y.Z` + GitHub Release. Sem Release PR mergeada, nada é publicado (`release_always = false`).
 
 Configs:
 - `release-plz.toml` — quais crates publicar, política de tags.
@@ -72,7 +72,7 @@ Configs:
 - `cog.toml` — Conventional Commits via cocogitto.
 - `.github/workflows/release-plz.yml` — CI workflow.
 
-Pré-flight: secret `CARGO_REGISTRY_TOKEN` (gere em https://crates.io/me).
+Pré-flight: secrets `CARGO_REGISTRY_TOKEN` (gere em https://crates.io/me) e `RELEASE_PLZ_TOKEN` (PAT fine-grained do repo, Contents + Pull requests read/write — com o `GITHUB_TOKEN` a PR não abre e os checks exigidos não rodam).
 
 Trigger manual: Actions → release-plz → "Run workflow".
 

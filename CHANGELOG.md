@@ -86,6 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Release: o `release-plz` passa a seguir a versão única do workspace (tag `vX.Y.Z`, todos os crates `serverust-*` no mesmo `version_group`, incluindo o `serverust-auth`) e só publica a partir de Release PR mergeada (`release_always = false`). Antes, o job `release` publicava qualquer crate cuja versão local faltasse no crates.io — tentou subir o `serverust-auth` sem PR e só não subiu porque não compilou. O workflow agora exige o secret `RELEASE_PLZ_TOKEN` e reprova sem ele, em vez de usar o `GITHUB_TOKEN`, que não pode abrir a PR nem dispara os checks exigidos do `main`.
+
 - `serverust-auth`: `AuthLayer<C>` virou `AuthLayer<C, V = JwtAuth>`, genérico sobre o verificador. O default mantém `AuthLayer::<C>` significando o que sempre significou, então nenhum código existente quebra; com outro verificador, use `AuthLayer::<C, _>::new(auth)` e deixe a inferência resolver.
 
 - **CI**: `serverust-auth` com a feature `jwks` entrou nas combinações extras da matriz. Sem isso os testes de JWKS não rodariam no CI — exatamente o buraco que a matriz derivada fechou para crates, aplicado a uma feature.
