@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-26
+
 ### Added
 
 - `serverust-auth`: **revalidação do JWKS sob demanda**. Quando chega um token com `kid` desconhecido, o verificador rebusca o JWKS e tenta de novo — a requisição que encontrou a chave nova é atendida, não rejeitada. Fecha o último item em aberto da [ADR 0009](docs/development/decisions/0009-auth-authz-crate-separada-serverust-auth.md), que o [#54](https://github.com/JaimeJunr/serverust/pull/54) tinha declarado fora de escopo.
