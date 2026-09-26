@@ -142,5 +142,23 @@
     },
     "competitor_refs": null,
     "notes": "Coletado automaticamente por metrics_append.sh. cold_start_p95_ms (Lambda ARM64 128MB) exige invocação real na AWS — ver ADR 0008."
+  },
+  {
+    "version": "0.5.0",
+    "date": "2026-09-26",
+    "startup_local_p50_ms": 43,
+    "startup_local_samples": 5,
+    "cold_start_p95_ms": null,
+    "stripped_bytes": 3693672,
+    "loc_handler": 13,
+    "quality_gates": {
+      "fmt": true,
+      "lint": true,
+      "complexity": true,
+      "coverage_pct": null,
+      "mutation_score_pct": null
+    },
+    "competitor_refs": null,
+    "notes": "Coletado automaticamente por metrics_append.sh. cold_start_p95_ms (Lambda ARM64 128MB) exige invocação real na AWS — ver ADR 0008."
   }
 ]
