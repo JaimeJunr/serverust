@@ -36,14 +36,6 @@ ignore = [
     # Remover quando aws-sdk-rust migrar para h2 0.4
     # (acompanhar https://github.com/awslabs/aws-sdk-rust/issues).
     "RUSTSEC-2026-0258",  # h2 unbounded empty DATA frames
-
-    # proc-macro-error2 2.0.1 (transitive via validator_derive 0.20 → validator).
-    # É `unmaintained`, não vulnerabilidade — nenhum CVE associado.
-    # Impacto: proc-macro roda em build-time e não entra no binário final; não há
-    # superfície de ataque em runtime.
-    # Remover quando validator soltar release que troque a dep (o upstream já
-    # discute a migração; acompanhar https://github.com/Keats/validator).
-    "RUSTSEC-2026-0173",  # proc-macro-error2 is unmaintained
 ]
 
 [licenses]
